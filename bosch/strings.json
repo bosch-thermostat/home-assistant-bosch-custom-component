@@ -1,0 +1,32 @@
+{
+    "config": {
+        "title": "Bosch thermostat",
+        "step": {
+            "init": {
+              "title": "Bosch thermostat config",
+              "data": {
+                  "address": "IP address",
+                  "access_token": "Access token",
+                  "password": "Password"
+              }
+            },
+            "user": {
+              "title": "Bosch thermostat config",
+              "data": {
+                  "address": "IP address",
+                  "access_token": "Access token",
+                  "password": "Password",
+                  "TEST": "TEST BOOLEAN"
+              }
+            }
+        },
+        "error": {
+            "faulty_credentials": "Bad user credentials",
+            "service_unavailable": "No service available"
+        },
+        "abort": {
+            "already_configured": "Controller site is already configured",
+            "user_privilege": "User needs to be administrator"
+        }
+    }
+}
