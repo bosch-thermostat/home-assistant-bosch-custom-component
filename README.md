@@ -22,7 +22,7 @@ What should work:
 bosch:
   address: <IP ADDRESS>
   password: "YOUR GATEWAY PASSWORD"
-  access_key: "Access key to your gateway"
+  access_token: "Access key to your gateway"
 ```
 
 ### Integration.
