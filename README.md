@@ -2,7 +2,7 @@
 HA custom component for Bosch thermostat
 
 It is @alpha version of Bosch thermostat component.
-Toghether with @moustic999 we developed libary to communicate with Bosch gateway.
+Toghether with https://github.com/moustic999 we developed libary to communicate with Bosch gateway.
 Bosch gateways are used by Buderus as well.
 
 As Home Assistant is still missing some functions (scheduler, calendar, smarter water heater), 
