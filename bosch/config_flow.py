@@ -116,14 +116,14 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     async def setup_new_device(self, user_input, errors, websession):
         """Handle adding new device."""
         self.bosch_config[CONF_ADDRESS] = user_input[CONF_ADDRESS]
-        result = add_device(self.bosch_config[CONF_ADDRESS],
+        result = await add_device(self.bosch_config[CONF_ADDRESS],
                             user_input[CONF_PASSWORD],
                             user_input[CONF_ACCESS_TOKEN],
                             websession)
         if result['status'] == 1:
-            return self.save_entry(result.uuid,
+            return self.save_entry(result[UUID],
                                    self.bosch_config[CONF_ADDRESS],
-                                   result.access_key)
+                                   result[ACCESS_KEY])
         elif result['status'] == -1:
             errors['base'] = result.error
             return self.show_form(errors, user_input[CONF_ADDRESS])
@@ -167,6 +167,10 @@ async def add_device(address, password, token, websession):
                 UUID: uuid,
                 ACCESS_KEY: access_key
             }
+        _LOGGER.error(
+            'Unknown error connecting with Bosch thermostat at %s %s %s',
+            address, uuid, access_key)
+        raise Exception
     except RequestError:
         return {
             "status": -1,

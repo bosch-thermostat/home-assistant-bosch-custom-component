@@ -23,7 +23,7 @@ from .config_flow import BoschFlowHandler
 from .const import (
     ACCESS_KEY, DHW_UPDATE_KEYS, DOMAIN, HCS_UPDATE_KEYS, STORAGE_KEY,
     STORAGE_VERSION, SUPPORTED_PLATFORMS, SIGNAL_SENSOR_UPDATE_BOSCH,
-    SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_CLIMATE_UPDATE_BOSCH)
+    SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_CLIMATE_UPDATE_BOSCH, GATEWAY)
 
 SCAN_INTERVAL = timedelta(seconds=30)
 
@@ -78,7 +78,7 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
             DHW, uuid, prefs[uuid], gateway))
         (await initialize_component(
             "sensors", uuid, bosch_sensors(current_firmware), gateway))
-        hass.data[DOMAIN][uuid] = {'gateway': gateway}
+        hass.data[DOMAIN][uuid] = { GATEWAY: gateway}
         if need_saving1 or need_saving2:
             await store.async_save(prefs)
         for component in SUPPORTED_PLATFORMS:
