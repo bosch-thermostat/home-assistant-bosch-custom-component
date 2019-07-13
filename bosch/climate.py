@@ -15,6 +15,7 @@ from homeassistant.components.climate.const import (
 from homeassistant.const import (
     TEMP_CELSIUS, TEMP_FAHRENHEIT, ATTR_TEMPERATURE)
 
+
 from .const import DOMAIN, SIGNAL_CLIMATE_UPDATE_BOSCH, GATEWAY
 
 _LOGGER = logging.getLogger(__name__)

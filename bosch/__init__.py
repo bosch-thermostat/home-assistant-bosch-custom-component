@@ -1,6 +1,7 @@
 """Platform to control a Bosch IP thermostats units."""
 from datetime import timedelta
 import logging
+import json
 import voluptuous as vol
 
 from bosch_thermostat_http.const import (
@@ -11,13 +12,17 @@ from bosch_thermostat_http.errors import SensorNoLongerAvailable
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    CONF_ADDRESS, CONF_PASSWORD, CONF_ACCESS_TOKEN)
+    ATTR_ENTITY_ID, CONF_ADDRESS, CONF_PASSWORD, CONF_ACCESS_TOKEN)
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.event import (
     async_track_time_interval, async_call_later)
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+
+
+from homeassistant.helpers.entity_component import EntityComponent
+
 
 from .config_flow import BoschFlowHandler
 from .const import (
@@ -27,6 +32,11 @@ from .const import (
 
 SCAN_INTERVAL = timedelta(seconds=30)
 
+SERVICE_DEBUG = 'debug_scan'
+
+SERVICE_DEBUG_SCHEMA = vol.Schema({
+    vol.Optional(ATTR_ENTITY_ID): cv.string,
+})
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -108,8 +118,30 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         dispatcher_send(hass, SIGNAL_SENSOR_UPDATE_BOSCH)
         _LOGGER.debug("Bosch thermostat entitites updated.")
 
-    # hass.services.register(DOMAIN, 'update', thermostat_refresh)
+    async def async_handle_debug_service(service_call):
+        mydata = {
+            "myvalue": "val1"
+        }
+        # print(filename)
+        
+        filename = hass.config.path("www/bosch_scan.json")
 
+        def _write_to_filr(to_file, text):
+            """Executor helper to write image."""
+            with open(to_file, 'w') as logfile:
+                json.dump(mydata, logfile)
+            url = "{}{}".format(hass.config.api.base_url,
+                                "/local/bosch_scan.json")
+            _LOGGER.info("Rawscan success. Your URL: {}".format(url))
+        try:
+            await hass.async_add_executor_job(_write_to_filr, filename, json)
+        except OSError as err:
+            _LOGGER.error("Can't write image to file: %s", err)
+
+    # hass.services.register(DOMAIN, 'update', thermostat_refresh)
+    hass.services.async_register(
+        DOMAIN, SERVICE_DEBUG, async_handle_debug_service,
+        SERVICE_DEBUG_SCHEMA)
     # Repeat running every 30 seconds.
     async_track_time_interval(hass, thermostat_refresh, SCAN_INTERVAL)
     return True
