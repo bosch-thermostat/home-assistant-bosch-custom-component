@@ -31,6 +31,7 @@ If applicable, add screenshots to help explain your problem.
 ** Debug SCAN **
 ** IMPORTANT **
 Go to Developer tools in Home Assistant, choose Service tab and choose `bosch.debug_scan`
+Download file to your computer and upload it somewhere eg. https://jsonblob.com/
 
 **Additional context**
 Add any other context about the problem here.
