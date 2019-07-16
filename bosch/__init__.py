@@ -1,6 +1,7 @@
 """Platform to control a Bosch IP thermostats units."""
 from datetime import timedelta
 import logging
+import random
 import json
 import voluptuous as vol
 
@@ -119,22 +120,23 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         _LOGGER.debug("Bosch thermostat entitites updated.")
 
     async def async_handle_debug_service(service_call):
-        mydata = {
-            "myvalue": "val1"
-        }
-        # print(filename)
-        
         filename = hass.config.path("www/bosch_scan.json")
 
-        def _write_to_filr(to_file, text):
+        def _write_to_filr(to_file, rawscan):
             """Executor helper to write image."""
             with open(to_file, 'w') as logfile:
-                json.dump(mydata, logfile)
+                json.dump(rawscan, logfile, indent=4)
+            
             url = "{}{}".format(hass.config.api.base_url,
                                 "/local/bosch_scan.json")
-            _LOGGER.info("Rawscan success. Your URL: {}".format(url))
+            
+            _LOGGER.info("Rawscan success. Your URL: {}?v{}".format(
+                url, random.randint(0, 5000)))
         try:
-            await hass.async_add_executor_job(_write_to_filr, filename, json)
+            _LOGGER.info("Starting rawscan of Bosch component")
+            rawscan = await gateway.rawscan()
+            await hass.async_add_executor_job(_write_to_filr, filename,
+                                              rawscan)
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
 
