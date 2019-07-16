@@ -38,6 +38,12 @@ PS. Autodiscovery not available for custom components.
 Any help appreciated.
 Open PR or issue.
 
+Always attach debugscan if you have any troubles or something is missing.
+To make debugscan go to HA developer tools -> Services and choose
+**bosch.debug_scan** .
+
+Download json file and attach it somewhere.
+
 ## Debugging
 Example logger config for debugging:
 
