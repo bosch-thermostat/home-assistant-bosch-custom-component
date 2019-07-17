@@ -2,19 +2,21 @@
 import logging
 
 
-from bosch_thermostat_http.const import (OPERATION_MODE,
+from bosch_thermostat_http.const import (OPERATION_MODE, HC_MODE_AUTO,
+                                         HC_MODE_MANUAL,
                                          HC_HOLIDAY_MODE,
                                          HC_HEATING_STATUS,
                                          SYSTEM_BRAND, FIRMWARE_VERSION,
                                          SYSTEM_TYPE, VALUE, ALLOWED_VALUES)
 from homeassistant.components.climate import ClimateDevice
 from homeassistant.components.climate.const import (
-    STATE_MANUAL, STATE_IDLE, STATE_AUTO, SUPPORT_TARGET_TEMPERATURE,
-    SUPPORT_OPERATION_MODE)
+    HVAC_MODE_HEAT, HVAC_MODE_AUTO, HVAC_MODE_OFF, SUPPORT_TARGET_TEMPERATURE,
+    SERVICE_SET_HVAC_MODE)
 from homeassistant.const import (
-    TEMP_CELSIUS, TEMP_FAHRENHEIT, ATTR_TEMPERATURE, STATE_OFF)
+    TEMP_CELSIUS, TEMP_FAHRENHEIT, ATTR_TEMPERATURE)
 
-from .const import DOMAIN, SIGNAL_CLIMATE_UPDATE_BOSCH
+
+from .const import DOMAIN, SIGNAL_CLIMATE_UPDATE_BOSCH, GATEWAY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,8 +25,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch thermostat from a config entry."""
     uuid = config_entry.title
     data = hass.data[DOMAIN][uuid]
-    data['hcs'] = [BoschThermostat(hass, uuid, hc, data['gateway'])
-                   for hc in data['gateway'].heating_circuits]
+    data['hcs'] = [BoschThermostat(hass, uuid, hc, data[GATEWAY])
+                   for hc in data[GATEWAY].heating_circuits]
     async_add_entities(data['hcs'])
     return True
 
@@ -53,13 +55,6 @@ class BoschThermostat(ClimateDevice):
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._gateway = gateway
-        self._possible_operations = {
-            'ACTIVE': STATE_MANUAL
-        }
-        self._support_flags = (SUPPORT_TARGET_TEMPERATURE |
-                               SUPPORT_OPERATION_MODE)
-        # self.hass.helpers.dispatcher.dispatcher_connect(
-        #     SIGNAL_UPDATE_BOSCH, self.update)
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -98,7 +93,7 @@ class BoschThermostat(ClimateDevice):
     @property
     def supported_features(self):
         """Return the list of supported features."""
-        return self._support_flags
+        return SUPPORT_TARGET_TEMPERATURE
 
     @property
     def temperature_unit(self):
@@ -125,10 +120,10 @@ class BoschThermostat(ClimateDevice):
         """Return the holiday mode state."""
         return self._holiday_mode
 
-    async def async_set_operation_mode(self, operation_mode):
+    async def async_set_hvac_mode(self, operation_mode):
         """Set operation mode."""
         _LOGGER.debug("Setting operation mode %s.", operation_mode)
-        if self._mode and operation_mode in (STATE_AUTO, STATE_MANUAL):
+        if self._mode and operation_mode in (HVAC_MODE_AUTO, HVAC_MODE_HEAT):
             self._mode[VALUE] = await\
                 self._hc.set_operation_mode(operation_mode)
             _LOGGER.debug("Set operation mode to %s.", self._mode[VALUE])
@@ -147,19 +142,17 @@ class BoschThermostat(ClimateDevice):
             await self.async_update_ha_state()
 
     @property
-    def current_operation(self):
+    def hvac_mode(self):
         """Return current operation ie. heat, cool, idle."""
         if self._mode:
-            if not self._mode[VALUE]:
-                return STATE_IDLE
-            if self._mode[VALUE] == STATE_AUTO:
-                return STATE_AUTO
-            if self._mode[VALUE] == STATE_MANUAL:
-                return STATE_MANUAL
-        return STATE_OFF
+            if self._mode[VALUE] == HC_MODE_AUTO:
+                return HVAC_MODE_AUTO
+            if self._mode[VALUE] == HC_MODE_MANUAL:
+                return HVAC_MODE_HEAT
+        return HVAC_MODE_OFF
 
     @property
-    def operation_list(self):
+    def hvac_modes(self):
         """List of available operation modes."""
         if self._mode:
             return self._mode.get(ALLOWED_VALUES)

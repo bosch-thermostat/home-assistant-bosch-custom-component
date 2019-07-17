@@ -12,6 +12,8 @@ DOMAIN = "bosch"
 ACCESS_KEY = "access_key"
 UUID = 'uuid'
 
+GATEWAY = 'gateway'
+
 SUPPORTED_PLATFORMS = [
     'climate',
     'sensor',

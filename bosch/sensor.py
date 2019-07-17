@@ -3,12 +3,13 @@ import logging
 
 from bosch_thermostat_http.const import (VALUE, UNITS, MINVALUE, MAXVALUE,
                                          STATE, OPEN, SHORT, INVALID,
-                                         ALLOWED_VALUES)
+                                         ALLOWED_VALUES, SYSTEM_BRAND,
+                                         SYSTEM_TYPE, FIRMWARE_VERSION)
 from homeassistant.helpers.entity import Entity
 from homeassistant.const import (
     TEMP_CELSIUS, TEMP_FAHRENHEIT)
 
-from .const import DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH
+from .const import DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH, GATEWAY
 
 UNITS_CONVERTER = {
     'C': TEMP_CELSIUS,
@@ -39,8 +40,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
     uuid = config_entry.title
     data = hass.data[DOMAIN][uuid]
-    data['sensors'] = [BoschSensor(hass, uuid, sensor)
-                       for sensor in data['gateway'].sensors]
+    data['sensors'] = [BoschSensor(hass, uuid, sensor, data[GATEWAY])
+                       for sensor in data[GATEWAY].sensors]
     async_add_entities(data['sensors'])
     return True
 
@@ -48,15 +49,16 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class BoschSensor(Entity):
     """Representation of a Bosch sensor."""
 
-    def __init__(self, hass, uuid, sensor):
+    def __init__(self, hass, uuid, sensor, gateway):
         """Initialize the sensor."""
         self.hass = hass
         self._sensor = sensor
+        self._gateway = gateway
         self._name = self._sensor.name
         self._state = None
         self._unit_of_measurement = None
         self._uuid = uuid
-        self._unique_id = self._sensor.name+self._sensor.attr_id
+        self._unique_id = self._name+self._uuid
         self._attrs = {}
         # self.hass.helpers.dispatcher.dispatcher_connect(
         #     SIGNAL_UPDATE_BOSCH, self.update)
@@ -72,9 +74,28 @@ class BoschSensor(Entity):
         return self._name
 
     @property
+    def device_info(self):
+        """Get attributes about the device."""
+        return {
+            'identifiers': {
+                (DOMAIN, 'Sensors'+self._uuid)
+            },
+            'manufacturer': self._gateway.get_info(SYSTEM_BRAND),
+            'model': self._gateway.get_info(SYSTEM_TYPE),
+            'name': 'Bosch sensors',
+            'sw_version': self._gateway.get_info(FIRMWARE_VERSION),
+            'via_hub': (DOMAIN, self._uuid)
+        }
+
+    @property
     def upstream_object(self):
         """Return upstream component. Used for refreshing."""
         return self._sensor
+
+    @property
+    def unique_id(self):
+        """Return unique ID for this device."""
+        return self._unique_id
 
     @property
     def state(self):
