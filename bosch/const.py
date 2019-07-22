@@ -13,6 +13,9 @@ ACCESS_KEY = "access_key"
 UUID = 'uuid'
 
 GATEWAY = 'gateway'
+CLIMATE = 'climate'
+SENSOR = 'sensor'
+WATER_HEATER = 'water_heater'
 
 SUPPORTED_PLATFORMS = [
     'climate',

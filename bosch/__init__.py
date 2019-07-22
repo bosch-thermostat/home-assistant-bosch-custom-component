@@ -28,7 +28,7 @@ from homeassistant.helpers.entity_component import EntityComponent
 from .config_flow import BoschFlowHandler
 from .const import (
     ACCESS_KEY, DHW_UPDATE_KEYS, DOMAIN, HCS_UPDATE_KEYS, STORAGE_KEY,
-    STORAGE_VERSION, SUPPORTED_PLATFORMS, SIGNAL_SENSOR_UPDATE_BOSCH,
+    STORAGE_VERSION, SIGNAL_SENSOR_UPDATE_BOSCH, CLIMATE, WATER_HEATER, SENSOR,
     SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_CLIMATE_UPDATE_BOSCH, GATEWAY)
 
 SCAN_INTERVAL = timedelta(seconds=30)
@@ -66,6 +66,7 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
     import bosch_thermostat_http as bosch
     _LOGGER.debug("Setting up Bosch component.")
+    SUPPORTED_PLATFORMS = []
     websession = async_get_clientsession(hass, verify_ssl=False)
     uuid = entry.title
     if entry.data[CONF_ADDRESS] and entry.data[ACCESS_KEY]:
@@ -83,13 +84,22 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         current_firmware = gateway.get_info(FIRMWARE_VERSION)
         if prefs is None:
             prefs = {uuid: {"uuid": uuid, FIRMWARE_VERSION: current_firmware}}
-        prefs[uuid], need_saving1 = (await initialize_component(
+        hcs, need_saving1 = (await initialize_component(
             HC, uuid, prefs[uuid], gateway))
-        prefs[uuid], need_saving2 = (await initialize_component(
+        if hcs:
+            SUPPORTED_PLATFORMS.append(CLIMATE)
+            prefs[uuid] = hcs
+        water_heaters, need_saving2 = (await initialize_component(
             DHW, uuid, prefs[uuid], gateway))
-        (await initialize_component(
+        if water_heaters:
+            SUPPORTED_PLATFORMS.append(WATER_HEATER)
+            # This is HCS and water heater object.
+            prefs[uuid] = water_heaters
+        sensors, need_saving3 = (await initialize_component(
             "sensors", uuid, bosch_sensors(current_firmware), gateway))
-        hass.data[DOMAIN][uuid] = { GATEWAY: gateway}
+        if sensors:
+            SUPPORTED_PLATFORMS.append(SENSOR)
+        hass.data[DOMAIN][uuid] = {GATEWAY: gateway}
         if need_saving1 or need_saving2:
             await store.async_save(prefs)
         for component in SUPPORTED_PLATFORMS:
@@ -111,13 +121,21 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         """Call Bosch to refresh information."""
         _LOGGER.debug("Updating Bosch thermostat entitites.")
         data = hass.data[DOMAIN][uuid]
-        await circuit_update(data['hcs'], HCS_UPDATE_KEYS)
-        dispatcher_send(hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
-        await circuit_update(data['dhws'], DHW_UPDATE_KEYS)
-        dispatcher_send(hass, SIGNAL_DHW_UPDATE_BOSCH)
-        await sensors_update(data['sensors'])
-        dispatcher_send(hass, SIGNAL_SENSOR_UPDATE_BOSCH)
-        _LOGGER.debug("Bosch thermostat entitites updated.")
+        updated = False
+        if CLIMATE in SUPPORTED_PLATFORMS:
+            await circuit_update(data['hcs'], HCS_UPDATE_KEYS)
+            dispatcher_send(hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
+            updated = True
+        if WATER_HEATER in SUPPORTED_PLATFORMS:
+            await circuit_update(data['dhws'], DHW_UPDATE_KEYS)
+            dispatcher_send(hass, SIGNAL_DHW_UPDATE_BOSCH)
+            updated = True
+        if SENSOR in SUPPORTED_PLATFORMS:
+            await sensors_update(data['sensors'])
+            dispatcher_send(hass, SIGNAL_SENSOR_UPDATE_BOSCH)
+            updated = True
+        if updated:
+            _LOGGER.debug("Bosch thermostat entitites updated.")
 
     async def async_handle_debug_service(service_call):
         filename = hass.config.path("www/bosch_scan.json")
@@ -168,10 +186,11 @@ async def sensors_update(sensors):
 
 async def initialize_component(component_type, uuid, components, gateway):
     """Initialize component."""
-    equal_firmware = (gateway.get_info(FIRMWARE_VERSION) ==
-                      components[FIRMWARE_VERSION])
+    if components is None:
+        return False, False
     components[component_type] = ([] if component_type not in components or
-                                  not equal_firmware
+                                  not (gateway.get_info(FIRMWARE_VERSION) ==
+                                       components[FIRMWARE_VERSION])
                                   else components[component_type])
     if component_type == "sensors":
         await gateway.initialize_sensors(components[component_type])
