@@ -1,35 +1,30 @@
 """Platform to control a Bosch IP thermostats units."""
-from datetime import timedelta
+import json
 import logging
 import random
-import json
-import voluptuous as vol
+from datetime import timedelta
 
-from bosch_thermostat_http.const import (
-    DHW, FIRMWARE_VERSION, HC, SYSTEM_BRAND, SYSTEM_TYPE)
-from bosch_thermostat_http.db import bosch_sensors
+import voluptuous as vol
+from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE
 from bosch_thermostat_http.errors import SensorNoLongerAvailable
 
+import homeassistant.helpers.config_validation as cv
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_ENTITY_ID, CONF_ADDRESS, CONF_PASSWORD, CONF_ACCESS_TOKEN)
-import homeassistant.helpers.config_validation as cv
+from homeassistant.const import (ATTR_ENTITY_ID, CONF_ACCESS_TOKEN,
+                                 CONF_ADDRESS, CONF_PASSWORD)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import dispatcher_send
-from homeassistant.helpers.event import (
-    async_track_time_interval, async_call_later)
+from homeassistant.helpers.entity_component import EntityComponent
+from homeassistant.helpers.event import (async_call_later,
+                                         async_track_time_interval)
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 
-
-from homeassistant.helpers.entity_component import EntityComponent
-
-
 from .config_flow import BoschFlowHandler
-from .const import (
-    ACCESS_KEY, DHW_UPDATE_KEYS, DOMAIN, HCS_UPDATE_KEYS, STORAGE_KEY,
-    STORAGE_VERSION, SIGNAL_SENSOR_UPDATE_BOSCH, CLIMATE, WATER_HEATER, SENSOR,
-    SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_CLIMATE_UPDATE_BOSCH, GATEWAY)
+from .const import (ACCESS_KEY, CLIMATE, DATABASE, DHWS, DOMAIN, GATEWAY, HCS,
+                    SENSOR, SENSORS, SIGNAL_CLIMATE_UPDATE_BOSCH,
+                    SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_SENSOR_UPDATE_BOSCH,
+                    STORAGE_KEY, STORAGE_VERSION, WATER_HEATER)
 
 SCAN_INTERVAL = timedelta(seconds=30)
 
@@ -75,33 +70,30 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
                                 entry.data[ACCESS_KEY])
         store = hass.helpers.storage.Store(STORAGE_VERSION, STORAGE_KEY)
         prefs = await store.async_load()
+        prefs = {} if prefs is None else {}
+        database = prefs.get(uuid, {}).get(DATABASE, None)
         _LOGGER.debug("Checking connection to Bosch gateway.")
-        if not await gateway.check_connection():
+        if not await gateway.check_connection(database):
             _LOGGER.error(
                 "Cannot connect to Bosch gateway, host %s with UUID: %s",
                 entry.data[CONF_ADDRESS], uuid)
             return False
-        current_firmware = gateway.get_info(FIRMWARE_VERSION)
-        if prefs is None:
-            prefs = {uuid: {"uuid": uuid, FIRMWARE_VERSION: current_firmware}}
-        hcs, need_saving1 = (await initialize_component(
-            HC, uuid, prefs[uuid], gateway))
-        if hcs:
+        if await gateway.initialize_circuits(HC):
             SUPPORTED_PLATFORMS.append(CLIMATE)
-            prefs[uuid] = hcs
-        water_heaters, need_saving2 = (await initialize_component(
-            DHW, uuid, prefs[uuid], gateway))
-        if water_heaters:
+        if await gateway.initialize_circuits(DHW):
             SUPPORTED_PLATFORMS.append(WATER_HEATER)
-            # This is HCS and water heater object.
-            prefs[uuid] = water_heaters
-        sensors, need_saving3 = (await initialize_component(
-            "sensors", uuid, bosch_sensors(current_firmware), gateway))
-        if sensors:
+        if await gateway.initialize_sensors():
             SUPPORTED_PLATFORMS.append(SENSOR)
-        hass.data[DOMAIN][uuid] = {GATEWAY: gateway}
-        if need_saving1 or need_saving2:
+        if not database:
+            prefs = {
+                uuid: {
+                    DATABASE: gateway.database
+                }
+            }
             await store.async_save(prefs)
+        hass.data[DOMAIN][uuid] = {
+            GATEWAY: gateway
+        }
         for component in SUPPORTED_PLATFORMS:
             hass.async_create_task(
                 hass.config_entries.async_forward_entry_setup(entry,
@@ -114,7 +106,7 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
             manufacturer=gateway.get_info(SYSTEM_BRAND),
             model=gateway.get_info(SYSTEM_TYPE),
             name="Gateway iCom_Low_NSC_v1",
-            sw_version=current_firmware)
+            sw_version=gateway.firmware)
         _LOGGER.debug("Bosch component registered.")
 
     async def thermostat_refresh(event_time):
@@ -123,15 +115,15 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         data = hass.data[DOMAIN][uuid]
         updated = False
         if CLIMATE in SUPPORTED_PLATFORMS:
-            await circuit_update(data['hcs'], HCS_UPDATE_KEYS)
+            await circuit_update(data[HCS])
             dispatcher_send(hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
             updated = True
         if WATER_HEATER in SUPPORTED_PLATFORMS:
-            await circuit_update(data['dhws'], DHW_UPDATE_KEYS)
+            await circuit_update(data[DHWS])
             dispatcher_send(hass, SIGNAL_DHW_UPDATE_BOSCH)
             updated = True
         if SENSOR in SUPPORTED_PLATFORMS:
-            await sensors_update(data['sensors'])
+            await sensors_update(data[SENSORS])
             dispatcher_send(hass, SIGNAL_SENSOR_UPDATE_BOSCH)
             updated = True
         if updated:
@@ -144,10 +136,8 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
             """Executor helper to write image."""
             with open(to_file, 'w') as logfile:
                 json.dump(rawscan, logfile, indent=4)
-            
             url = "{}{}".format(hass.config.api.base_url,
                                 "/local/bosch_scan.json")
-            
             _LOGGER.info("Rawscan success. Your URL: {}?v{}".format(
                 url, random.randint(0, 5000)))
         try:
@@ -167,11 +157,12 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     return True
 
 
-async def circuit_update(circuits, keys_to_update):
+async def circuit_update(circuits):
     """Update upstream circuit."""
+    print("www")
+    print(circuits)
     for circuit in circuits:
-        for dest in keys_to_update:
-            await circuit.upstream_object.update_requested_key(dest)
+        await circuit.upstream_object.update()
 
 
 async def sensors_update(sensors):
@@ -182,32 +173,3 @@ async def sensors_update(sensors):
         except SensorNoLongerAvailable:
             _LOGGER.warning("Sensor %s is no longer available.",
                             sensor.name)
-
-
-async def initialize_component(component_type, uuid, components, gateway):
-    """Initialize component."""
-    if components is None:
-        return False, False
-    components[component_type] = ([] if component_type not in components or
-                                  not (gateway.get_info(FIRMWARE_VERSION) ==
-                                       components[FIRMWARE_VERSION])
-                                  else components[component_type])
-    if component_type == "sensors":
-        await gateway.initialize_sensors(components[component_type])
-        component_list = gateway.sensors
-    else:
-        await gateway.initialize_circuits(component_type,
-                                          components[component_type])
-        component_list = gateway.get_circuits(component_type)
-    need_saving = False
-    if not components[component_type]:
-        for component in component_list:
-            if component_type == "sensors":
-                components[component_type].append({"id": component.attr_id})
-            else:
-                components[component_type].append({
-                    "id": component.attr_id,
-                    "references": component.json_scheme
-                })
-        need_saving = True
-    return components, need_saving

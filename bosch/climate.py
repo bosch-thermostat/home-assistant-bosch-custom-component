@@ -1,22 +1,18 @@
 """Support for Bosch Thermostat Climate."""
 import logging
 
+from bosch_thermostat_http.const import (OPERATION_MODE, STATUS,
+                                         SYSTEM_BRAND, SYSTEM_TYPE)
 
-from bosch_thermostat_http.const import (OPERATION_MODE, HC_MODE_AUTO,
-                                         HC_MODE_MANUAL,
-                                         HC_HOLIDAY_MODE,
-                                         HC_HEATING_STATUS,
-                                         SYSTEM_BRAND, FIRMWARE_VERSION,
-                                         SYSTEM_TYPE, VALUE, ALLOWED_VALUES)
 from homeassistant.components.climate import ClimateDevice
-from homeassistant.components.climate.const import (
-    HVAC_MODE_HEAT, HVAC_MODE_AUTO, HVAC_MODE_OFF, SUPPORT_TARGET_TEMPERATURE,
-    SERVICE_SET_HVAC_MODE)
-from homeassistant.const import (
-    TEMP_CELSIUS, TEMP_FAHRENHEIT, ATTR_TEMPERATURE)
+from homeassistant.components.climate.const import (HVAC_MODE_AUTO,
+                                                    HVAC_MODE_HEAT,
+                                                    HVAC_MODE_OFF,
+                                                    SERVICE_SET_HVAC_MODE,
+                                                    SUPPORT_TARGET_TEMPERATURE)
+from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, TEMP_FAHRENHEIT
 
-
-from .const import DOMAIN, SIGNAL_CLIMATE_UPDATE_BOSCH, GATEWAY
+from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,9 +21,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch thermostat from a config entry."""
     uuid = config_entry.title
     data = hass.data[DOMAIN][uuid]
-    data['hcs'] = [BoschThermostat(hass, uuid, hc, data[GATEWAY])
-                   for hc in data[GATEWAY].heating_circuits]
-    async_add_entities(data['hcs'])
+    data[HCS] = [BoschThermostat(hass, uuid, hc, data[GATEWAY])
+                 for hc in data[GATEWAY].heating_circuits]
+    async_add_entities(data[HCS])
     return True
 
 
@@ -49,12 +45,17 @@ class BoschThermostat(ClimateDevice):
         self._current_temperature = None
         self._temperature_unit = TEMP_CELSIUS
         self._holiday_mode = None
-        self._mode = None
+        self._mode = {}
         self._state = None
         self._operation_list = None
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._gateway = gateway
+        self._op_modes = {
+            HVAC_MODE_AUTO: self._hc.strings.auto,
+            HVAC_MODE_HEAT: self._hc.strings.manual
+        }
+        self._op_modes_inv = {v: k for k, v in self._op_modes.items()}
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -71,7 +72,7 @@ class BoschThermostat(ClimateDevice):
             'manufacturer': self._gateway.get_info(SYSTEM_BRAND),
             'model': self._gateway.get_info(SYSTEM_TYPE),
             'name': 'Heating circuit ' + self._name,
-            'sw_version': self._gateway.get_info(FIRMWARE_VERSION),
+            'sw_version': self._gateway.firmware,
             'via_hub': (DOMAIN, self._uuid)
         }
 
@@ -123,10 +124,12 @@ class BoschThermostat(ClimateDevice):
     async def async_set_hvac_mode(self, operation_mode):
         """Set operation mode."""
         _LOGGER.debug("Setting operation mode %s.", operation_mode)
-        if self._mode and operation_mode in (HVAC_MODE_AUTO, HVAC_MODE_HEAT):
-            self._mode[VALUE] = await\
-                self._hc.set_operation_mode(operation_mode)
-            _LOGGER.debug("Set operation mode to %s.", self._mode[VALUE])
+        op_mode = self._op_modes.get(operation_mode)
+        if op_mode and op_mode != self._mode.get(self._hc.strings.val):
+            self._mode[self._hc.strings.val] = await\
+                self._hc.set_operation_mode(op_mode)
+            _LOGGER.debug("Set operation mode to %s.",
+                          self._mode[self._hc.strings.val])
             return True
         self._mode = self._hc.get_property(OPERATION_MODE)
         return False
@@ -144,18 +147,16 @@ class BoschThermostat(ClimateDevice):
     @property
     def hvac_mode(self):
         """Return current operation ie. heat, cool, idle."""
-        if self._mode:
-            if self._mode[VALUE] == HC_MODE_AUTO:
-                return HVAC_MODE_AUTO
-            if self._mode[VALUE] == HC_MODE_MANUAL:
-                return HVAC_MODE_HEAT
-        return HVAC_MODE_OFF
+        print("shishis")
+        print(self._mode)
+        print(self._hc.get_property(OPERATION_MODE))
+        return self._op_modes_inv.get(self._mode.get(self._hc.strings.val),
+                                      HVAC_MODE_OFF)
 
     @property
     def hvac_modes(self):
         """List of available operation modes."""
-        if self._mode:
-            return self._mode.get(ALLOWED_VALUES)
+        return self._mode.get(self._hc.strings.allowed_values)
 
     def update(self):
         """Update state of device."""
@@ -163,9 +164,9 @@ class BoschThermostat(ClimateDevice):
         if (not self._hc or not self._hc.json_scheme_ready or
                 not self._hc.update_initialized):
             return
-        self._state = self._hc.get_value(HC_HEATING_STATUS)
+        self._state = self._hc.get_value(STATUS)
         self._temperature_unit = (TEMP_FAHRENHEIT if self._hc.temp_units == 'F'
                                   else TEMP_CELSIUS)
-        self._holiday_mode = self._hc.get_value(HC_HOLIDAY_MODE)
+        # self._holiday_mode = self._hc.get_value(HC_HOLIDAY_MODE)
         self._mode = self._hc.get_property(OPERATION_MODE)
         _LOGGER.debug("Retrieved mode %s", self._mode)

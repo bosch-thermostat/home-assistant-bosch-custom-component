@@ -116,10 +116,9 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     async def setup_new_device(self, user_input, errors, websession):
         """Handle adding new device."""
         self.bosch_config[CONF_ADDRESS] = user_input[CONF_ADDRESS]
-        result = await add_device(self.bosch_config[CONF_ADDRESS],
-                            user_input[CONF_PASSWORD],
-                            user_input[CONF_ACCESS_TOKEN],
-                            websession)
+        result = await add_device(
+            self.bosch_config[CONF_ADDRESS], user_input[CONF_PASSWORD],
+            user_input[CONF_ACCESS_TOKEN], websession)
         if result['status'] == 1:
             return self.save_entry(result[UUID],
                                    self.bosch_config[CONF_ADDRESS],
@@ -132,7 +131,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
 
     async def async_step_import(self, user_input=None):
         """Handle a flow import."""
-        if (user_input[CONF_ADDRESS] and user_input[CONF_PASSWORD] and 
+        if (user_input[CONF_ADDRESS] and user_input[CONF_PASSWORD] and
                 user_input[CONF_ACCESS_TOKEN]):
             websession = async_get_clientsession(self.hass, verify_ssl=False)
             result = await add_device(user_input[CONF_ADDRESS],

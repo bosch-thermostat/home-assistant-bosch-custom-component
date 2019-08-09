@@ -4,24 +4,21 @@ Support for water heaters connected to Bosch thermostat.
 For more details about this platform, please refer to the documentation at...
 """
 import logging
-from homeassistant.components.water_heater import (
-    STATE_ECO, STATE_ELECTRIC, STATE_GAS,
-    STATE_HEAT_PUMP, STATE_HIGH_DEMAND, STATE_OFF, STATE_PERFORMANCE,
-    SUPPORT_OPERATION_MODE, SUPPORT_TARGET_TEMPERATURE, WaterHeaterDevice)
 
-from .const import DOMAIN, SIGNAL_DHW_UPDATE_BOSCH
+from bosch_thermostat_http.const import (GATEWAY, OPERATION_MODE, SYSTEM_BRAND,
+                                         SYSTEM_TYPE, WATER_TEMP)
 
-from homeassistant.const import (
-    TEMP_CELSIUS, ATTR_TEMPERATURE, TEMP_FAHRENHEIT)
+from homeassistant.components.water_heater import (STATE_ECO, STATE_ELECTRIC,
+                                                   STATE_GAS, STATE_HEAT_PUMP,
+                                                   STATE_HIGH_DEMAND,
+                                                   STATE_OFF,
+                                                   STATE_PERFORMANCE,
+                                                   SUPPORT_OPERATION_MODE,
+                                                   SUPPORT_TARGET_TEMPERATURE,
+                                                   WaterHeaterDevice)
+from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
-from bosch_thermostat_http.const import (OPERATION_MODE,
-                                         DHW_CURRENT_WATERTEMP,
-                                         DHW_CURRENT_SETPOINT,
-                                         SYSTEM_BRAND, FIRMWARE_VERSION,
-                                         SYSTEM_TYPE, VALUE, ALLOWED_VALUES,
-                                         UNITS, DHW_HIGHTTEMP_LEVEL,
-                                         DHW_OFFTEMP_LEVEL, MAXVALUE, MINVALUE)
-
+from .const import DHWS, DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,24 +27,14 @@ SUPPORT_FLAGS_HEATER = (SUPPORT_TARGET_TEMPERATURE | SUPPORT_OPERATION_MODE)
 DEFAULT_MIN_TEMP = 0
 DEFAULT_MAX_TEMP = 100
 
-HA_STATE_TO_BOSCH = {
-    STATE_HEAT_PUMP: 'hcprogram',
-    STATE_HIGH_DEMAND: 'ownprogram',
-    STATE_OFF:  'off',
-    STATE_PERFORMANCE: 'high'
-}
-
-
-BOSCH_STATE_TO_HA = {value: key for key, value in HA_STATE_TO_BOSCH.items()}
-
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.title
     data = hass.data[DOMAIN][uuid]
-    data['dhws'] = [BoschWaterHeater(hass, uuid, dhw, data['gateway'])
-                    for dhw in data['gateway'].dhw_circuits]
-    async_add_entities(data['dhws'])
+    data[DHWS] = [BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
+                  for dhw in data[GATEWAY].dhw_circuits]
+    async_add_entities(data[DHWS])
     return True
 
 
@@ -55,6 +42,17 @@ async def async_setup_platform(hass, config, async_add_entities,
                                discovery_info=None):
     """Set up the Bosch Thermostat Platform."""
     pass
+
+
+def bosch_states(strings):
+    HA_STATE_TO_BOSCH = {
+        STATE_HEAT_PUMP: strings.hcprogram,
+        STATE_HIGH_DEMAND: strings.ownprogram,
+        STATE_OFF:  'off',
+        STATE_PERFORMANCE: 'high'
+    }
+    B_TO_HA = {value: key for key, value in HA_STATE_TO_BOSCH.items()}
+    return HA_STATE_TO_BOSCH, B_TO_HA
 
 
 class BoschWaterHeater(WaterHeaterDevice):
@@ -68,7 +66,7 @@ class BoschWaterHeater(WaterHeaterDevice):
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._gateway = gateway
-        self._mode = None
+        self._mode = {}
         self._state = None
         self._target_temperature = None
         self._current_temperature = None
@@ -76,6 +74,8 @@ class BoschWaterHeater(WaterHeaterDevice):
         self._max_temp = DEFAULT_MAX_TEMP
         self._low_temp = DEFAULT_MIN_TEMP
         self._operation_list = []
+        self._states_conv, self._states_conv_inv = \
+            bosch_states(self._dhw.strings)
         # self.hass.helpers.dispatcher.dispatcher_connect(
         #     SIGNAL_UPDATE_BOSCH, self.update)
 
@@ -109,7 +109,7 @@ class BoschWaterHeater(WaterHeaterDevice):
             'manufacturer': self._gateway.get_info(SYSTEM_BRAND),
             'model': self._gateway.get_info(SYSTEM_TYPE),
             'name': 'Water heater ' + self._name,
-            'sw_version': self._gateway.get_info(FIRMWARE_VERSION),
+            'sw_version': self._gateway.firmware,
             'via_hub': (DOMAIN, self._uuid)
         }
 
@@ -146,15 +146,13 @@ class BoschWaterHeater(WaterHeaterDevice):
         Return current operation as one of the following.
         ["eco", "heat_pump", "high_demand", "electric_only"]
         """
-        if self._mode:
-            return self._mode[VALUE]
-        return None
+        return self._states_conv_inv.get(self._mode.get(self._dhw.strings.val),
+                                         STATE_OFF)
 
     @property
     def operation_list(self):
         """List of available operation modes."""
-        if self._mode:
-            return self._mode.get(ALLOWED_VALUES)
+        return self._mode.get(self._dhw.strings.allowed_values)
 
     @property
     def supported_features(self):
@@ -163,19 +161,17 @@ class BoschWaterHeater(WaterHeaterDevice):
 
     def set_temperature(self, **kwargs):
         """Set new target temperature."""
-        return
         target_temp = kwargs.get(ATTR_TEMPERATURE)
-        if target_temp is not None:
-            self.water_heater.set_target_set_point(target_temp)
+        if target_temp:
+            self._dhw.set_temperature(target_temp)
         else:
             _LOGGER.error("A target temperature must be provided")
 
     def set_operation_mode(self, operation_mode):
         """Set operation mode."""
-        return
-        op_mode_to_set = HA_STATE_TO_ECONET.get(operation_mode)
-        if op_mode_to_set is not None:
-            self.water_heater.set_mode(op_mode_to_set)
+        op_mode_to_set = self._states_conv.get(operation_mode)
+        if op_mode_to_set:
+            self._dhw.set_operation_mode(op_mode_to_set)
         else:
             _LOGGER.error("An operation mode must be provided")
 
@@ -185,12 +181,10 @@ class BoschWaterHeater(WaterHeaterDevice):
                 not self._dhw.update_initialized):
             return
         # self._state = self._dhw.get_value(HC_HEATING_STATUS)
-        current_temperature = self._dhw.get_property(DHW_CURRENT_WATERTEMP)
-        if current_temperature:
-            self._current_temperature = current_temperature[VALUE]
-            if (UNITS in current_temperature and
-                    current_temperature[UNITS] == 'F'):
-                self._temperature_units = TEMP_FAHRENHEIT
+        curr_temp = self._dhw.get_property(WATER_TEMP)
+        self._current_temperature = curr_temp.get(self._dhw.strings.val)
+        self._temperature_units = UNITS_CONVERTER.get(
+            curr_temp.get(self._dhw.strings.units, 'C'))
         (self._target_temperature, self._low_temp, self._max_temp) =\
             self._dhw.target_temperature
         # self._holiday_mode = self._dhw.get_value(HC_HOLIDAY_MODE)
