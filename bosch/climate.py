@@ -147,9 +147,6 @@ class BoschThermostat(ClimateDevice):
     @property
     def hvac_mode(self):
         """Return current operation ie. heat, cool, idle."""
-        print("shishis")
-        print(self._mode)
-        print(self._hc.get_property(OPERATION_MODE))
         return self._op_modes_inv.get(self._mode.get(self._hc.strings.val),
                                       HVAC_MODE_OFF)
 

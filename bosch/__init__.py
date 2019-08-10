@@ -159,8 +159,6 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
 
 async def circuit_update(circuits):
     """Update upstream circuit."""
-    print("www")
-    print(circuits)
     for circuit in circuits:
         await circuit.upstream_object.update()
 

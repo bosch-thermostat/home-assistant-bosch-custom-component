@@ -6,10 +6,10 @@ For more details about this platform, please refer to the documentation at...
 import logging
 
 from bosch_thermostat_http.const import (GATEWAY, OPERATION_MODE, SYSTEM_BRAND,
-                                         SYSTEM_TYPE, WATER_TEMP)
+                                         SYSTEM_TYPE, WATER_TEMP, WATER_OFF,
+                                         WATER_SETPOINT)
 
-from homeassistant.components.water_heater import (STATE_ECO, STATE_ELECTRIC,
-                                                   STATE_GAS, STATE_HEAT_PUMP,
+from homeassistant.components.water_heater import (                                                   STATE_HEAT_PUMP,
                                                    STATE_HIGH_DEMAND,
                                                    STATE_OFF,
                                                    STATE_PERFORMANCE,
@@ -70,9 +70,11 @@ class BoschWaterHeater(WaterHeaterDevice):
         self._state = None
         self._target_temperature = None
         self._current_temperature = None
+        self._current_setpoint = None
         self._temperature_units = TEMP_CELSIUS
         self._max_temp = DEFAULT_MAX_TEMP
         self._low_temp = DEFAULT_MIN_TEMP
+        self._target_temp_off = 0
         self._operation_list = []
         self._states_conv, self._states_conv_inv = \
             bosch_states(self._dhw.strings)
@@ -189,11 +191,28 @@ class BoschWaterHeater(WaterHeaterDevice):
             self._dhw.target_temperature
         # self._holiday_mode = self._dhw.get_value(HC_HOLIDAY_MODE)
         self._mode = self._dhw.get_property(OPERATION_MODE)
+        self._target_temp_off = self._dhw.get_value(WATER_OFF)
+        self._current_setpoint = self._dhw.get_value(WATER_SETPOINT)
+
+    @property
+    def current_temperature(self):
+        """Return the current temperature."""
+        return self._current_temperature
 
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
+        return self._current_setpoint
+
+    @property
+    def target_temperature_high(self):
+        """Return the temperature we try to reach."""
         return self._target_temperature
+
+    @property
+    def target_temperature_low(self):
+        """Return the temperature we try to reach."""
+        return self._target_temp_off
 
     @property
     def min_temp(self):
