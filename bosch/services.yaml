@@ -4,3 +4,9 @@ debug_scan:
     entity_id:
       description: Name(s) of entity. Choose one from Bosch component.
       example: 'climate.hc1'
+update_thermostat:
+  description:  Update thermostat data manually. Automatically it occurs every 30 seconds. Avoid to use it a lot as Bosch gateway might block requests for some time.
+  fields:
+    entity_id:
+      description: Name(s) of entity. Choose one from Bosch component.
+      example: 'climate.hc1'
