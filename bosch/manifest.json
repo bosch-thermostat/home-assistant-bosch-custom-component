@@ -4,6 +4,6 @@
   "documentation": "https://github.com/pszafer/home-assistant-bosch-custom-component",
   "dependencies": [],
   "codeowners": ["@pszafer", "@moustic999"],
-  "requirements": ["bosch-thermostat-http-client==0.4.4"],
+  "requirements": ["bosch-thermostat-http-client==0.4.5b0"],
   "config_flow": true
 }
