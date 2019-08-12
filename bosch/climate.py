@@ -12,7 +12,8 @@ from homeassistant.components.climate.const import (HVAC_MODE_AUTO,
                                                     SUPPORT_TARGET_TEMPERATURE)
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, TEMP_FAHRENHEIT
 
-from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH
+from .const import (DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH,
+                    BOSCH_GW_ENTRY)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     data[HCS] = [BoschThermostat(hass, uuid, hc, data[GATEWAY])
                  for hc in data[GATEWAY].heating_circuits]
     async_add_entities(data[HCS])
+    await data[BOSCH_GW_ENTRY].climate_refresh()
     return True
 
 
@@ -56,6 +58,7 @@ class BoschThermostat(ClimateDevice):
             HVAC_MODE_HEAT: self._hc.strings.manual
         }
         self._op_modes_inv = {v: k for k, v in self._op_modes.items()}
+        self._update_init = True
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -166,4 +169,7 @@ class BoschThermostat(ClimateDevice):
                                   else TEMP_CELSIUS)
         # self._holiday_mode = self._hc.get_value(HC_HOLIDAY_MODE)
         self._mode = self._hc.get_property(OPERATION_MODE)
+        if self._update_init:
+            self._update_init = False
+            self.async_schedule_update_ha_state()
         _LOGGER.debug("Retrieved mode %s", self._mode)

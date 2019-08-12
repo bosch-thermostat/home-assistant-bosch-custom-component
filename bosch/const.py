@@ -18,6 +18,7 @@ GATEWAY = 'gateway'
 CLIMATE = 'climate'
 SENSOR = 'sensor'
 WATER_HEATER = 'water_heater'
+BOSCH_GW_ENTRY = "BoschGatewayEntry"
 
 SUPPORTED_PLATFORMS = [
     'climate',

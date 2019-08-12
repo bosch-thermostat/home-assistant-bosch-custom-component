@@ -6,10 +6,10 @@ For more details about this platform, please refer to the documentation at...
 import logging
 
 from bosch_thermostat_http.const import (GATEWAY, OPERATION_MODE, SYSTEM_BRAND,
-                                         SYSTEM_TYPE, WATER_TEMP, WATER_OFF,
-                                         WATER_SETPOINT)
+                                         SYSTEM_TYPE, CURRENT_TEMP, WATER_OFF,
+                                         STATUS)
 
-from homeassistant.components.water_heater import (                                                   STATE_HEAT_PUMP,
+from homeassistant.components.water_heater import (STATE_HEAT_PUMP,
                                                    STATE_HIGH_DEMAND,
                                                    STATE_OFF,
                                                    STATE_PERFORMANCE,
@@ -18,7 +18,8 @@ from homeassistant.components.water_heater import (                             
                                                    WaterHeaterDevice)
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
-from .const import DHWS, DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER
+from .const import (DHWS, DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER,
+                    BOSCH_GW_ENTRY)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     data[DHWS] = [BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
                   for dhw in data[GATEWAY].dhw_circuits]
     async_add_entities(data[DHWS])
+    await data[BOSCH_GW_ENTRY].water_heater_refresh()
     return True
 
 
@@ -66,7 +68,7 @@ class BoschWaterHeater(WaterHeaterDevice):
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._gateway = gateway
-        self._mode = {}
+        self._mode = None
         self._state = None
         self._target_temperature = None
         self._current_temperature = None
@@ -78,8 +80,7 @@ class BoschWaterHeater(WaterHeaterDevice):
         self._operation_list = []
         self._states_conv, self._states_conv_inv = \
             bosch_states(self._dhw.strings)
-        # self.hass.helpers.dispatcher.dispatcher_connect(
-        #     SIGNAL_UPDATE_BOSCH, self.update)
+        self._update_init = True
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -128,8 +129,10 @@ class BoschWaterHeater(WaterHeaterDevice):
     @property
     def device_state_attributes(self):
         """Return the optional device state attributes."""
-        data = {}
-        data["CALENDAR"] = self._dhw.get_schedule
+        data = {
+            "target_temp_step": 1
+        }
+        # data["CALENDAR"] = self._dhw.get_schedule
         # vacations = self.water_heater.get_vacations()
         # if vacations:
         #     data[ATTR_VACATION_START] = vacations[0].start_date
@@ -148,32 +151,31 @@ class BoschWaterHeater(WaterHeaterDevice):
         Return current operation as one of the following.
         ["eco", "heat_pump", "high_demand", "electric_only"]
         """
-        return self._states_conv_inv.get(self._mode.get(self._dhw.strings.val),
-                                         STATE_OFF)
+        return self._mode
 
     @property
     def operation_list(self):
         """List of available operation modes."""
-        return self._mode.get(self._dhw.strings.allowed_values)
+        return self._operation_list
 
     @property
     def supported_features(self):
         """Return the list of supported features."""
         return SUPPORT_FLAGS_HEATER
 
-    def set_temperature(self, **kwargs):
+    async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         target_temp = kwargs.get(ATTR_TEMPERATURE)
         if target_temp:
-            self._dhw.set_temperature(target_temp)
+            await self._dhw.set_temperature(target_temp)
         else:
             _LOGGER.error("A target temperature must be provided")
 
-    def set_operation_mode(self, operation_mode):
+    async def async_set_operation_mode(self, operation_mode):
         """Set operation mode."""
         op_mode_to_set = self._states_conv.get(operation_mode)
         if op_mode_to_set:
-            self._dhw.set_operation_mode(op_mode_to_set)
+            await self._dhw.set_operation_mode(op_mode_to_set)
         else:
             _LOGGER.error("An operation mode must be provided")
 
@@ -182,17 +184,26 @@ class BoschWaterHeater(WaterHeaterDevice):
         if (not self._dhw or not self._dhw.json_scheme_ready or
                 not self._dhw.update_initialized):
             return
-        # self._state = self._dhw.get_value(HC_HEATING_STATUS)
-        curr_temp = self._dhw.get_property(WATER_TEMP)
+        self._state = self._dhw.get_value(STATUS)
+        curr_temp = self._dhw.get_property(CURRENT_TEMP)
         self._current_temperature = curr_temp.get(self._dhw.strings.val)
         self._temperature_units = UNITS_CONVERTER.get(
             curr_temp.get(self._dhw.strings.units, 'C'))
         (self._target_temperature, self._low_temp, self._max_temp) =\
             self._dhw.target_temperature
         # self._holiday_mode = self._dhw.get_value(HC_HOLIDAY_MODE)
-        self._mode = self._dhw.get_property(OPERATION_MODE)
+        mode = self._dhw.get_property(OPERATION_MODE)
+        self._operation_list = self.operation_list_converter(
+            mode.get(self._dhw.strings.allowed_values))
+        self._mode = self._states_conv_inv.get(
+            mode.get(self._dhw.strings.val, "").lower(), STATE_OFF)
         self._target_temp_off = self._dhw.get_value(WATER_OFF)
-        self._current_setpoint = self._dhw.get_value(WATER_SETPOINT)
+        if self._update_init:
+            self._update_init = False
+            self.async_schedule_update_ha_state()
+
+    def operation_list_converter(self, op_list):
+        return [self._states_conv_inv.get(value.lower()) for value in op_list]
 
     @property
     def current_temperature(self):
@@ -202,17 +213,17 @@ class BoschWaterHeater(WaterHeaterDevice):
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
-        return self._current_setpoint
-
-    @property
-    def target_temperature_high(self):
-        """Return the temperature we try to reach."""
         return self._target_temperature
 
-    @property
-    def target_temperature_low(self):
-        """Return the temperature we try to reach."""
-        return self._target_temp_off
+    # @property
+    # def target_temperature_high(self):
+    #     """Return the temperature we try to reach."""
+    #     return self._target_temperature
+
+    # @property
+    # def target_temperature_low(self):
+    #     """Return the temperature we try to reach."""
+    #     return self._target_temp_off
 
     @property
     def min_temp(self):

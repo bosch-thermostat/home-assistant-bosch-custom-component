@@ -6,9 +6,7 @@ from homeassistant.helpers.entity import Entity
 
 
 from .const import (DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH, GATEWAY, SENSORS,
-                    UNITS_CONVERTER)
-
-
+                    UNITS_CONVERTER, BOSCH_GW_ENTRY)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +24,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     data[SENSORS] = [BoschSensor(hass, uuid, sensor, data[GATEWAY])
                      for sensor in data[GATEWAY].sensors]
     async_add_entities(data[SENSORS])
+    await data[BOSCH_GW_ENTRY].sensors_refresh()
     return True
 
 
@@ -40,6 +39,7 @@ class BoschSensor(Entity):
         self._gateway = gateway
         self._name = self._sensor.name
         self._state = None
+        self._update_init = True
         self._unit_of_measurement = None
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
@@ -128,3 +128,6 @@ class BoschSensor(Entity):
             self._attrs['{}_{}'.format(
                 self._str.state,
                 self._str.invalid)] = state[self._str.invalid]
+        if self._update_init:
+            self._update_init = False
+            self.async_schedule_update_ha_state()
