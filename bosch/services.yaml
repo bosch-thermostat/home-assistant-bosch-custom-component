@@ -10,3 +10,10 @@ update_thermostat:
     entity_id:
       description: Name(s) of entity. Choose one from Bosch component.
       example: 'climate.hc1'
+reinit_bosch_schema_db:
+  description:  Fetch new database from upstream library.
+  fields:
+    entity_id:
+      description: Name(s) of entity. Choose one from Bosch component. It applies to whole thermostat even so. You need to restart HA after using this service!
+      example: 'climate.hc1'
+    

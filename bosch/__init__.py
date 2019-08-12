@@ -28,6 +28,7 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 SERVICE_DEBUG = 'debug_scan'
 SERVICE_UPDATE = 'update_thermostat'
+SERVICE_REINIT_DB = "reinit_bosch_schema_db"
 
 SERVICE_DEBUG_SCHEMA = vol.Schema({
     vol.Optional(ATTR_ENTITY_ID): cv.string,
@@ -80,6 +81,8 @@ class BoschGatewayEntry():
         self.gateway = None
         self.prefs = None
         self.supported_platforms = []
+        self.store = self.hass.helpers.storage.Store(STORAGE_VERSION,
+                                                     STORAGE_KEY)
 
     async def async_init(self):
         """Init async items in entry."""
@@ -106,15 +109,14 @@ class BoschGatewayEntry():
             return True
         return False
 
-    async def get_database(self, store):
+    async def get_database(self):
         """Get database from store."""
-        prefs = await store.async_load()
+        prefs = await self.store.async_load()
         return {} if prefs is None else prefs
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
-        store = self.hass.helpers.storage.Store(STORAGE_VERSION, STORAGE_KEY)
-        self.prefs = await self.get_database(store)
+        self.prefs = await self.get_database()
         database = self.prefs.get(self.uuid, {}).get(DATABASE, None)
         _LOGGER.debug("Checking connection to Bosch gateway.")
         if not await self.gateway.check_connection(database):
@@ -129,17 +131,21 @@ class BoschGatewayEntry():
         if await self.gateway.initialize_sensors():
             self.supported_platforms.append(SENSOR)
         if not database:
-            self.prefs = {
-                self.uuid: {
-                    DATABASE: self.gateway.database
-                }
-            }
-            await store.async_save(self.prefs)
+            await self.init_database()
         self.hass.data[DOMAIN][self.uuid] = {
             GATEWAY: self.gateway,
             BOSCH_GW_ENTRY: self
         }
         return True
+
+    async def init_database(self, database=None):
+        database = self.gateway.database if database is None else database
+        self.prefs = {
+            self.uuid: {
+                DATABASE: database
+            }
+        }
+        await self.store.async_save(self.prefs)
 
     def register_services(self):
         """Register service to use in HA."""
@@ -148,6 +154,9 @@ class BoschGatewayEntry():
             SERVICE_DEBUG_SCHEMA)
         self.hass.services.async_register(
             DOMAIN, SERVICE_UPDATE, self.thermostat_refresh,
+            SERVICE_DEBUG_SCHEMA)
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_REINIT_DB, self.reinit_database,
             SERVICE_DEBUG_SCHEMA)
 
     async def register_update(self):
@@ -186,6 +195,13 @@ class BoschGatewayEntry():
             _LOGGER.debug("Bosch sensor entitites updated.")
             return True
         return False
+
+    async def reinit_database(self, event_time):
+        _LOGGER.info("Reinitializing Bosch db.")
+        from bosch_thermostat_http.db import get_db_of_firmware
+        db = get_db_of_firmware(self.gateway.firmware)
+        print(db)
+        await self.init_database(db)
 
     async def thermostat_refresh(self, event_time):
         """Call Bosch to refresh information."""
