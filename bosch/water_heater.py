@@ -50,7 +50,7 @@ def bosch_states(strings):
     HA_STATE_TO_BOSCH = {
         STATE_HEAT_PUMP: strings.hcprogram,
         STATE_HIGH_DEMAND: strings.ownprogram,
-        STATE_OFF:  'off',
+        STATE_OFF:  strings.off,
         STATE_PERFORMANCE: 'high'
     }
     B_TO_HA = {value: key for key, value in HA_STATE_TO_BOSCH.items()}
