@@ -44,6 +44,12 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             ACCESS_KEY: None
         }
 
+    # @staticmethod
+    # @callback
+    # def async_get_options_flow(config_entry):
+    #     """Get the options flow for this handler."""
+    #     return UnifiOptionsFlowHandler(config_entry)
+
     async def async_step_user(self, user_input=None):
         """Handle flow initiated by user."""
         return await self.async_step_init(user_input)
@@ -183,3 +189,33 @@ async def add_device(address, password, token, websession):
             "status": -2,
             "base": 'Unknown error'
         }
+
+class UnifiOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle Unifi options."""
+
+    def __init__(self, config_entry):
+        """Initialize UniFi options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        """Manage the UniFi options."""
+        return await self.async_step_device_tracker()
+
+    async def async_step_device_tracker(self, user_input=None):
+        """Manage the device tracker options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="device_tracker",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        "detection_time",
+                        default=self.config_entry.options.get(
+                            "detection_time", 0
+                        ),
+                    ): bool
+                }
+            )
+        )

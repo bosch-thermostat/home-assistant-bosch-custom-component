@@ -1,23 +1,29 @@
 """Support for Bosch Thermostat Climate."""
 import logging
-
+from datetime import timedelta
 from bosch_thermostat_http.const import (
     OPERATION_MODE,
     STATUS,
     SYSTEM_BRAND,
     SYSTEM_TYPE,
     ALLOWED_VALUES,
+    MANUAL_SETPOINT
 )
+import time
 
+from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.components.climate import ClimateDevice
 from homeassistant.components.climate.const import (
     HVAC_MODE_AUTO,
     HVAC_MODE_HEAT,
     HVAC_MODE_OFF,
-    SERVICE_SET_HVAC_MODE,
+    SERVICE_SET_PRESET_MODE,
+    SUPPORT_PRESET_MODE,
     SUPPORT_TARGET_TEMPERATURE,
 )
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, TEMP_FAHRENHEIT
+from homeassistant.helpers.event import async_track_point_in_time
+import homeassistant.util.dt as dt_util
 
 from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH, BOSCH_GW_ENTRY
 
@@ -60,10 +66,6 @@ class BoschThermostat(ClimateDevice):
         self._uuid = uuid
         self._unique_id = self._name + self._uuid
         self._gateway = gateway
-        self._hastates, self._hastates_inv = (
-            self._hc.hastates,
-            {value: key for key, value in self._hc.hastates.items()},
-        )
         self._target_temperature = None
         self._operation_list = []
         self._update_init = True
@@ -131,15 +133,22 @@ class BoschThermostat(ClimateDevice):
         """Return the holiday mode state."""
         return self._holiday_mode
 
+    async def async_purge(self, now):
+        _LOGGER.error("SHISSSSS")
+        is_value_updated = await self._hc.update()
+        if is_value_updated:
+            dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
+
+
     async def async_set_hvac_mode(self, hvac_mode):
         """Set operation mode."""
-        op_mode = self._hastates.get(hvac_mode)
-        _LOGGER.debug(f"Setting operation mode {hvac_mode} which is Bosch {op_mode}.")
-        if op_mode and hvac_mode != self._mode and hvac_mode in self._operation_list:
-            new_mode = await self._hc.set_operation_mode(op_mode)
-            _LOGGER.debug(f"Set operation mode to {new_mode}.")
-            # if new_mode:
-            #     self._mode = self._hastates_inv.get(new_mode, HVAC_MODE_OFF)
+        _LOGGER.debug(f"Setting operation mode {hvac_mode}.")
+        status = await self._hc.set_hvac_mode(hvac_mode)
+        if status == 2:
+            async_track_point_in_time(
+                self.hass, self.async_purge, dt_util.utcnow() + timedelta(seconds=1)
+            )
+        if status > 0:
             return True
         return False
 
@@ -153,12 +162,12 @@ class BoschThermostat(ClimateDevice):
     @property
     def hvac_mode(self):
         """Return current operation ie. heat, cool, idle."""
-        return self._mode
+        return self._hc.hvac_mode
 
     @property
     def hvac_modes(self):
         """List of available operation modes."""
-        return self._operation_list
+        return self._hc.hvac_modes
 
     def update(self):
         """Update state of device."""
@@ -175,12 +184,12 @@ class BoschThermostat(ClimateDevice):
         )
 
         # self._holiday_mode = self._hc.get_value(HC_HOLIDAY_MODE)
-        mode = self._hc.get_property(OPERATION_MODE)
-        self._operation_list = self.operation_list_converter(
-            mode.get(self._hc.strings.allowed_values)
-        )
-        self._mode = self._hastates_inv.get(
-            mode.get(self._hc.strings.val, HVAC_MODE_OFF))
+        # mode = self._hc.get_property(OPERATION_MODE)
+        # self._operation_list = self.operation_list_converter(
+        #     mode.get(self._hc.strings.allowed_values)
+        # )
+        # self._mode = self._hastates_inv.get(
+        #     mode.get(self._hc.strings.val, HVAC_MODE_OFF))
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

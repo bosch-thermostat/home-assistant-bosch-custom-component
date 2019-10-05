@@ -5,7 +5,7 @@ import random
 from datetime import timedelta
 
 import voluptuous as vol
-from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE
+from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SYSTEM_INFO
 from bosch_thermostat_http.errors import SensorNoLongerAvailable
 
 import homeassistant.helpers.config_validation as cv
@@ -101,7 +101,7 @@ class BoschGatewayEntry():
                 identifiers={(DOMAIN, self.uuid)},
                 manufacturer=self.gateway.get_info(SYSTEM_BRAND),
                 model=self.gateway.get_info(SYSTEM_TYPE),
-                name="Gateway iCom_Low_NSC_v1",
+                name=self.gateway.device_name,
                 sw_version=self.gateway.firmware)
             self.register_services()
             await self.register_update()
