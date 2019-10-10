@@ -23,6 +23,7 @@ from .const import (ACCESS_KEY, CLIMATE, DATABASE, DHWS, DOMAIN, GATEWAY, HCS,
                     SENSOR, SENSORS, SIGNAL_CLIMATE_UPDATE_BOSCH,
                     SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_SENSOR_UPDATE_BOSCH,
                     STORAGE_KEY, STORAGE_VERSION, WATER_HEATER, BOSCH_GW_ENTRY)
+from homeassistant.helpers.storage import Store
 
 SCAN_INTERVAL = timedelta(seconds=30)
 
@@ -66,6 +67,13 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         return await gateway.async_init()
     return False
 
+class BoschStorage(Store):
+    """Store onboarding data."""
+
+    async def _async_migrate_func(self, old_version, old_data):
+        """Migrate to the new version."""
+        _LOGGER.warning("Migrating Bosch database to new version.")
+        return None
 
 class BoschGatewayEntry():
     """Bosch gateway entry config class."""
@@ -81,8 +89,7 @@ class BoschGatewayEntry():
         self.gateway = None
         self.prefs = None
         self.supported_platforms = []
-        self.store = self.hass.helpers.storage.Store(STORAGE_VERSION,
-                                                     STORAGE_KEY)
+        self.store = BoschStorage(hass, STORAGE_VERSION, STORAGE_KEY)
 
     async def async_init(self):
         """Init async items in entry."""
@@ -136,6 +143,7 @@ class BoschGatewayEntry():
             GATEWAY: self.gateway,
             BOSCH_GW_ENTRY: self
         }
+        _LOGGER.info("Bosch initialized.")
         return True
 
     async def init_database(self, database=None):
@@ -200,7 +208,6 @@ class BoschGatewayEntry():
         _LOGGER.info("Reinitializing Bosch db.")
         from bosch_thermostat_http.db import get_db_of_firmware
         db = get_db_of_firmware(self.gateway.firmware)
-        print(db)
         await self.init_database(db)
 
     async def thermostat_refresh(self, event_time):
