@@ -18,7 +18,6 @@ GATEWAY = 'gateway'
 CLIMATE = 'climate'
 SENSOR = 'sensor'
 WATER_HEATER = 'water_heater'
-BOSCH_GW_ENTRY = "BoschGatewayEntry"
 
 SUPPORTED_PLATFORMS = [
     'climate',
@@ -38,6 +37,7 @@ STORAGE_KEY = DOMAIN
 SIGNAL_CLIMATE_UPDATE_BOSCH = "bosch_climate_update"
 SIGNAL_SENSOR_UPDATE_BOSCH = "bosch_sensor_update"
 SIGNAL_DHW_UPDATE_BOSCH = "bosch_dhw_update"
+
 
 DATABASE = "db"
 HCS = "hcs"

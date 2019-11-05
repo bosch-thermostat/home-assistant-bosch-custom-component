@@ -5,7 +5,7 @@ import random
 from datetime import timedelta
 
 import voluptuous as vol
-from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SYSTEM_INFO
+from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SYSTEM_INFO, SENSORS_LIST
 from bosch_thermostat_http.errors import SensorNoLongerAvailable
 
 import homeassistant.helpers.config_validation as cv
@@ -18,14 +18,15 @@ from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 
-from .config_flow import BoschFlowHandler
-from .const import (ACCESS_KEY, CLIMATE, DATABASE, DHWS, DOMAIN, GATEWAY, HCS,
+from .config_flow import configured_hosts
+from .const import (ACCESS_KEY, CLIMATE, DHWS, DOMAIN, GATEWAY, HCS,
                     SENSOR, SENSORS, SIGNAL_CLIMATE_UPDATE_BOSCH,
                     SIGNAL_DHW_UPDATE_BOSCH, SIGNAL_SENSOR_UPDATE_BOSCH,
-                    STORAGE_KEY, STORAGE_VERSION, WATER_HEATER, BOSCH_GW_ENTRY)
-from homeassistant.helpers.storage import Store
+                    STORAGE_KEY, STORAGE_VERSION, WATER_HEATER,
+                    UUID)
 
-SCAN_INTERVAL = timedelta(seconds=30)
+SCAN_INTERVAL = timedelta(seconds=60)
+SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
 
 SERVICE_DEBUG = 'debug_scan'
 SERVICE_UPDATE = 'update_thermostat'
@@ -35,45 +36,61 @@ SERVICE_DEBUG_SCHEMA = vol.Schema({
     vol.Optional(ATTR_ENTITY_ID): cv.string,
 })
 
+DATA_CONFIGS = "bosch_configs"
+
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required(CONF_ADDRESS): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(CONF_ACCESS_TOKEN): cv.string,
-    }),
-    }, extra=vol.ALLOW_EXTRA)
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.All(
+            cv.ensure_list,
+            [
+                vol.Schema(
+                    {
+                        vol.Required(CONF_ADDRESS): cv.string,
+                        vol.Required(CONF_PASSWORD): cv.string,
+                        vol.Required(CONF_ACCESS_TOKEN): cv.string,
+                        vol.Optional(SENSORS): vol.All(
+                            cv.ensure_list, [vol.In(SENSORS_LIST)])
+                    }
+                )
+            ]
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+SIGNAL_SENSORS_UPDATED = "signal_sensors_updated"
 
 
 async def async_setup(hass: HomeAssistantType, config: ConfigType):
     """Initialize the Bosch platform."""
     hass.data[DOMAIN] = {}
-    config = config.get(DOMAIN)
-    if config and not hass.config_entries.async_entries(DOMAIN):
-        hass.async_create_task(hass.config_entries.flow.async_init(
-            DOMAIN, context={'source': config_entries.SOURCE_IMPORT},
-            data=config
-        ))
+    # hass.data[DATA_CONFIGS] = {}
+    configs = config.get(DOMAIN)
+    configured = configured_hosts(hass)
+    if configs:
+        for config in configs:
+            host = config[CONF_ADDRESS]
+            # hass.data[DATA_CONFIGS][host] = config
+            if host in configured:
+                continue
+            hass.async_create_task(hass.config_entries.flow.async_init(
+                DOMAIN, context={'source': config_entries.SOURCE_IMPORT},
+                data=config
+            ))
     return True
 
 
 async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
     _LOGGER.debug("Setting up Bosch component.")
-    uuid = entry.title
+    # config = hass.data[DATA_CONFIGS].get(host)
+    uuid = entry.data[UUID]
     if entry.data[CONF_ADDRESS] and entry.data[ACCESS_KEY]:
         gateway = BoschGatewayEntry(hass, uuid, entry)
         return await gateway.async_init()
     return False
-
-class BoschStorage(Store):
-    """Store onboarding data."""
-
-    async def _async_migrate_func(self, old_version, old_data):
-        """Migrate to the new version."""
-        _LOGGER.warning("Migrating Bosch database to new version.")
-        return None
 
 class BoschGatewayEntry():
     """Bosch gateway entry config class."""
@@ -85,11 +102,12 @@ class BoschGatewayEntry():
         self.entry = entry
         self.address = entry.data[CONF_ADDRESS]
         self.access_key = entry.data[ACCESS_KEY]
+        self._sensors_list = [ sensor for sensor, value in entry.data.get(SENSORS, {}).items() if value ]
         self.websession = async_get_clientsession(self.hass, verify_ssl=False)
         self.gateway = None
         self.prefs = None
+        self._initial_update = False
         self.supported_platforms = []
-        self.store = BoschStorage(hass, STORAGE_VERSION, STORAGE_KEY)
 
     async def async_init(self):
         """Init async items in entry."""
@@ -101,6 +119,7 @@ class BoschGatewayEntry():
                 self.hass.async_create_task(
                     self.hass.config_entries.async_forward_entry_setup(
                         self.entry, component))
+            self.hass.async_create_task(self.thermostat_refresh())
             device_registry = (
                 await self.hass.helpers.device_registry.async_get_registry())
             device_registry.async_get_or_create(
@@ -111,22 +130,15 @@ class BoschGatewayEntry():
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware)
             self.register_services()
-            await self.register_update()
+            self.register_update()
             _LOGGER.debug("Bosch component registered.")
             return True
         return False
 
-    async def get_database(self):
-        """Get database from store."""
-        prefs = await self.store.async_load()
-        return {} if prefs is None else prefs
-
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
-        self.prefs = await self.get_database()
-        database = self.prefs.get(self.uuid, {}).get(DATABASE, None)
         _LOGGER.debug("Checking connection to Bosch gateway.")
-        if not await self.gateway.check_connection(database):
+        if not await self.gateway.check_connection():
             _LOGGER.error(
                 "Cannot connect to Bosch gateway, host %s with UUID: %s",
                 self.address, self.uuid)
@@ -135,25 +147,13 @@ class BoschGatewayEntry():
             self.supported_platforms.append(CLIMATE)
         if await self.gateway.initialize_circuits(DHW):
             self.supported_platforms.append(WATER_HEATER)
-        if await self.gateway.initialize_sensors():
-            self.supported_platforms.append(SENSOR)
-        if not database:
-            await self.init_database()
+        self.gateway.initialize_sensors(self._sensors_list)
+        self.supported_platforms.append(SENSOR)
         self.hass.data[DOMAIN][self.uuid] = {
             GATEWAY: self.gateway,
-            BOSCH_GW_ENTRY: self
         }
         _LOGGER.info("Bosch initialized.")
         return True
-
-    async def init_database(self, database=None):
-        database = self.gateway.database if database is None else database
-        self.prefs = {
-            self.uuid: {
-                DATABASE: database
-            }
-        }
-        await self.store.async_save(self.prefs)
 
     def register_services(self):
         """Register service to use in HA."""
@@ -163,59 +163,42 @@ class BoschGatewayEntry():
         self.hass.services.async_register(
             DOMAIN, SERVICE_UPDATE, self.thermostat_refresh,
             SERVICE_DEBUG_SCHEMA)
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_REINIT_DB, self.reinit_database,
-            SERVICE_DEBUG_SCHEMA)
 
-    async def register_update(self):
+    def register_update(self):
         """Register interval auto update."""
         # await self.thermostat_refresh(False)
         # Repeat running every 30 seconds.
         async_track_time_interval(
             self.hass, self.thermostat_refresh, SCAN_INTERVAL)
+        # async_track_time_interval(
+        #     self.hass, self.sensors_refresh, SCAN_SENSOR_INTERVAL)
 
-    async def water_heater_refresh(self):
+    async def component_refresh(self, component_type=None):
         """Update data from DHW."""
-        data = self.hass.data[DOMAIN][self.uuid].get(DHWS)
-        if WATER_HEATER in self.supported_platforms and data:
-            await self.circuit_update(data)
-            dispatcher_send(self.hass, SIGNAL_DHW_UPDATE_BOSCH)
-            _LOGGER.debug("Bosch water heater entitites updated.")
+        if component_type in self.supported_platforms:
+            if component_type == SENSOR:
+                await self.sensors_update(self.gateway.sensors)
+                dispatcher_send(self.hass, SIGNAL_SENSOR_UPDATE_BOSCH)
+                _LOGGER.debug(f"Bosch {component_type} entitites updated.")
+                return True
+            if component_type == WATER_HEATER:
+                bosch_circuit = self.gateway.dhw_circuits
+                signal = SIGNAL_DHW_UPDATE_BOSCH
+            if component_type == CLIMATE:
+                bosch_circuit = self.gateway.heating_circuits
+                signal = SIGNAL_CLIMATE_UPDATE_BOSCH
+            _LOGGER.debug(f"Bosch {component_type} entitites updated.")
+            await self.circuit_update(bosch_circuit)
+            dispatcher_send(self.hass, signal)
             return True
         return False
 
-    async def climate_refresh(self):
-        """Update data from HC."""
-        data = self.hass.data[DOMAIN][self.uuid].get(HCS)
-        if CLIMATE in self.supported_platforms and data:
-            await self.circuit_update(data)
-            dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
-            _LOGGER.debug("Bosch climate entitites updated.")
-            return True
-        return False
-
-    async def sensors_refresh(self):
-        """Update data from Sensors."""
-        data = self.hass.data[DOMAIN][self.uuid].get(SENSORS)
-        if SENSOR in self.supported_platforms and data:
-            await self.sensors_update(data)
-            dispatcher_send(self.hass, SIGNAL_SENSOR_UPDATE_BOSCH)
-            _LOGGER.debug("Bosch sensor entitites updated.")
-            return True
-        return False
-
-    async def reinit_database(self, event_time):
-        _LOGGER.info("Reinitializing Bosch db.")
-        from bosch_thermostat_http.db import get_db_of_firmware
-        db = get_db_of_firmware(self.gateway.firmware)
-        await self.init_database(db)
-
-    async def thermostat_refresh(self, event_time):
+    async def thermostat_refresh(self, event_time=None):
         """Call Bosch to refresh information."""
         _LOGGER.debug("Updating Bosch thermostat entitites.")
-        await self.climate_refresh()
-        await self.water_heater_refresh()
-        await self.sensors_refresh()
+        await self.component_refresh(CLIMATE)
+        await self.component_refresh(WATER_HEATER)
+        await self.component_refresh(SENSOR)
 
     async def async_handle_debug_service(self, service_call):
         """Make bosch scan for debug purposes of thermostat."""
@@ -240,13 +223,13 @@ class BoschGatewayEntry():
     async def circuit_update(self, circuits):
         """Update upstream circuit."""
         for circuit in circuits:
-            await circuit.upstream_object.update()
+            await circuit.update()
 
     async def sensors_update(self, sensors):
         """Update upstream sensor."""
         for sensor in sensors:
             try:
-                await sensor.upstream_object.update()
+                await sensor.update()
             except SensorNoLongerAvailable:
                 _LOGGER.warning("Sensor %s is no longer available.",
                                 sensor.name)

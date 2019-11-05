@@ -9,6 +9,24 @@
           "access_token": "Access token",
           "password": "Password"
         }
+      },
+      "sensors": {
+        "title": "Bosch sensor config",
+        "data": {
+          "outdoor_t1": "Outdoor temperature",
+          "hotWater_t2": "Hotwater temp",
+          "supply_t1_setpoint": "Supply temp setpoint",
+          "supply_t1": "Actual supply temp",
+          "return": "Return temp",
+          "healthStatus": "Health status",
+          "actualPower": "Actual Power",
+          "actualModulation": "Actual modulation",
+          "CHpumpModulation": "Actual heating pump modulation",
+          "totalSystem": "Total system uptime mins",
+          "energyConsumption": "Energy consumption",
+          "startDateTime": "Start time",
+          "systemPressure": "System pressure"
+        }
       }
     },
     "error": {
@@ -19,5 +37,30 @@
       "already_configured": "Controller site is already configured",
       "user_privilege": "User needs to be administrator"
     }
-  }
+  },
+  "options": {
+    "step": {
+        "init": {
+            "data": {}
+        },
+        "sensors": {
+            "title": "Bosch sensor config",
+            "data": {
+                "outdoor_t1": "Outdoor temperature",
+                "hotWater_t2": "Hotwater temp",
+                "supply_t1_setpoint": "Supply temp setpoint",
+                "supply_t1": "Actual supply temp",
+                "return": "Return temp",
+                "healthStatus": "Health status",
+                "actualPower": "Actual Power",
+                "actualModulation": "Actual modulation",
+                "CHpumpModulation": "Actual heating pump modulation",
+                "totalSystem": "Total system uptime mins",
+                "energyConsumption": "Energy consumption",
+                "startDateTime": "Start time",
+                "systemPressure": "System pressure"
+            }
+        }
+    }
+}
 }

@@ -4,7 +4,7 @@ Support for water heaters connected to Bosch thermostat.
 For more details about this platform, please refer to the documentation at...
 """
 import logging
-
+from homeassistant.helpers.dispatcher import dispatcher_send
 from bosch_thermostat_http.const import (
     GATEWAY,
     OPERATION_MODE,
@@ -31,7 +31,7 @@ from .const import (
     DOMAIN,
     SIGNAL_DHW_UPDATE_BOSCH,
     UNITS_CONVERTER,
-    BOSCH_GW_ENTRY,
+    UUID
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,14 +44,10 @@ DEFAULT_MAX_TEMP = 100
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Water heater from a config entry."""
-    uuid = config_entry.title
+    uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data[DHWS] = [
-        BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
-        for dhw in data[GATEWAY].dhw_circuits
-    ]
-    async_add_entities(data[DHWS])
-    await data[BOSCH_GW_ENTRY].water_heater_refresh()
+    async_add_entities([BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
+                        for dhw in data[GATEWAY].dhw_circuits])
     return True
 
 

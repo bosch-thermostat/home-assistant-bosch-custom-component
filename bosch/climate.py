@@ -25,21 +25,17 @@ from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, TEMP_FAHRENHEIT
 from homeassistant.helpers.event import async_track_point_in_time
 import homeassistant.util.dt as dt_util
 
-from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH, BOSCH_GW_ENTRY
+from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH, UUID
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch thermostat from a config entry."""
-    uuid = config_entry.title
+    uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data[HCS] = [
-        BoschThermostat(hass, uuid, hc, data[GATEWAY])
-        for hc in data[GATEWAY].heating_circuits
-    ]
-    async_add_entities(data[HCS])
-    await data[BOSCH_GW_ENTRY].climate_refresh()
+    async_add_entities([BoschThermostat(hass, uuid, hc, data[GATEWAY])
+                   for hc in data[GATEWAY].heating_circuits])
     return True
 
 
@@ -157,6 +153,7 @@ class BoschThermostat(ClimateDevice):
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
+        _LOGGER.debug(f"Setting target temperature {temperature}.")
         await self._hc.set_temperature(temperature)
 
     @property
@@ -182,7 +179,7 @@ class BoschThermostat(ClimateDevice):
             TEMP_FAHRENHEIT if self._hc.temp_units == "F" else TEMP_CELSIUS
         )
         changed = False
-        state = self._hc.get_value(STATUS)
+        state = self._hc.state
         if self._state != state:
             self._state = state
             changed = True

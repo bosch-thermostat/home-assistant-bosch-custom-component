@@ -7,8 +7,27 @@
               "data": {
                   "address": "IP address",
                   "access_token": "Access token",
-                  "password": "Password"
+                  "password": "Password",
+                  "TEST": "TEST BOOLEAN"
               }
+            },
+            "sensors": {
+                "title": "Bosch sensor config",
+                "data": {
+                    "outdoor_t1": "Outdoor temperature",
+                    "hotWater_t2": "Hotwater temp",
+                    "supply_t1_setpoint": "Supply temp setpoint",
+                    "supply_t1": "Actual supply temp",
+                    "return": "Return temp",
+                    "healthStatus": "Health status",
+                    "actualPower": "Actual Power",
+                    "actualModulation": "Actual modulation",
+                    "CHpumpModulation": "Actual heating pump modulation",
+                    "totalSystem": "Total system uptime mins",
+                    "energyConsumption": "Energy consumption",
+                    "startDateTime": "Start time",
+                    "systemPressure": "System pressure"
+                }
             },
             "user": {
               "title": "Bosch thermostat config",
@@ -21,12 +40,12 @@
             }
         },
         "error": {
-            "faulty_credentials": "Bad user credentials",
             "service_unavailable": "No service available"
         },
         "abort": {
+            "faulty_credentials": "Bad user credentials or wrong IP",
             "already_configured": "Controller site is already configured",
-            "user_privilege": "User needs to be administrator"
+            "unknown": "Unknown reason. Check LOGS."
         }
     },
     "options": {
@@ -34,14 +53,27 @@
             "init": {
                 "data": {}
             },
-            "device_tracker": {
+            "sensors": {
+                "title": "Bosch sensor config",
                 "data": {
-                    "detection_time": "Time in seconds from last seen until considered away",
-                    "track_clients": "Track network clients",
-                    "track_devices": "Track network devices (Ubiquiti devices)",
-                    "track_wired_clients": "Include wired network clients"
+                    "outdoor_t1": "Outdoor temperature",
+                    "hotWater_t2": "Hotwater temp",
+                    "supply_t1_setpoint": "Supply temp setpoint",
+                    "supply_t1": "Actual supply temp",
+                    "return": "Return temp",
+                    "healthStatus": "Health status",
+                    "actualPower": "Actual Power",
+                    "actualModulation": "Actual modulation",
+                    "CHpumpModulation": "Actual heating pump modulation",
+                    "totalSystem": "Total system uptime mins",
+                    "energyConsumption": "Energy consumption",
+                    "startDateTime": "Start time",
+                    "systemPressure": "System pressure"
                 }
             }
+        },
+        "abort": {
+            "cantdoit": "Sorry, I can't update options yet..."
         }
     }
 }

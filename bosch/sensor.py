@@ -4,9 +4,9 @@ import logging
 from bosch_thermostat_http.const import (SYSTEM_BRAND, SYSTEM_TYPE)
 from homeassistant.helpers.entity import Entity
 
-
+from homeassistant.helpers.dispatcher import dispatcher_send
 from .const import (DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH, GATEWAY, SENSORS,
-                    UNITS_CONVERTER, BOSCH_GW_ENTRY)
+                    UNITS_CONVERTER, UUID)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,12 +19,10 @@ async def async_setup_platform(hass, config, async_add_entities,
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
-    uuid = config_entry.title
+    uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data[SENSORS] = [BoschSensor(hass, uuid, sensor, data[GATEWAY])
-                     for sensor in data[GATEWAY].sensors]
-    async_add_entities(data[SENSORS])
-    await data[BOSCH_GW_ENTRY].sensors_refresh()
+    async_add_entities([BoschSensor(hass, uuid, sensor, data[GATEWAY])
+                        for sensor in data[GATEWAY].sensors])
     return True
 
 
@@ -44,8 +42,6 @@ class BoschSensor(Entity):
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._attrs = {}
-        # self.hass.helpers.dispatcher.dispatcher_connect(
-        #     SIGNAL_UPDATE_BOSCH, self.update)
 
     async def async_added_to_hass(self):
         """Register callbacks."""
