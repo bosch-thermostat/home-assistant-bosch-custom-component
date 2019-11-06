@@ -71,9 +71,9 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     async def async_step_init(self, user_input=None):
         errors = {}
         if user_input is not None:
-            self.host = self.context["address"] = user_input["address"] = '192.168.4.29'
-            self.access_token = user_input["access_token"] = 'D3XgHSX2K5DKQHSP'
-            password = user_input[CONF_PASSWORD] = 'eseses11'
+            self.host = self.context["address"] = user_input["address"]
+            self.access_token = user_input["access_token"]
+            password = user_input[CONF_PASSWORD]
             websession = async_get_clientsession(self.hass, verify_ssl=False)
             try:
                 self.device = Gateway(websession, self.host,
@@ -85,19 +85,15 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                         errors=errors)
                 # return await self._entry_from_gateway(device, sensors)
             except RequestError as err:
-                _LOGGER.error('Wrong IP or credentials at %s - %s', address, err)
+                _LOGGER.error('Wrong IP or credentials at %s - %s', self.host, err)
                 return self.async_abort(reason='faulty_credentials')                
             except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.error('Error connecting Bosch at %s - %s', address, err)
+                _LOGGER.error('Error connecting Bosch at %s - %s', self.host, err)
 
-        ip_address = ''
-        ip_address = '192.168.4.29'
-        access = 'hidden'
-        password = 'eseses11'
         return self.async_show_form(step_id="init", data_schema=vol.Schema({
-                vol.Required(CONF_ADDRESS, default=ip_address): str,
-                vol.Required(CONF_ACCESS_TOKEN, default=access): str,
-                vol.Required(CONF_PASSWORD, default=password): str
+                vol.Required(CONF_ADDRESS): str,
+                vol.Required(CONF_ACCESS_TOKEN): str,
+                vol.Required(CONF_PASSWORD): str
             }),errors=errors)
 
     async def async_step_import(self, user_input=None):

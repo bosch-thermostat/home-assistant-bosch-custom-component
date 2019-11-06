@@ -1,0 +1,63 @@
+{
+    "versionFirmwarePath": "/gateway/versionFirmware",
+    "dict": {
+        "max": "maxValue",
+        "min": "minValue",
+        "units": "unitOfMeasure",
+        "state": "state",
+        "invalid": "invalid",
+        "value": "value",
+        "defaultowedValues": "allowedValues",
+        "open": "open",
+        "short": "short",
+        "on": "on",
+        "off": "off"
+    },
+    "gateway": {
+        "uuid": "/gateway/uuid",
+        "versionFirmware": "/gateway/versionFirmware",
+        "versionHardware": "/gateway/versionHardware",
+        "brand": "/system/brand",
+        "systemInfo": "/system/info",
+        "systemType": "/system/systemType",
+        "dateTime": "/gateway/DateTime"
+    },
+    "defaultSensors": ["outdoor_t1", "hotWater_t2"],
+    "value": "ES73",
+    "models": {
+        "76": {
+            "name": "Sieger ES73",
+            "type": "default"
+        },
+        "77": {
+            "value": "RC20",
+            "name": "RC20/Nefit Moduline 300",
+            "type": "default"
+        },
+        "78": {
+            "value": "RC30",
+            "name": "RC30/Nefit Moduline 400",
+            "type": "default"
+        },
+        "79": {
+            "value": "RC10",
+            "name": "RC10/Nefit Moduline 100",
+            "type": "default"
+        },
+        "86": {
+            "value": "RC35",
+            "name": "RC35",
+            "type": "default"
+        },
+        "93": {
+            "value": "RC20F",
+            "name": "RC20F",
+            "type": "default"
+        },
+        "158": {
+            "value": "RC300",
+            "name": "RC300/RC310/Nefit Moduline 3000",
+            "type": "RC300"
+        }
+    }
+}
