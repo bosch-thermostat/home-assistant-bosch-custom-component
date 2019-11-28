@@ -4,9 +4,9 @@ import logging
 from bosch_thermostat_http.const import (SYSTEM_BRAND, SYSTEM_TYPE)
 from homeassistant.helpers.entity import Entity
 
-from homeassistant.helpers.dispatcher import dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .const import (DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH, GATEWAY, SENSORS,
-                    UNITS_CONVERTER, UUID)
+                    UNITS_CONVERTER, UUID, SENSOR)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,15 +21,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    async_add_entities([BoschSensor(hass, uuid, sensor, data[GATEWAY])
-                        for sensor in data[GATEWAY].sensors])
+    enabled_sensors = config_entry.data.get(SENSORS, [])
+    data[SENSOR] = [BoschSensor(hass, uuid, sensor, data[GATEWAY], sensor.attr_id in enabled_sensors)
+                        for sensor in data[GATEWAY].sensors]
+    async_add_entities(data[SENSOR])
+    async_dispatcher_send(hass, "climate_signal")
     return True
 
 
 class BoschSensor(Entity):
     """Representation of a Bosch sensor."""
 
-    def __init__(self, hass, uuid, sensor, gateway):
+    def __init__(self, hass, uuid, sensor, gateway, is_enabled=False):
         """Initialize the sensor."""
         self.hass = hass
         self._sensor = sensor
@@ -42,11 +45,17 @@ class BoschSensor(Entity):
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._attrs = {}
+        self._is_enabled = is_enabled
 
     async def async_added_to_hass(self):
         """Register callbacks."""
         self.hass.helpers.dispatcher.async_dispatcher_connect(
             SIGNAL_SENSOR_UPDATE_BOSCH, self.async_update)
+
+    @property
+    def entity_registry_enabled_default(self):
+        """Return if the entity should be enabled when first added to the entity registry."""
+        return self._is_enabled
 
     @property
     def name(self):
@@ -68,7 +77,7 @@ class BoschSensor(Entity):
         }
 
     @property
-    def upstream_object(self):
+    def bosch_object(self):
         """Return upstream component. Used for refreshing."""
         return self._sensor
 

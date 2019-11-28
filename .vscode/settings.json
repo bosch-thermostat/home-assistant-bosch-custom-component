@@ -1,3 +1,7 @@
 {
-    "python.pythonPath": "/home/poznan.tbhydro.net/admin/Projekty/prywatne/home-assistant/venv/bin/python3"
+    "python.pythonPath": "/home/poznan.tbhydro.net/admin/Projekty/prywatne/home-assistant/venv/bin/python3",
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.formatting.provider": "black",
+    "python.linting.pylintPath": "/home/poznan.tbhydro.net/admin/.local/bin/pylint"
 }

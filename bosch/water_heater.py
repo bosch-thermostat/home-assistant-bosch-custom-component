@@ -4,7 +4,7 @@ Support for water heaters connected to Bosch thermostat.
 For more details about this platform, please refer to the documentation at...
 """
 import logging
-from homeassistant.helpers.dispatcher import dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from bosch_thermostat_http.const import (
     GATEWAY,
     OPERATION_MODE,
@@ -31,7 +31,7 @@ from .const import (
     DOMAIN,
     SIGNAL_DHW_UPDATE_BOSCH,
     UNITS_CONVERTER,
-    UUID
+    UUID, WATER_HEATER
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,8 +46,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    async_add_entities([BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
-                        for dhw in data[GATEWAY].dhw_circuits])
+    data[WATER_HEATER] = [BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
+                        for dhw in data[GATEWAY].dhw_circuits]
+    async_add_entities(data[WATER_HEATER])
+    async_dispatcher_send(hass, "climate_signal")
     return True
 
 
@@ -77,11 +79,6 @@ class BoschWaterHeater(WaterHeaterDevice):
         self._low_temp = DEFAULT_MIN_TEMP
         self._target_temp_off = 0
         self._operation_list = []
-        self._hastates, self._hastates_inv = (
-            self._dhw.hastates,
-            {value: key for key, value in self._dhw.hastates.items()},
-        )
-        self._update_init = True
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -95,7 +92,7 @@ class BoschWaterHeater(WaterHeaterDevice):
         return self._name
 
     @property
-    def upstream_object(self):
+    def bosch_object(self):
         """Return upstream component. Used for refreshing."""
         return self._dhw
 
@@ -184,35 +181,25 @@ class BoschWaterHeater(WaterHeaterDevice):
         _LOGGER.debug("Updating Bosch water_heater.")
         if (
             not self._dhw
-            or not self._dhw.json_scheme_ready
             or not self._dhw.update_initialized
         ):
             return
-        self._state = self._dhw.get_value(STATUS)
-        curr_temp = self._dhw.get_property(CURRENT_TEMP)
-        self._current_temperature = curr_temp.get(self._dhw.strings.val)
-        self._temperature_units = UNITS_CONVERTER.get(
-            curr_temp.get(self._dhw.strings.units, "C")
-        )
-        (
-            self._target_temperature,
-            self._low_temp,
-            self._max_temp,
-        ) = self._dhw.target_temperature
-        # self._holiday_mode = self._dhw.get_value(HC_HOLIDAY_MODE)
-        mode = self._dhw.get_property(OPERATION_MODE)
-        self._operation_list = self.operation_list_converter(
-            mode.get(self._dhw.strings.allowed_values)
-        )
-        self._mode = self._hastates_inv.get(
-            mode.get(self._dhw.strings.val), STATE_OFF)
-        self._target_temp_off = self._dhw.get_value(WATER_OFF)
-        if self._update_init:
-            self._update_init = False
+        self._temperature_units = UNITS_CONVERTER.get(self._dhw.temp_units)
+        if (
+            self._state != self._dhw.state or
+            self._operation_list == self._dhw.ha_modes or
+            self._current_temperature != self._dhw.current_temp or
+            self._low_temp != self._dhw.min_temp or
+            self._max_temp != self._dhw.max_temp
+        ):
+            self._state == self._dhw.state
+            self._target_temperature = self._dhw.target_temperature
+            self._current_temperature == self._dhw.current_temp
+            self._operation_list = self._dhw.ha_modes
+            self._mode = self._dhw.ha_mode
+            self._low_temp = self._dhw.min_temp
+            self._max_temp = self._dhw.max_temp
             self.async_schedule_update_ha_state()
-
-    def operation_list_converter(self, op_list):
-        return [self._hastates_inv.get(value) for value in op_list]
 
     @property
     def current_temperature(self):

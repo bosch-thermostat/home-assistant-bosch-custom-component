@@ -6,15 +6,22 @@ from datetime import timedelta
 
 import voluptuous as vol
 from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SYSTEM_INFO, SENSORS_LIST
-from bosch_thermostat_http.errors import SensorNoLongerAvailable
+from bosch_thermostat_http.errors import Response404Error
 
 import homeassistant.helpers.config_validation as cv
+from homeassistant.core import Event, State, callback
+
+from homeassistant.helpers.entity_registry import (
+    async_entries_for_device,
+    async_get_registry,
+    async_entries_for_device
+)
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (ATTR_ENTITY_ID, CONF_ACCESS_TOKEN,
                                  CONF_ADDRESS, CONF_PASSWORD)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 
@@ -31,10 +38,17 @@ SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
 SERVICE_DEBUG = 'debug_scan'
 SERVICE_UPDATE = 'update_thermostat'
 SERVICE_REINIT_DB = "reinit_bosch_schema_db"
+SIGNALS = {
+    CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
+    WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
+    SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH
+}
 
 SERVICE_DEBUG_SCHEMA = vol.Schema({
     vol.Optional(ATTR_ENTITY_ID): cv.string,
 })
+
+BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
 
 DATA_CONFIGS = "bosch_configs"
 
@@ -60,20 +74,16 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
-SIGNAL_SENSORS_UPDATED = "signal_sensors_updated"
-
 
 async def async_setup(hass: HomeAssistantType, config: ConfigType):
     """Initialize the Bosch platform."""
     hass.data[DOMAIN] = {}
-    # hass.data[DATA_CONFIGS] = {}
     configs = config.get(DOMAIN)
     configured = configured_hosts(hass)
     if configs:
         for config in configs:
             host = config[CONF_ADDRESS]
-            # hass.data[DATA_CONFIGS][host] = config
-            if host in configured:
+            if host in configured and configured[host][SENSORS] == config[SENSORS]:
                 continue
             hass.async_create_task(hass.config_entries.flow.async_init(
                 DOMAIN, context={'source': config_entries.SOURCE_IMPORT},
@@ -85,12 +95,24 @@ async def async_setup(hass: HomeAssistantType, config: ConfigType):
 async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
     _LOGGER.debug("Setting up Bosch component.")
-    # config = hass.data[DATA_CONFIGS].get(host)
     uuid = entry.data[UUID]
     if entry.data[CONF_ADDRESS] and entry.data[ACCESS_KEY]:
-        gateway = BoschGatewayEntry(hass, uuid, entry)
-        return await gateway.async_init()
+        gateway_entry = BoschGatewayEntry(hass, uuid, entry)
+        hass.data[DOMAIN][uuid] = {
+            BOSCH_GATEWAY_ENTRY : gateway_entry
+        }
+        return await gateway_entry.async_init()
     return False
+
+async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
+    """Unload a config entry."""
+    uuid = entry.data[UUID]
+    await hass.config_entries.async_forward_entry_unload(entry, SENSOR)
+    await hass.config_entries.async_forward_entry_unload(entry, CLIMATE)
+    await hass.config_entries.async_forward_entry_unload(entry, WATER_HEATER)
+    bosch = hass.data[DOMAIN].pop(uuid)
+    await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
+    return True
 
 class BoschGatewayEntry():
     """Bosch gateway entry config class."""
@@ -102,7 +124,7 @@ class BoschGatewayEntry():
         self.entry = entry
         self.address = entry.data[CONF_ADDRESS]
         self.access_key = entry.data[ACCESS_KEY]
-        self._sensors_list = [ sensor for sensor, value in entry.data.get(SENSORS, {}).items() if value ]
+        self._sensors_list = entry.data.get(SENSORS, None)
         self.websession = async_get_clientsession(self.hass, verify_ssl=False)
         self.gateway = None
         self.prefs = None
@@ -114,12 +136,14 @@ class BoschGatewayEntry():
         import bosch_thermostat_http as bosch
         self.gateway = bosch.Gateway(self.websession, self.address,
                                      self.access_key)
+        self.hass.helpers.dispatcher.async_dispatcher_connect(
+            "climate_signal", self.get_signals
+        )
         if await self.async_init_bosch():
             for component in self.supported_platforms:
                 self.hass.async_create_task(
                     self.hass.config_entries.async_forward_entry_setup(
                         self.entry, component))
-            self.hass.async_create_task(self.thermostat_refresh())
             device_registry = (
                 await self.hass.helpers.device_registry.async_get_registry())
             device_registry.async_get_or_create(
@@ -129,11 +153,19 @@ class BoschGatewayEntry():
                 model=self.gateway.get_info(SYSTEM_TYPE),
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware)
-            self.register_services()
-            self.register_update()
             _LOGGER.debug("Bosch component registered.")
             return True
         return False
+
+    def get_signals(self):
+        if all (k in self.hass.data[DOMAIN][self.uuid] for k in (CLIMATE, SENSOR, WATER_HEATER)):
+            self.hass.async_create_task(self.thermostat_refresh())
+            self.register_services()
+            self.register_update()
+
+    async def async_reset(self):
+        self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
+        self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
@@ -149,9 +181,7 @@ class BoschGatewayEntry():
             self.supported_platforms.append(WATER_HEATER)
         self.gateway.initialize_sensors(self._sensors_list)
         self.supported_platforms.append(SENSOR)
-        self.hass.data[DOMAIN][self.uuid] = {
-            GATEWAY: self.gateway,
-        }
+        self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
         _LOGGER.info("Bosch initialized.")
         return True
 
@@ -166,39 +196,34 @@ class BoschGatewayEntry():
 
     def register_update(self):
         """Register interval auto update."""
-        # await self.thermostat_refresh(False)
-        # Repeat running every 30 seconds.
         async_track_time_interval(
             self.hass, self.thermostat_refresh, SCAN_INTERVAL)
-        # async_track_time_interval(
-        #     self.hass, self.sensors_refresh, SCAN_SENSOR_INTERVAL)
 
-    async def component_refresh(self, component_type=None):
+    async def component_update(self, component_type=None):
         """Update data from DHW."""
         if component_type in self.supported_platforms:
-            if component_type == SENSOR:
-                await self.sensors_update(self.gateway.sensors)
-                dispatcher_send(self.hass, SIGNAL_SENSOR_UPDATE_BOSCH)
+            updated = False
+            entities = self.hass.data[DOMAIN][self.uuid][component_type]
+            for entity in entities:
+                if entity.enabled:
+                    try:
+                        await entity.bosch_object.update()
+                        updated = True
+                    except Response404Error as err:
+                        _LOGGER.warning("Bosch object of entity %s is no longer available.",
+                                        entity.name)
+            if updated:
                 _LOGGER.debug(f"Bosch {component_type} entitites updated.")
+                async_dispatcher_send(self.hass, SIGNALS[component_type])
                 return True
-            if component_type == WATER_HEATER:
-                bosch_circuit = self.gateway.dhw_circuits
-                signal = SIGNAL_DHW_UPDATE_BOSCH
-            if component_type == CLIMATE:
-                bosch_circuit = self.gateway.heating_circuits
-                signal = SIGNAL_CLIMATE_UPDATE_BOSCH
-            _LOGGER.debug(f"Bosch {component_type} entitites updated.")
-            await self.circuit_update(bosch_circuit)
-            dispatcher_send(self.hass, signal)
-            return True
         return False
 
     async def thermostat_refresh(self, event_time=None):
         """Call Bosch to refresh information."""
         _LOGGER.debug("Updating Bosch thermostat entitites.")
-        await self.component_refresh(CLIMATE)
-        await self.component_refresh(WATER_HEATER)
-        await self.component_refresh(SENSOR)
+        await self.component_update(CLIMATE)
+        await self.component_update(WATER_HEATER)
+        await self.component_update(SENSOR)
 
     async def async_handle_debug_service(self, service_call):
         """Make bosch scan for debug purposes of thermostat."""
@@ -219,17 +244,3 @@ class BoschGatewayEntry():
                                                    rawscan)
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
-
-    async def circuit_update(self, circuits):
-        """Update upstream circuit."""
-        for circuit in circuits:
-            await circuit.update()
-
-    async def sensors_update(self, sensors):
-        """Update upstream sensor."""
-        for sensor in sensors:
-            try:
-                await sensor.update()
-            except SensorNoLongerAvailable:
-                _LOGGER.warning("Sensor %s is no longer available.",
-                                sensor.name)

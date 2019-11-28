@@ -11,7 +11,7 @@ from bosch_thermostat_http.const import (
 )
 import time
 
-from homeassistant.helpers.dispatcher import dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.components.climate import ClimateDevice
 from homeassistant.components.climate.const import (
     HVAC_MODE_AUTO,
@@ -25,7 +25,7 @@ from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, TEMP_FAHRENHEIT
 from homeassistant.helpers.event import async_track_point_in_time
 import homeassistant.util.dt as dt_util
 
-from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH, UUID
+from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH, UUID, CLIMATE, UNITS_CONVERTER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +34,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    async_add_entities([BoschThermostat(hass, uuid, hc, data[GATEWAY])
-                   for hc in data[GATEWAY].heating_circuits])
+    data[CLIMATE] = ([BoschThermostat(hass, uuid, hc, data[GATEWAY])
+                                          for hc in data[GATEWAY].heating_circuits])
+    async_add_entities(data[CLIMATE])
+    async_dispatcher_send(hass, "climate_signal")
     return True
 
 
@@ -65,7 +67,6 @@ class BoschThermostat(ClimateDevice):
         self._target_temperature = None
         self._hvac_modes = []
         self._hvac_mode = None
-        self._update_init = True
         
 
     async def async_added_to_hass(self):
@@ -87,7 +88,7 @@ class BoschThermostat(ClimateDevice):
         }
 
     @property
-    def upstream_object(self):
+    def bosch_object(self):
         """Return upstream component. Used for refreshing."""
         return self._hc
 
@@ -133,7 +134,7 @@ class BoschThermostat(ClimateDevice):
 
     async def async_purge(self, now):
         _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
-        # is_value_updated = await self._hc.update()
+    # is_value_updated = await self._hc.update()
         # if is_value_updated:
             # dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
 
@@ -141,11 +142,11 @@ class BoschThermostat(ClimateDevice):
     async def async_set_hvac_mode(self, hvac_mode):
         """Set operation mode."""
         _LOGGER.debug(f"Setting operation mode {hvac_mode}.")
-        status = await self._hc.set_hvac_mode(hvac_mode)
+        status = await self._hc.set_ha_mode(hvac_mode)
         if status == 2:
             async_track_point_in_time(
                 self.hass, self.async_purge, dt_util.utcnow() + timedelta(seconds=1)
-            )
+        )
         if status > 0:
             return True
         return False
@@ -171,35 +172,20 @@ class BoschThermostat(ClimateDevice):
         _LOGGER.debug("Update of climate %s component called.", self._name)
         if (
             not self._hc
-            or not self._hc.json_scheme_ready
             or not self._hc.update_initialized
         ):
             return
-        self._temperature_unit = (
-            TEMP_FAHRENHEIT if self._hc.temp_units == "F" else TEMP_CELSIUS
-        )
-        changed = False
-        state = self._hc.state
-        if self._state != state:
-            self._state = state
-            changed = True
-        target_temp = self._hc.target_temperature
-        if self._target_temperature != target_temp:
-            self._target_temperature = target_temp
-            changed = True
-        current_temp = self._hc.current_temp
-        if self._current_temperature != current_temp:
-            self._current_temperature = current_temp
-            changed = True
-        hvac_modes = self._hc.hvac_modes
-        if self._hvac_modes != hvac_modes:
-            self._hvac_modes = hvac_modes
-            changed = True
-        hvac_mode = self._hc.hvac_mode
-        if self._hvac_mode != hvac_mode:
-            self._hvac_mode = hvac_mode
-            changed = True
-        if changed:
+        self._temperature_units = UNITS_CONVERTER.get(self._hc.temp_units)
+        if (
+            self._state != self._hc.state or 
+            self._target_temperature != self._hc.target_temperature or
+            self._current_temperature != self._hc.current_temp or
+            self._hvac_modes != self._hc.ha_modes or
+            self._hvac_mode != self._hc.ha_mode
+        ):
+            self._state = self._hc.state
+            self._target_temperature = self._hc.target_temperature
+            self._current_temperature = self._hc.current_temp
+            self._hvac_modes = self._hc.ha_modes
+            self._hvac_mode = self._hc.ha_mode
             self.async_schedule_update_ha_state()
-        # self._holiday_mode = self._hc.get_value(HC_HOLIDAY_MODE)
-        # mode = self._hc.get_property(OPERATION_MODE)
