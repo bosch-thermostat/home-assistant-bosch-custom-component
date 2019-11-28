@@ -60,7 +60,6 @@ class BoschThermostat(ClimateDevice):
         self._uuid = uuid
         self._unique_id = self._name + self._uuid
         self._gateway = gateway
-        self._holiday_mode = None
 
         self._current_temperature = None
         self._state = None
@@ -121,16 +120,6 @@ class BoschThermostat(ClimateDevice):
     def target_temperature(self):
         """Return the temperature we try to reach."""
         return self._target_temperature
-
-    @property
-    def holiday_mode(self):
-        """Return the holiday mode state."""
-        return self._holiday_mode
-
-    @property
-    def working_state(self):
-        """Return the holiday mode state."""
-        return self._holiday_mode
 
     async def async_purge(self, now):
         _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")

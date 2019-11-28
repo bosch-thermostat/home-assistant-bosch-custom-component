@@ -12,7 +12,7 @@ from bosch_thermostat_http.const import (
     SYSTEM_TYPE,
     CURRENT_TEMP,
     WATER_OFF,
-    STATUS,
+    STATUS, SETPOINT
 )
 
 from homeassistant.components.water_heater import (
@@ -114,30 +114,21 @@ class BoschWaterHeater(WaterHeaterDevice):
         }
 
     @property
-    def available(self):
-        """Return if the the device is online or not."""
-        return True
-
-    @property
     def temperature_unit(self):
         """Return the unit of measurement."""
         return self._temperature_units
 
     @property
+    def state_attributes(self):
+        data = super().state_attributes
+        data[SETPOINT] = self._dhw.setpoint
+        return data
+
+
+    @property
     def device_state_attributes(self):
         """Return the optional device state attributes."""
         data = {"target_temp_step": 1}
-        # data["CALENDAR"] = self._dhw.get_schedule
-        # vacations = self.water_heater.get_vacations()
-        # if vacations:
-        #     data[ATTR_VACATION_START] = vacations[0].start_date
-        #     data[ATTR_VACATION_END] = vacations[0].end_date
-        # data[ATTR_ON_VACATION] = self.water_heater.is_on_vacation
-        # todays_usage = self.water_heater.total_usage_for_today
-        # if todays_usage:
-        #     data[ATTR_TODAYS_ENERGY_USAGE] = todays_usage
-        # data[ATTR_IN_USE] = self.water_heater.in_use
-
         return data
 
     @property
@@ -156,6 +147,8 @@ class BoschWaterHeater(WaterHeaterDevice):
     @property
     def supported_features(self):
         """Return the list of supported features."""
+        if self._dhw.ha_mode == STATE_OFF or self._dhw.setpoint == STATE_OFF:
+            return SUPPORT_OPERATION_MODE
         return SUPPORT_FLAGS_HEATER
 
     async def async_set_temperature(self, **kwargs):
@@ -194,7 +187,7 @@ class BoschWaterHeater(WaterHeaterDevice):
         ):
             self._state == self._dhw.state
             self._target_temperature = self._dhw.target_temperature
-            self._current_temperature == self._dhw.current_temp
+            self._current_temperature = self._dhw.current_temp
             self._operation_list = self._dhw.ha_modes
             self._mode = self._dhw.ha_mode
             self._low_temp = self._dhw.min_temp
