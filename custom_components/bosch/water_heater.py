@@ -11,7 +11,6 @@ from bosch_thermostat_http.const import (
     SYSTEM_BRAND,
     SYSTEM_TYPE,
     CURRENT_TEMP,
-    WATER_OFF,
     STATUS, SETPOINT
 )
 

@@ -7,7 +7,6 @@ from bosch_thermostat_http.const import (
     SYSTEM_BRAND,
     SYSTEM_TYPE,
     ALLOWED_VALUES,
-    MANUAL_SETPOINT
 )
 import time
 
