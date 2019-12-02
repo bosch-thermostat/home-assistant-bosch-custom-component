@@ -122,8 +122,9 @@ class BoschThermostat(ClimateDevice):
         return self._target_temperature
 
     async def async_purge(self, now):
-        _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
-    # is_value_updated = await self._hc.update()
+        pass
+        # _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
+        # is_value_updated = await self._hc.
         # if is_value_updated:
             # dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
 
