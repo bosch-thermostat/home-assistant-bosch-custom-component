@@ -55,7 +55,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         if user_input is not None:
             self.host = self.context["address"] = user_input["address"]
             self.access_token = user_input["access_token"]
-            password = user_input[CONF_PASSWORD]
+            password = user_input.get(CONF_PASSWORD)
             websession = async_get_clientsession(self.hass, verify_ssl=False)
             try:
                 device = Gateway(websession, self.host,
@@ -72,7 +72,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         return self.async_show_form(step_id="init", data_schema=vol.Schema({
                 vol.Required(CONF_ADDRESS): str,
                 vol.Required(CONF_ACCESS_TOKEN): str,
-                vol.Required(CONF_PASSWORD): str
+                vol.Optional(CONF_PASSWORD): str
             }),errors=errors)
 
     async def async_step_import(self, user_input=None):
