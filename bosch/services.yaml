@@ -1,6 +1,0 @@
-debug_scan:
-  description:  Run raw scan for Bosch. It will be available as bosch_scan.json in your www dir of Home Assistant. You can check url of the file in logs after it. It doesn't matter which entity you choose. It makes scan for whole your setup. Typically it is https://ha/local/bosch_scan.json?vX
-  fields:
-    entity_id:
-      description: Name(s) of entity. Choose one from Bosch component.
-      example: 'climate.hc1'

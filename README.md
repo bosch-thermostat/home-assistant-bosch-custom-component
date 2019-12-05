@@ -1,14 +1,13 @@
 # home-assistant-bosch-custom-component
 HA custom component for Bosch thermostat
 
-**It will only work with Home Assistant 0.96 and higher.**
+**It will only work with Home Assistant 0.100 and higher.**
 
 It is @alpha version of Bosch thermostat component.
 Toghether with [@moustic999](https://github.com/moustic999) we developed library to communicate with Bosch gateway.
 Bosch gateways are used by Buderus as well.
 
-As Home Assistant is still missing some functions (scheduler, calendar, smarter water heater), 
-Bosch component will be available as custom component.
+As Home Assistant is still missing some functions (scheduler, calendar, smarter water heater) Bosch component will be available as custom component.
 
 What should work:
 * configuring bosch thermostat
@@ -24,12 +23,17 @@ What should work:
 bosch:
   address: <IP ADDRESS>
   password: "YOUR GATEWAY PASSWORD"
-  access_token: "Access key to your gateway"
+  access_key: "Access key to your gateway"
+  sensors:
+      - hotWater_t2
 ```
+
+Full list of sensors in WIKI.
 
 ### Integration.
 
 Go to integration page, add Bosch component and follow on going screens.
+Screens and more instructions in WIKI.
 
 PS. Autodiscovery not available for custom components.
 
@@ -57,5 +61,8 @@ logger:
 
 # Known bugs.
 * initial loading takes about one minute.
-* click in lovelace thermostat card on active mode switching to idle even though Bosch doesn't support idle.
+
 Bug reported in HA Lovelace - https://github.com/home-assistant/home-assistant-polymer/issues/3195
+
+# First config help needed.
+Come to Discord channel https://discord.gg/uWnWnx and let's try to figure out if you have unknown device for us or if there is issue with component.

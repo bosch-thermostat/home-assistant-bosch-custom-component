@@ -1,31 +1,12 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
 
-from bosch_thermostat_http.const import (VALUE, UNITS, MINVALUE, MAXVALUE,
-                                         STATE, OPEN, SHORT, INVALID,
-                                         ALLOWED_VALUES, SYSTEM_BRAND,
-                                         SYSTEM_TYPE, FIRMWARE_VERSION)
+from bosch_thermostat_http.const import (SYSTEM_BRAND, SYSTEM_TYPE)
 from homeassistant.helpers.entity import Entity
-from homeassistant.const import (
-    TEMP_CELSIUS, TEMP_FAHRENHEIT)
 
-from .const import DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH, GATEWAY
-
-UNITS_CONVERTER = {
-    'C': TEMP_CELSIUS,
-    'F': TEMP_FAHRENHEIT,
-    '%': '%',
-    'l/min': 'l/min',
-    'l/h': 'l/h',
-    'kg/l': 'kg/l',
-    'mins': 'mins',
-    'kW': 'kW',
-    'kWh': 'kWh',
-    'Pascal': 'Pascal',
-    'bar': 'bar',
-    'µA': 'µA',
-    ' ': None
-}
+from homeassistant.helpers.dispatcher import async_dispatcher_send
+from .const import (DOMAIN, SIGNAL_SENSOR_UPDATE_BOSCH, GATEWAY, SENSORS,
+                    UNITS_CONVERTER, UUID, SENSOR)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,35 +19,43 @@ async def async_setup_platform(hass, config, async_add_entities,
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
-    uuid = config_entry.title
+    uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data['sensors'] = [BoschSensor(hass, uuid, sensor, data[GATEWAY])
-                       for sensor in data[GATEWAY].sensors]
-    async_add_entities(data['sensors'])
+    enabled_sensors = config_entry.data.get(SENSORS, [])
+    data[SENSOR] = [BoschSensor(hass, uuid, sensor, data[GATEWAY], sensor.attr_id in enabled_sensors)
+                        for sensor in data[GATEWAY].sensors]
+    async_add_entities(data[SENSOR])
+    async_dispatcher_send(hass, "climate_signal")
     return True
 
 
 class BoschSensor(Entity):
     """Representation of a Bosch sensor."""
 
-    def __init__(self, hass, uuid, sensor, gateway):
+    def __init__(self, hass, uuid, sensor, gateway, is_enabled=False):
         """Initialize the sensor."""
         self.hass = hass
         self._sensor = sensor
+        self._str = self._sensor.strings
         self._gateway = gateway
         self._name = self._sensor.name
         self._state = None
+        self._update_init = True
         self._unit_of_measurement = None
         self._uuid = uuid
         self._unique_id = self._name+self._uuid
         self._attrs = {}
-        # self.hass.helpers.dispatcher.dispatcher_connect(
-        #     SIGNAL_UPDATE_BOSCH, self.update)
+        self._is_enabled = is_enabled
 
     async def async_added_to_hass(self):
         """Register callbacks."""
         self.hass.helpers.dispatcher.async_dispatcher_connect(
             SIGNAL_SENSOR_UPDATE_BOSCH, self.async_update)
+
+    @property
+    def entity_registry_enabled_default(self):
+        """Return if the entity should be enabled when first added to the entity registry."""
+        return self._is_enabled
 
     @property
     def name(self):
@@ -83,12 +72,12 @@ class BoschSensor(Entity):
             'manufacturer': self._gateway.get_info(SYSTEM_BRAND),
             'model': self._gateway.get_info(SYSTEM_TYPE),
             'name': 'Bosch sensors',
-            'sw_version': self._gateway.get_info(FIRMWARE_VERSION),
+            'sw_version': self._gateway.firmware,
             'via_hub': (DOMAIN, self._uuid)
         }
 
     @property
-    def upstream_object(self):
+    def bosch_object(self):
         """Return upstream component. Used for refreshing."""
         return self._sensor
 
@@ -116,23 +105,34 @@ class BoschSensor(Entity):
         """Update state of device."""
         # await self._sensor.update()
         data = self._sensor.get_all_properties()
+        self._state = data.get(self._str.val, self._str.invalid)
+        self._attrs["stateExtra"] = self._state
         if not data:
-            self._state = "Invalid"
+            if not self._sensor.update_initialized:
+                self._state = -1
+                self._attrs["stateExtra"] = "Waiting to fetch data"
             return
-        self._state = data[VALUE] if VALUE in data else 0
-        if UNITS in data and data[UNITS] in UNITS_CONVERTER:
-            self._unit_of_measurement = UNITS_CONVERTER[data[UNITS]]
-        if MINVALUE in data:
-            self._attrs[MINVALUE] = data[MINVALUE]
-        if MAXVALUE in data:
-            self._attrs[MAXVALUE] = data[MAXVALUE]
-        if ALLOWED_VALUES in data:
-            self._attrs[ALLOWED_VALUES] = data[ALLOWED_VALUES]
-        if STATE in data:
-            if OPEN in data[STATE]:
-                self._attrs['{}_{}'.format(STATE, OPEN)] = data[STATE][OPEN]
-            if SHORT in data[STATE]:
-                self._attrs['{}_{}'.format(STATE, SHORT)] = data[STATE][SHORT]
-            if INVALID in data[STATE]:
-                self._attrs['{}_{}'.format(STATE,
-                                           INVALID)] = data[STATE][INVALID]
+        state = data.get(self._str.state, {})
+        self._unit_of_measurement = UNITS_CONVERTER.get(
+            data.get(self._str.units))
+        if self._str.min in data:
+            self._attrs[self._str.min] = data[self._str.min]
+        if self._str.max in data:
+            self._attrs[self._str.max] = data[self._str.max]
+        if self._str.allowed_values in data:
+            self._attrs[self._str.allowed_values] = \
+                data[self._str.allowed_values]
+        if self._str.open in state:
+            self._attrs['{}_{}'.format(
+                self._str.state, self._str.open)] = state[self._str.open]
+        if self._str.short in state:
+            self._attrs['{}_{}'.format(
+                self._str.state,
+                self._str.short)] = state[self._str.short]
+        if self._str.invalid in state:
+            self._attrs['{}_{}'.format(
+                self._str.state,
+                self._str.invalid)] = state[self._str.invalid]
+        if self._update_init:
+            self._update_init = False
+            self.async_schedule_update_ha_state()
