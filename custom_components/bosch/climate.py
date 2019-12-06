@@ -2,29 +2,27 @@
 import logging
 from datetime import timedelta
 from bosch_thermostat_http.const import (
-    OPERATION_MODE,
-    STATUS,
     SYSTEM_BRAND,
     SYSTEM_TYPE,
-    ALLOWED_VALUES,
+    SETPOINT,
 )
-import time
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.components.climate import ClimateDevice
-from homeassistant.components.climate.const import (
-    HVAC_MODE_AUTO,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_OFF,
-    SERVICE_SET_PRESET_MODE,
-    SUPPORT_PRESET_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
-)
-from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, TEMP_FAHRENHEIT
+from homeassistant.components.climate.const import SUPPORT_TARGET_TEMPERATURE
+from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 from homeassistant.helpers.event import async_track_point_in_time
 import homeassistant.util.dt as dt_util
 
-from .const import DOMAIN, GATEWAY, HCS, SIGNAL_CLIMATE_UPDATE_BOSCH, UUID, CLIMATE, UNITS_CONVERTER
+from .const import (
+    DOMAIN,
+    GATEWAY,
+    SIGNAL_CLIMATE_UPDATE_BOSCH,
+    UUID,
+    CLIMATE,
+    UNITS_CONVERTER,
+    SWITCHPOINT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,8 +31,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data[CLIMATE] = ([BoschThermostat(hass, uuid, hc, data[GATEWAY])
-                                          for hc in data[GATEWAY].heating_circuits])
+    data[CLIMATE] = [
+        BoschThermostat(hass, uuid, hc, data[GATEWAY])
+        for hc in data[GATEWAY].heating_circuits
+    ]
     async_add_entities(data[CLIMATE])
     async_dispatcher_send(hass, "climate_signal")
     return True
@@ -65,7 +65,6 @@ class BoschThermostat(ClimateDevice):
         self._target_temperature = None
         self._hvac_modes = []
         self._hvac_mode = None
-        
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -84,6 +83,13 @@ class BoschThermostat(ClimateDevice):
             "sw_version": self._gateway.firmware,
             "via_hub": (DOMAIN, self._uuid),
         }
+
+    @property
+    def state_attributes(self):
+        data = super().state_attributes
+        data[SETPOINT] = self._hc.setpoint
+        data[SWITCHPOINT] = self._hc.schedule.active_program
+        return data
 
     @property
     def bosch_object(self):
@@ -125,8 +131,7 @@ class BoschThermostat(ClimateDevice):
         # _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
         # is_value_updated = await self._hc.
         # if is_value_updated:
-            # dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
-
+        # dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set operation mode."""
@@ -135,7 +140,7 @@ class BoschThermostat(ClimateDevice):
         if status == 2:
             async_track_point_in_time(
                 self.hass, self.async_purge, dt_util.utcnow() + timedelta(seconds=1)
-        )
+            )
         if status > 0:
             return True
         return False
@@ -159,18 +164,15 @@ class BoschThermostat(ClimateDevice):
     def update(self):
         """Update state of device."""
         _LOGGER.debug("Update of climate %s component called.", self._name)
-        if (
-            not self._hc
-            or not self._hc.update_initialized
-        ):
+        if not self._hc or not self._hc.update_initialized:
             return
         self._temperature_units = UNITS_CONVERTER.get(self._hc.temp_units)
         if (
-            self._state != self._hc.state or 
-            self._target_temperature != self._hc.target_temperature or
-            self._current_temperature != self._hc.current_temp or
-            self._hvac_modes != self._hc.ha_modes or
-            self._hvac_mode != self._hc.ha_mode
+            self._state != self._hc.state
+            or self._target_temperature != self._hc.target_temperature
+            or self._current_temperature != self._hc.current_temp
+            or self._hvac_modes != self._hc.ha_modes
+            or self._hvac_mode != self._hc.ha_mode
         ):
             self._state = self._hc.state
             self._target_temperature = self._hc.target_temperature

@@ -9,13 +9,7 @@ from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SENS
 from bosch_thermostat_http.errors import Response404Error
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.core import Event, State, callback
 
-from homeassistant.helpers.entity_registry import (
-    async_entries_for_device,
-    async_get_registry,
-    async_entries_for_device,
-)
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -33,17 +27,13 @@ from .config_flow import configured_hosts
 from .const import (
     ACCESS_KEY,
     CLIMATE,
-    DHWS,
     DOMAIN,
     GATEWAY,
-    HCS,
     SENSOR,
     SENSORS,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
-    STORAGE_KEY,
-    STORAGE_VERSION,
     WATER_HEATER,
     UUID,
 )
@@ -60,7 +50,7 @@ SIGNALS = {
     SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
 }
 
-SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string,})
+SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
 
 BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
 
@@ -148,6 +138,7 @@ class BoschGatewayEntry:
         self.prefs = None
         self._initial_update = False
         self.supported_platforms = []
+        self._update_in_progress = False
 
     async def async_init(self):
         """Init async items in entry."""
@@ -237,8 +228,9 @@ class BoschGatewayEntry:
                         updated = True
                     except Response404Error as err:
                         _LOGGER.warning(
-                            "Bosch object of entity %s is no longer available.",
+                            "Bosch object of entity %s is no longer available. %s",
                             entity.name,
+                            err,
                         )
             if updated:
                 _LOGGER.debug(f"Bosch {component_type} entitites updated.")
@@ -249,9 +241,12 @@ class BoschGatewayEntry:
     async def thermostat_refresh(self, event_time=None):
         """Call Bosch to refresh information."""
         _LOGGER.debug("Updating Bosch thermostat entitites.")
-        await self.component_update(CLIMATE)
-        await self.component_update(WATER_HEATER)
-        await self.component_update(SENSOR)
+        if not self._update_in_progress:
+            self._update_in_progress = True
+            await self.component_update(CLIMATE)
+            await self.component_update(WATER_HEATER)
+            await self.component_update(SENSOR)
+            self._update_in_progress = False
 
     async def async_handle_debug_service(self, service_call):
         """Make bosch scan for debug purposes of thermostat."""

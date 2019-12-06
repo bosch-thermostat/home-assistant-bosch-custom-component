@@ -5,33 +5,17 @@ For more details about this platform, please refer to the documentation at...
 """
 import logging
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from bosch_thermostat_http.const import (
-    GATEWAY,
-    OPERATION_MODE,
-    SYSTEM_BRAND,
-    SYSTEM_TYPE,
-    CURRENT_TEMP,
-    STATUS, SETPOINT
-)
+from bosch_thermostat_http.const import GATEWAY, SYSTEM_BRAND, SYSTEM_TYPE, SETPOINT
 
 from homeassistant.components.water_heater import (
-    STATE_HEAT_PUMP,
-    STATE_HIGH_DEMAND,
     STATE_OFF,
-    STATE_PERFORMANCE,
     SUPPORT_OPERATION_MODE,
     SUPPORT_TARGET_TEMPERATURE,
     WaterHeaterDevice,
 )
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
-from .const import (
-    DHWS,
-    DOMAIN,
-    SIGNAL_DHW_UPDATE_BOSCH,
-    UNITS_CONVERTER,
-    UUID, WATER_HEATER
-)
+from .const import DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER, UUID, WATER_HEATER, SWITCHPOINT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,8 +29,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data[WATER_HEATER] = [BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
-                        for dhw in data[GATEWAY].dhw_circuits]
+    data[WATER_HEATER] = [
+        BoschWaterHeater(hass, uuid, dhw, data[GATEWAY])
+        for dhw in data[GATEWAY].dhw_circuits
+    ]
     async_add_entities(data[WATER_HEATER])
     async_dispatcher_send(hass, "climate_signal")
     return True
@@ -121,8 +107,8 @@ class BoschWaterHeater(WaterHeaterDevice):
     def state_attributes(self):
         data = super().state_attributes
         data[SETPOINT] = self._dhw.setpoint
+        data[SWITCHPOINT] = self._dhw.schedule.active_program
         return data
-
 
     @property
     def device_state_attributes(self):
@@ -161,28 +147,33 @@ class BoschWaterHeater(WaterHeaterDevice):
     async def async_set_operation_mode(self, operation_mode):
         """Set operation mode."""
         op_mode = self._hastates.get(operation_mode)
-        _LOGGER.debug(f"Setting operation mode {operation_mode} which is Bosch {op_mode}.")
-        if op_mode and operation_mode != self._mode and operation_mode in self._operation_list:
+        _LOGGER.debug(
+            f"Setting operation mode {operation_mode} which is Bosch {op_mode}."
+        )
+        if (
+            op_mode
+            and operation_mode != self._mode
+            and operation_mode in self._operation_list
+        ):
             new_mode = await self._dhw.set_operation_mode(op_mode)
             _LOGGER.debug(f"Set operation mode to {new_mode}.")
         else:
-            _LOGGER.error(f"Correct operation mode must be provided. I got {operation_mode}")
+            _LOGGER.error(
+                f"Correct operation mode must be provided. I got {operation_mode}"
+            )
 
     def update(self):
         """Get the latest date."""
         _LOGGER.debug("Updating Bosch water_heater.")
-        if (
-            not self._dhw
-            or not self._dhw.update_initialized
-        ):
+        if not self._dhw or not self._dhw.update_initialized:
             return
         self._temperature_units = UNITS_CONVERTER.get(self._dhw.temp_units)
         if (
-            self._state != self._dhw.state or
-            self._operation_list == self._dhw.ha_modes or
-            self._current_temperature != self._dhw.current_temp or
-            self._low_temp != self._dhw.min_temp or
-            self._max_temp != self._dhw.max_temp
+            self._state != self._dhw.state
+            or self._operation_list == self._dhw.ha_modes
+            or self._current_temperature != self._dhw.current_temp
+            or self._low_temp != self._dhw.min_temp
+            or self._max_temp != self._dhw.max_temp
         ):
             self._state == self._dhw.state
             self._target_temperature = self._dhw.target_temperature
