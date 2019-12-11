@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.core import callback
 from homeassistant import config_entries
 from bosch_thermostat_http.gateway import Gateway
-from bosch_thermostat_http.errors import RequestError
+from bosch_thermostat_http.exceptions import DeviceException
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import CONF_ADDRESS, CONF_ACCESS_TOKEN, CONF_PASSWORD
 
@@ -60,7 +60,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 device = Gateway(websession, self.host, self.access_token, password)
                 if await device.check_connection():
                     return await self._entry_from_gateway(device)
-            except RequestError as err:
+            except DeviceException as err:
                 _LOGGER.error("Wrong IP or credentials at %s - %s", self.host, err)
                 return self.async_abort(reason="faulty_credentials")
             except Exception as err:  # pylint: disable=broad-except
@@ -97,7 +97,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 )
                 if await device.check_connection():
                     return await self._entry_from_gateway(device, sensors)
-            except RequestError as err:
+            except DeviceException as err:
                 _LOGGER.error("Wrong IP or credentials at %s - %s", address, err)
                 return self.async_abort(reason="faulty_credentials")
             except Exception as err:  # pylint: disable=broad-except
@@ -117,6 +117,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
 
         host = gateway.host
         uuid = await gateway.check_connection()
+        device_name = gateway.device_name if gateway.device_name else "Unknown"
         same_gateway_entries = [
             entry.entry_id
             for entry in self.hass.config_entries.async_entries(DOMAIN)
@@ -139,7 +140,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             if sensors
             else {CONF_ADDRESS: host, UUID: uuid, ACCESS_KEY: gateway.access_key}
         )
-        return self.async_create_entry(title=gateway.device_name, data=data)
+        return self.async_create_entry(title=device_name, data=data)
 
 
 class BoschOptionsFlowHandler(config_entries.OptionsFlow):

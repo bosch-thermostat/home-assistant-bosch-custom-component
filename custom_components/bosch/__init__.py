@@ -1,15 +1,15 @@
 """Platform to control a Bosch IP thermostats units."""
-import json
 import logging
 import random
 from datetime import timedelta
 
 import voluptuous as vol
 from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SENSORS_LIST
-from bosch_thermostat_http.errors import Response404Error
+from bosch_thermostat_http.exceptions import DeviceException
 
 import homeassistant.helpers.config_validation as cv
 
+from homeassistant.util.json import load_json, save_json
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -43,12 +43,13 @@ SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
 
 SERVICE_DEBUG = "debug_scan"
 SERVICE_UPDATE = "update_thermostat"
-SERVICE_REINIT_DB = "reinit_bosch_schema_db"
 SIGNALS = {
     CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
     WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
     SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
 }
+
+CUSTOM_DB = "custom_bosch_db.json"
 
 SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
 
@@ -134,6 +135,7 @@ class BoschGatewayEntry:
         self.access_key = entry.data[ACCESS_KEY]
         self._sensors_list = entry.data.get(SENSORS, None)
         self.websession = async_get_clientsession(self.hass, verify_ssl=False)
+        self._debug_service_registered = False
         self.gateway = None
         self.prefs = None
         self._initial_update = False
@@ -166,6 +168,8 @@ class BoschGatewayEntry:
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware,
             )
+            if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
+                self.register_service(True, False)
             _LOGGER.debug("Bosch component registered.")
             return True
         return False
@@ -176,8 +180,8 @@ class BoschGatewayEntry:
             for k in (CLIMATE, SENSOR, WATER_HEATER)
         ):
             self.hass.async_create_task(self.thermostat_refresh())
-            self.register_services()
             self.register_update()
+            self.register_service(True, True)
 
     async def async_reset(self):
         self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
@@ -193,24 +197,32 @@ class BoschGatewayEntry:
                 self.uuid,
             )
             return False
-        if await self.gateway.initialize_circuits(HC):
-            self.supported_platforms.append(CLIMATE)
-        if await self.gateway.initialize_circuits(DHW):
-            self.supported_platforms.append(WATER_HEATER)
-        self.gateway.initialize_sensors(self._sensors_list)
-        self.supported_platforms.append(SENSOR)
+        if not self.gateway.database:
+            custom_db = load_json(self.hass.config.path(CUSTOM_DB), default=None)
+            if custom_db:
+                self.gateway.custom_initialize(custom_db)
+        if self.gateway.database:
+            if await self.gateway.initialize_circuits(HC):
+                self.supported_platforms.append(CLIMATE)
+            if await self.gateway.initialize_circuits(DHW):
+                self.supported_platforms.append(WATER_HEATER)
+            self.gateway.initialize_sensors(self._sensors_list)
+            self.supported_platforms.append(SENSOR)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
         _LOGGER.info("Bosch initialized.")
         return True
 
-    def register_services(self):
+    def register_service(self, debug=False, update=False):
         """Register service to use in HA."""
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_DEBUG, self.async_handle_debug_service, SERVICE_DEBUG_SCHEMA
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_UPDATE, self.thermostat_refresh, SERVICE_DEBUG_SCHEMA
-        )
+        if debug and not self._debug_service_registered:
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_DEBUG, self.async_handle_debug_service, SERVICE_DEBUG_SCHEMA
+            )
+            self._debug_service_registered = True
+        if update:
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_UPDATE, self.thermostat_refresh, SERVICE_DEBUG_SCHEMA
+            )
 
     def register_update(self):
         """Register interval auto update."""
@@ -226,7 +238,7 @@ class BoschGatewayEntry:
                     try:
                         await entity.bosch_object.update()
                         updated = True
-                    except Response404Error as err:
+                    except DeviceException as err:
                         _LOGGER.warning(
                             "Bosch object of entity %s is no longer available. %s",
                             entity.name,
@@ -251,19 +263,13 @@ class BoschGatewayEntry:
     async def async_handle_debug_service(self, service_call):
         """Make bosch scan for debug purposes of thermostat."""
         filename = self.hass.config.path("www/bosch_scan.json")
-
-        def _write_to_filr(to_file, rawscan):
-            """Executor helper to write image."""
-            with open(to_file, "w") as logfile:
-                json.dump(rawscan, logfile, indent=4)
+        try:
+            _LOGGER.info("Starting rawscan of Bosch component")
+            rawscan = await self.gateway.rawscan()
+            save_json(filename, rawscan)
             url = "{}{}".format(self.hass.config.api.base_url, "/local/bosch_scan.json")
             _LOGGER.info(
                 "Rawscan success. Your URL: {}?v{}".format(url, random.randint(0, 5000))
             )
-
-        try:
-            _LOGGER.info("Starting rawscan of Bosch component")
-            rawscan = await self.gateway.rawscan()
-            await self.hass.async_add_executor_job(_write_to_filr, filename, rawscan)
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
