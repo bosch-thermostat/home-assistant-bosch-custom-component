@@ -51,11 +51,8 @@ SIGNALS = {
 }
 
 CUSTOM_DB = "custom_bosch_db.json"
-
 SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
-
 BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
-
 DATA_CONFIGS = "bosch_configs"
 
 _LOGGER = logging.getLogger(__name__)
