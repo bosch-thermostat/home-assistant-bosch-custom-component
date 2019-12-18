@@ -6,6 +6,7 @@ from datetime import timedelta
 import voluptuous as vol
 from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SENSORS_LIST
 from bosch_thermostat_http.exceptions import DeviceException
+from bosch_thermostat_http.version import __version__ as LIBVERSION
 
 import homeassistant.helpers.config_validation as cv
 
@@ -89,7 +90,7 @@ async def async_setup(hass: HomeAssistantType, config: ConfigType):
     if configs:
         for config in configs:
             host = config[CONF_ADDRESS]
-            if host in configured and configured[host][SENSORS] == config[SENSORS]:
+            if host in configured and configured[host].get(SENSORS, []) == config.get(SENSORS, []):
                 continue
             hass.async_create_task(
                 hass.config_entries.flow.async_init(
@@ -103,7 +104,7 @@ async def async_setup(hass: HomeAssistantType, config: ConfigType):
 
 async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
-    _LOGGER.debug("Setting up Bosch component.")
+    _LOGGER.debug(f"Setting up Bosch component version {LIBVERSION}.")
     uuid = entry.data[UUID]
     if entry.data[CONF_ADDRESS] and entry.data[ACCESS_KEY]:
         gateway_entry = BoschGatewayEntry(hass, uuid, entry)

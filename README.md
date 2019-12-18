@@ -61,6 +61,7 @@ logger:
 
 # Known bugs.
 * initial loading takes about one minute.
+* on RC300 DHW/water_heater it is supported only on Bosch ownprogram mode.
 
 Bug reported in HA Lovelace - https://github.com/home-assistant/home-assistant-polymer/issues/3195
 

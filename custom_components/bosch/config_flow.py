@@ -141,38 +141,3 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             else {CONF_ADDRESS: host, UUID: uuid, ACCESS_KEY: gateway.access_key}
         )
         return self.async_create_entry(title=device_name, data=data)
-
-
-class BoschOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle Unifi options."""
-
-    def __init__(self, config_entry):
-        """Initialize UniFi options flow."""
-        self.config_entry = config_entry
-        self._data = config_entry.data
-        self.sensors_options = dict(self._data[SENSORS])
-
-    async def async_step_init(self, user_input=None):
-        """Manage the UniFi options."""
-        return await self.async_step_sensors()
-
-    async def async_step_sensors(self, user_input=None):
-        """Manage the device tracker options."""
-        return self.async_show_form(
-            step_id="sensors",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(sensor, default=(value)): bool
-                    for sensor, value in self.sensors_options.items()
-                }
-            ),
-        )
-        # updated = False
-        # if user_input is not None:
-        #     for sensor, value in self.sensors_options.items():
-        #         if sensor in user_input:
-        #             if user_input[sensor] != value:
-        #                 self.sensors_options[sensor] = user_input[sensor]
-        #                 updated = True
-        #     if updated:
-        #         return self.async_create_entry(title="", data=self._data)
