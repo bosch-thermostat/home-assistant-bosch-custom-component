@@ -198,6 +198,7 @@ class BoschGatewayEntry:
         if not self.gateway.database:
             custom_db = load_json(self.hass.config.path(CUSTOM_DB), default=None)
             if custom_db:
+                _LOGGER.info("Loading custom db file.")
                 self.gateway.custom_initialize(custom_db)
         if self.gateway.database:
             if await self.gateway.initialize_circuits(HC):
