@@ -119,7 +119,7 @@ class BoschSensor(Entity):
         if not data:
             if not self._sensor.update_initialized:
                 self._state = -1
-                self._attrs["stateExtra"] = "Waiting to fetch data"
+                self._attrs["stateExtra"] = self._sensor.state_message
             return
         state = data.get(self._str.state, {})
         self._unit_of_measurement = UNITS_CONVERTER.get(data.get(self._str.units))
