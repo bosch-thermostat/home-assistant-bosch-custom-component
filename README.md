@@ -46,7 +46,7 @@ Always attach debugscan if you have any troubles or something is missing.
 To make debugscan go to HA developer tools -> Services and choose
 **bosch.debug_scan** .
 
-Download json file and attach it somewhere.
+Download `json` file and attach it somewhere. The `json` file is stored under <hass-config>/www/bosch_scan.json. Please make sure the www folder exists prior to running the scan.
 
 ## Debugging
 Example logger config for debugging:
