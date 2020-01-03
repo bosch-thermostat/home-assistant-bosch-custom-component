@@ -6,7 +6,17 @@ import asyncio
 from datetime import timedelta
 
 import voluptuous as vol
-from bosch_thermostat_http.const import DHW, HC, SC, SYSTEM_BRAND, SYSTEM_TYPE, SENSORS_LIST, SOLAR_CIRCUITS, HEATING_CIRCUITS, DHW_CIRCUITS
+from bosch_thermostat_http.const import (
+    DHW,
+    HC,
+    SC,
+    SYSTEM_BRAND,
+    SYSTEM_TYPE,
+    SENSORS_LIST,
+    SOLAR_CIRCUITS,
+    HEATING_CIRCUITS,
+    DHW_CIRCUITS,
+)
 from bosch_thermostat_http.exceptions import DeviceException
 from bosch_thermostat_http.version import __version__ as LIBVERSION
 
@@ -41,7 +51,7 @@ from .const import (
     UUID,
     SOLAR,
     SIGNAL_SOLAR_UPDATE_BOSCH,
-    SIGNAL_BOSCH
+    SIGNAL_BOSCH,
 )
 
 SCAN_INTERVAL = timedelta(seconds=60)
@@ -53,14 +63,10 @@ SIGNALS = {
     CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
     WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
     SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
-    SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH
+    SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
 }
 
-SUPPORTED_PLATFORMS = {
-    HC: CLIMATE,
-    DHW: WATER_HEATER,
-    SC: SOLAR
-}
+SUPPORTED_PLATFORMS = {HC: CLIMATE, DHW: WATER_HEATER, SC: SOLAR}
 
 CUSTOM_DB = "custom_bosch_db.json"
 SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
@@ -99,7 +105,9 @@ async def async_setup(hass: HomeAssistantType, config: ConfigType):
     if configs:
         for config in configs:
             host = config[CONF_ADDRESS]
-            if host in configured and configured[host].get(SENSORS, []) == config.get(SENSORS, []):
+            if host in configured and configured[host].get(SENSORS, []) == config.get(
+                SENSORS, []
+            ):
                 continue
             hass.async_create_task(
                 hass.config_entries.flow.async_init(
@@ -183,14 +191,16 @@ class BoschGatewayEntry:
             )
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
                 self.register_service(True, False)
-            _LOGGER.debug("Bosch component registered with platforms %s.", self.supported_platforms)
+            _LOGGER.debug(
+                "Bosch component registered with platforms %s.",
+                self.supported_platforms,
+            )
             return True
         return False
 
     def get_signals(self):
         if all(
-            k in self.hass.data[DOMAIN][self.uuid]
-            for k in self.supported_platforms
+            k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
         ):
             self.hass.async_create_task(self.thermostat_refresh())
             self.register_update()
@@ -230,7 +240,10 @@ class BoschGatewayEntry:
         """Register service to use in HA."""
         if debug and not self._debug_service_registered:
             self.hass.services.async_register(
-                DOMAIN, SERVICE_DEBUG, self.async_handle_debug_service, SERVICE_DEBUG_SCHEMA
+                DOMAIN,
+                SERVICE_DEBUG,
+                self.async_handle_debug_service,
+                SERVICE_DEBUG_SCHEMA,
             )
             self._debug_service_registered = True
         if update:
