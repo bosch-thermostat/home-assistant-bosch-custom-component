@@ -1,10 +1,12 @@
 """Platform to control a Bosch IP thermostats units."""
 import logging
 import random
+import asyncio
+
 from datetime import timedelta
 
 import voluptuous as vol
-from bosch_thermostat_http.const import DHW, HC, SYSTEM_BRAND, SYSTEM_TYPE, SENSORS_LIST
+from bosch_thermostat_http.const import DHW, HC, SC, SYSTEM_BRAND, SYSTEM_TYPE, SENSORS_LIST, SOLAR_CIRCUITS, HEATING_CIRCUITS, DHW_CIRCUITS
 from bosch_thermostat_http.exceptions import DeviceException
 from bosch_thermostat_http.version import __version__ as LIBVERSION
 
@@ -37,6 +39,9 @@ from .const import (
     SIGNAL_SENSOR_UPDATE_BOSCH,
     WATER_HEATER,
     UUID,
+    SOLAR,
+    SIGNAL_SOLAR_UPDATE_BOSCH,
+    SIGNAL_BOSCH
 )
 
 SCAN_INTERVAL = timedelta(seconds=60)
@@ -48,6 +53,13 @@ SIGNALS = {
     CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
     WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
     SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
+    SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH
+}
+
+SUPPORTED_PLATFORMS = {
+    HC: CLIMATE,
+    DHW: WATER_HEATER,
+    SC: SOLAR
 }
 
 CUSTOM_DB = "custom_bosch_db.json"
@@ -138,18 +150,21 @@ class BoschGatewayEntry:
         self.prefs = None
         self._initial_update = False
         self.supported_platforms = []
-        self._update_in_progress = False
+        self._update_lock = None
 
     async def async_init(self):
         """Init async items in entry."""
         import bosch_thermostat_http as bosch
 
+        self._update_lock = asyncio.Lock()
         self.gateway = bosch.Gateway(self.websession, self.address, self.access_key)
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            "climate_signal", self.get_signals
-        )
         if await self.async_init_bosch():
+            self.hass.helpers.dispatcher.async_dispatcher_connect(
+                SIGNAL_BOSCH, self.get_signals
+            )
             for component in self.supported_platforms:
+                if component == SOLAR:
+                    continue
                 self.hass.async_create_task(
                     self.hass.config_entries.async_forward_entry_setup(
                         self.entry, component
@@ -168,14 +183,14 @@ class BoschGatewayEntry:
             )
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
                 self.register_service(True, False)
-            _LOGGER.debug("Bosch component registered.")
+            _LOGGER.debug("Bosch component registered with platforms %s.", self.supported_platforms)
             return True
         return False
 
     def get_signals(self):
         if all(
             k in self.hass.data[DOMAIN][self.uuid]
-            for k in (CLIMATE, SENSOR, WATER_HEATER)
+            for k in self.supported_platforms
         ):
             self.hass.async_create_task(self.thermostat_refresh())
             self.register_update()
@@ -201,10 +216,10 @@ class BoschGatewayEntry:
                 _LOGGER.info("Loading custom db file.")
                 self.gateway.custom_initialize(custom_db)
         if self.gateway.database:
-            if await self.gateway.initialize_circuits(HC):
-                self.supported_platforms.append(CLIMATE)
-            if await self.gateway.initialize_circuits(DHW):
-                self.supported_platforms.append(WATER_HEATER)
+            supported_bosch = await self.gateway.get_capabilities()
+            for supported in supported_bosch:
+                self.supported_platforms.append(SUPPORTED_PLATFORMS[supported])
+            self.supported_platforms.append(SOLAR)
             self.gateway.initialize_sensors(self._sensors_list)
             self.supported_platforms.append(SENSOR)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
@@ -244,20 +259,22 @@ class BoschGatewayEntry:
                             err,
                         )
             if updated:
-                _LOGGER.debug(f"Bosch {component_type} entitites updated.")
+                _LOGGER.debug(f"Bosch {component_type   } entitites updated.")
                 async_dispatcher_send(self.hass, SIGNALS[component_type])
                 return True
         return False
 
     async def thermostat_refresh(self, event_time=None):
         """Call Bosch to refresh information."""
+        if self._update_lock.locked():
+            _LOGGER.debug("Update already in progress. Not updating.")
+            return
         _LOGGER.debug("Updating Bosch thermostat entitites.")
-        if not self._update_in_progress:
-            self._update_in_progress = True
+        async with self._update_lock:
             await self.component_update(CLIMATE)
             await self.component_update(WATER_HEATER)
             await self.component_update(SENSOR)
-            self._update_in_progress = False
+            await self.component_update(SOLAR)
 
     async def async_handle_debug_service(self, service_call):
         """Make bosch scan for debug purposes of thermostat."""

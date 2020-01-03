@@ -15,7 +15,7 @@ from homeassistant.components.water_heater import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
-from .const import DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER, UUID, WATER_HEATER, SWITCHPOINT
+from .const import DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER, UUID, WATER_HEATER, SWITCHPOINT, SIGNAL_BOSCH
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         for dhw in data[GATEWAY].dhw_circuits
     ]
     async_add_entities(data[WATER_HEATER])
-    async_dispatcher_send(hass, "climate_signal")
+    async_dispatcher_send(hass, SIGNAL_BOSCH)
     return True
 
 

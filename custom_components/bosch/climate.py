@@ -22,6 +22,7 @@ from .const import (
     CLIMATE,
     UNITS_CONVERTER,
     SWITCHPOINT,
+    SIGNAL_BOSCH
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         for hc in data[GATEWAY].heating_circuits
     ]
     async_add_entities(data[CLIMATE])
-    async_dispatcher_send(hass, "climate_signal")
+    async_dispatcher_send(hass, SIGNAL_BOSCH)
     return True
 
 
@@ -126,8 +127,8 @@ class BoschThermostat(ClimateDevice):
         """Return the temperature we try to reach."""
         return self._target_temperature
 
-    async def async_purge(self, now):
-        pass
+    # async def async_purge(self, now):
+    #     pass
         # _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
         # is_value_updated = await self._hc.
         # if is_value_updated:
@@ -137,10 +138,10 @@ class BoschThermostat(ClimateDevice):
         """Set operation mode."""
         _LOGGER.debug(f"Setting operation mode {hvac_mode}.")
         status = await self._hc.set_ha_mode(hvac_mode)
-        if status == 2:
-            async_track_point_in_time(
-                self.hass, self.async_purge, dt_util.utcnow() + timedelta(seconds=1)
-            )
+        # if status == 2:
+        #     async_track_point_in_time(
+        #         self.hass, self.async_purge, dt_util.utcnow() + timedelta(seconds=1)
+        #     )
         if status > 0:
             return True
         return False

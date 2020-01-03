@@ -17,11 +17,15 @@ UUID = 'uuid'
 GATEWAY = 'gateway'
 CLIMATE = 'climate'
 SENSOR = 'sensor'
+SOLAR = 'solar'
 WATER_HEATER = 'water_heater'
+
+SIGNAL_BOSCH = "bosch_signal"
 
 SIGNAL_CLIMATE_UPDATE_BOSCH = "bosch_climate_update"
 SIGNAL_SENSOR_UPDATE_BOSCH = "bosch_sensor_update"
 SIGNAL_DHW_UPDATE_BOSCH = "bosch_dhw_update"
+SIGNAL_SOLAR_UPDATE_BOSCH = "bosch_solar_update"
 
 SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"
