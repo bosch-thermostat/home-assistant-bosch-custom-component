@@ -38,7 +38,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         )
         for sensor in data[GATEWAY].sensors
     ]
-    for circuit in data[GATEWAY].dhw_circuits:
+    for circuit in data[GATEWAY].solar_circuits:
         data[SOLAR] = [
             CircuitSensor(
                 hass, uuid, circuit, data[GATEWAY], circuit_sensor, circuit_sensor in enabled_solars
