@@ -229,7 +229,6 @@ class BoschGatewayEntry:
             supported_bosch = await self.gateway.get_capabilities()
             for supported in supported_bosch:
                 self.supported_platforms.append(SUPPORTED_PLATFORMS[supported])
-            self.supported_platforms.append(SOLAR)
             self.gateway.initialize_sensors(self._sensors_list)
             self.supported_platforms.append(SENSOR)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway

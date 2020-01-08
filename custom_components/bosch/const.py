@@ -40,6 +40,7 @@ UNITS_CONVERTER = {
     'mins': 'mins',
     'kW': 'kW',
     'kWh': 'kWh',
+    'Wh': 'Wh',
     'Pascal': 'Pascal',
     'bar': 'bar',
     'µA': 'µA',

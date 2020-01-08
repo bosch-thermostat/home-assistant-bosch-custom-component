@@ -32,34 +32,37 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     data = hass.data[DOMAIN][uuid]
     enabled_sensors = config_entry.data.get(SENSORS, [])
     enabled_solars = config_entry.data.get(SOLAR, [])
+    solars = []
     data[SENSOR] = [
         BoschSensor(
-            hass, uuid, sensor, data[GATEWAY], sensor.name, sensor.attr_id in enabled_sensors
+            hass, uuid, sensor, data[GATEWAY], sensor.name, sensor.attr_id, sensor.attr_id in enabled_sensors
         )
         for sensor in data[GATEWAY].sensors
     ]
+    data[SOLAR] = []
     for circuit in data[GATEWAY].solar_circuits:
-        data[SOLAR] = [
-            CircuitSensor(
-                hass, uuid, circuit, data[GATEWAY], circuit_sensor, circuit_sensor in enabled_solars
-            )
-            for circuit_sensor in circuit.get_all_properties
-        ]
+        for circuit_sensor in circuit.get_all_properties:
+            solars.append(CircuitSensor(
+                hass, uuid, circuit, data[GATEWAY], circuit_sensor, circuit_sensor, circuit_sensor in enabled_solars
+            ))
     async_add_entities(data[SENSOR])
-    async_add_entities(data[SOLAR])
+    if solars:
+        data[SOLAR] = solars
+        async_add_entities(data[SOLAR])
     async_dispatcher_send(hass, SIGNAL_BOSCH)
     return True
 
 
 class BoschBaseSensor(Entity):
 
-    def __init__(self, hass, uuid, bosch_object, gateway, name, is_enabled=False):
+    def __init__(self, hass, uuid, bosch_object, gateway, name, attr_uri, is_enabled=False):
         """Initialize the sensor."""
         self.hass = hass
         self._bosch_object = bosch_object
         self._str = self._bosch_object.strings
         self._gateway = gateway
         self._name = name
+        self._attr_uri = attr_uri
         self._state = None
         self._update_init = True
         self._unit_of_measurement = None
@@ -67,6 +70,12 @@ class BoschBaseSensor(Entity):
         self._unique_id = self._name + self._uuid
         self._attrs = {}
         self._is_enabled = is_enabled
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.hass.helpers.dispatcher.async_dispatcher_connect(
+            self.signal, self.async_update
+        )
 
     @property
     def name(self):
@@ -115,15 +124,48 @@ class BoschBaseSensor(Entity):
             "via_hub": (DOMAIN, self._uuid),
         }
 
+    async def async_update(self):
+        """Update state of device."""
+        _LOGGER.debug("Update of sensor %s called.", self._name)
+        data = self._bosch_object.get_property(self._attr_uri)
+        self._state = data.get(self._str.val, self._str.invalid)
+        self._attrs = {}
+        self._attrs["stateExtra"] = self._bosch_object.state
+        if not data:
+            if not self._bosch_object.update_initialized:
+                self._state = self._bosch_object.state
+                self._attrs["stateExtra"] = self._bosch_object.state_message
+            return
+        self.attrs_write(data)
+
+    def attrs_write(self, data):
+        self._unit_of_measurement = UNITS_CONVERTER.get(data.get(self._str.units))
+        bosch_state_data = data.get(self._str.state, {})
+        if self._str.min in data:
+            self._attrs[self._str.min] = data[self._str.min]
+        if self._str.max in data:
+            self._attrs[self._str.max] = data[self._str.max]
+        if self._str.allowed_values in data:
+            self._attrs[self._str.allowed_values] = data[self._str.allowed_values]
+        if self._str.open in bosch_state_data:
+            self._attrs["{}_{}".format(self._str.state, self._str.open)] = bosch_state_data[
+                self._str.open
+            ]
+        if self._str.short in bosch_state_data:
+            self._attrs["{}_{}".format(self._str.state, self._str.short)] = bosch_state_data[
+                self._str.short
+            ]
+        if self._str.invalid in bosch_state_data:
+            self._attrs["{}_{}".format(self._str.state, self._str.invalid)] = bosch_state_data[
+                self._str.invalid
+            ]
+        if self._update_init:
+            self._update_init = False
+            self.async_schedule_update_ha_state()
+
 
 class BoschSensor(BoschBaseSensor):
     """Representation of a Bosch sensor."""
-
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            SIGNAL_SENSOR_UPDATE_BOSCH, self.async_update
-        )
 
     @property
     def _domain_identifier(self):
@@ -133,51 +175,13 @@ class BoschSensor(BoschBaseSensor):
     def _sensor_name(self):
         return "Bosch sensors"
 
-    async def async_update(self):
-        """Update state of device."""
-        _LOGGER.debug("Update of sensor %s called.", self._name)
-        # await self._sensor.update()
-        data = self._bosch_object.get_all_values()
-        self._state = data.get(self._str.val, self._str.invalid)
-        self._attrs["stateExtra"] = self._state
-        if not data:
-            if not self._bosch_object.update_initialized:
-                self._state = -1
-                self._attrs["stateExtra"] = self._bosch_object.state_message
-            return
-        state = data.get(self._str.state, {})
-        self._unit_of_measurement = UNITS_CONVERTER.get(data.get(self._str.units))
-        if self._str.min in data:
-            self._attrs[self._str.min] = data[self._str.min]
-        if self._str.max in data:
-            self._attrs[self._str.max] = data[self._str.max]
-        if self._str.allowed_values in data:
-            self._attrs[self._str.allowed_values] = data[self._str.allowed_values]
-        if self._str.open in state:
-            self._attrs["{}_{}".format(self._str.state, self._str.open)] = state[
-                self._str.open
-            ]
-        if self._str.short in state:
-            self._attrs["{}_{}".format(self._str.state, self._str.short)] = state[
-                self._str.short
-            ]
-        if self._str.invalid in state:
-            self._attrs["{}_{}".format(self._str.state, self._str.invalid)] = state[
-                self._str.invalid
-            ]
-        if self._update_init:
-            self._update_init = False
-            self.async_schedule_update_ha_state()
+    @property
+    def signal(self):
+        return SIGNAL_SENSOR_UPDATE_BOSCH
 
 
 class CircuitSensor(BoschBaseSensor):
     """Representation of a Bosch sensor."""
-
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            SIGNAL_SOLAR_UPDATE_BOSCH, self.async_update
-        )
 
     @property
     def _domain_identifier(self):
@@ -185,27 +189,8 @@ class CircuitSensor(BoschBaseSensor):
 
     @property
     def _sensor_name(self):
-        return "Circuit sensors"
+        return "Solar circuit sensors"
 
-    async def async_update(self):
-        """Update state of device."""
-        _LOGGER.debug("Update of sensor %s called.", self._name)
-        # await self._sensor.update()
-        data = self._bosch_object.get_property(self._name)
-        value = data.get(self._str.val)
-        if not value or not self._bosch_object.state:
-            if not self._bosch_object.update_initialized:
-                self._state = self._bosch_object.get_value(STATUS)
-                self._attrs["stateExtra"] = self._bosch_object.state_message
-            return
-        self._state = value
-        self._unit_of_measurement = UNITS_CONVERTER.get(data.get(self._str.units))
-        if self._str.min in data:
-            self._attrs[self._str.min] = data[self._str.min]
-        if self._str.max in data:
-            self._attrs[self._str.max] = data[self._str.max]
-        if self._str.allowed_values in data:
-            self._attrs[self._str.allowed_values] = data[self._str.allowed_values]
-        if self._update_init:
-            self._update_init = False
-            self.async_schedule_update_ha_state()
+    @property
+    def signal(self):
+        return SIGNAL_SOLAR_UPDATE_BOSCH
