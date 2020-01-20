@@ -66,4 +66,4 @@ logger:
 Bug reported in HA Lovelace - https://github.com/home-assistant/home-assistant-polymer/issues/3195
 
 # First config help needed.
-Come to Discord channel https://discord.gg/uWnWnx and let's try to figure out if you have unknown device for us or if there is issue with component.
+Come to Discord channel https://discord.gg/WeWQGNR and let's try to figure out if you have unknown device for us or if there is issue with component.
