@@ -121,7 +121,7 @@ async def async_setup(hass: HomeAssistantType, config: ConfigType):
 
 async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
-    _LOGGER.debug(f"Setting up Bosch component version {LIBVERSION}.")
+    _LOGGER.info(f"Setting up Bosch component version {LIBVERSION}.")
     uuid = entry.data[UUID]
     if entry.data[CONF_ADDRESS] and entry.data[ACCESS_KEY]:
         gateway_entry = BoschGatewayEntry(hass, uuid, entry)
@@ -212,7 +212,7 @@ class BoschGatewayEntry:
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
-        _LOGGER.debug("Checking connection to Bosch gateway.")
+        _LOGGER.debug("Checking connection to Bosch gateway as %s.", self.address)
         if not await self.gateway.check_connection():
             _LOGGER.error(
                 "Cannot connect to Bosch gateway, host %s with UUID: %s",
@@ -220,6 +220,7 @@ class BoschGatewayEntry:
                 self.uuid,
             )
             return False
+        _LOGGER.debug("Bosch BUS detected: %s", self.gateway.bus_type)
         if not self.gateway.database:
             custom_db = load_json(self.hass.config.path(CUSTOM_DB), default=None)
             if custom_db:
