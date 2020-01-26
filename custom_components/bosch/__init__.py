@@ -284,9 +284,9 @@ class BoschGatewayEntry:
             return
         _LOGGER.debug("Updating Bosch thermostat entitites.")
         async with self._update_lock:
+            await self.component_update(SENSOR)
             await self.component_update(CLIMATE)
             await self.component_update(WATER_HEATER)
-            await self.component_update(SENSOR)
             await self.component_update(SOLAR)
 
     async def async_handle_debug_service(self, service_call):

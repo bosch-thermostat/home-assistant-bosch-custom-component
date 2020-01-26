@@ -126,7 +126,7 @@ class BoschBaseSensor(Entity):
 
     async def async_update(self):
         """Update state of device."""
-        _LOGGER.debug("Update of sensor %s called.", self._name)
+        _LOGGER.debug("Update of sensor %s called.", self.unique_id)
         data = self._bosch_object.get_property(self._attr_uri)
         self._state = data.get(self._str.val, self._str.invalid)
         self._attrs = {}
