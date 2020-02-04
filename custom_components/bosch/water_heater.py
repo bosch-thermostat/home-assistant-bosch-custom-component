@@ -7,22 +7,44 @@ import logging
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from bosch_thermostat_http.const import GATEWAY, SYSTEM_BRAND, SYSTEM_TYPE, SETPOINT
 
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers.config_validation import (  # noqa: F401
+    PLATFORM_SCHEMA,
+    PLATFORM_SCHEMA_BASE,
+    make_entity_service_schema,
+)
+
 from homeassistant.components.water_heater import (
     STATE_OFF,
     SUPPORT_OPERATION_MODE,
     SUPPORT_TARGET_TEMPERATURE,
     WaterHeaterDevice,
+    ATTR_TARGET_TEMP_HIGH,
+    ATTR_TARGET_TEMP_LOW
 )
+
+
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
-from .const import DOMAIN, SIGNAL_DHW_UPDATE_BOSCH, UNITS_CONVERTER, UUID, WATER_HEATER, SWITCHPOINT, SIGNAL_BOSCH
+from .const import (
+    DOMAIN,
+    SIGNAL_DHW_UPDATE_BOSCH,
+    UNITS_CONVERTER,
+    UUID,
+    WATER_HEATER,
+    SWITCHPOINT,
+    SIGNAL_BOSCH,
+    SERVICE_CHARGE_SCHEMA,
+    SERVICE_CHARGE_START,
+    DEFAULT_MAX_TEMP,
+    DEFAULT_MIN_TEMP,
+    CHARGE,
+    BOSCH_STATE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 SUPPORT_FLAGS_HEATER = SUPPORT_TARGET_TEMPERATURE | SUPPORT_OPERATION_MODE
-
-DEFAULT_MIN_TEMP = 0
-DEFAULT_MAX_TEMP = 100
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -35,6 +57,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     ]
     async_add_entities(data[WATER_HEATER])
     async_dispatcher_send(hass, SIGNAL_BOSCH)
+    platform = entity_platform.current_platform.get()
+    platform.async_register_entity_service(
+        SERVICE_CHARGE_START, SERVICE_CHARGE_SCHEMA, "service_charge"
+    )
     return True
 
 
@@ -71,6 +97,11 @@ class BoschWaterHeater(WaterHeaterDevice):
             SIGNAL_DHW_UPDATE_BOSCH, self.update
         )
 
+    async def service_charge(self, value):
+        """Set charge of DHW device. Upstream lib doesn't check if value is proper!"""
+        _LOGGER.info("Setting %s %s with value %s", self._name, CHARGE, value)
+        await self._dhw.set_service_call(CHARGE, value)
+
     @property
     def name(self):
         """Return the device name."""
@@ -106,8 +137,11 @@ class BoschWaterHeater(WaterHeaterDevice):
     @property
     def state_attributes(self):
         data = super().state_attributes
+        data.pop(ATTR_TARGET_TEMP_HIGH, None)
+        data.pop(ATTR_TARGET_TEMP_LOW, None)
         data[SETPOINT] = self._dhw.setpoint
         data[SWITCHPOINT] = self._dhw.schedule.active_program
+        data[BOSCH_STATE] = self._state
         return data
 
     @property
@@ -146,21 +180,11 @@ class BoschWaterHeater(WaterHeaterDevice):
 
     async def async_set_operation_mode(self, operation_mode):
         """Set operation mode."""
-        op_mode = self._hastates.get(operation_mode)
-        _LOGGER.debug(
-            f"Setting operation mode {operation_mode} which is Bosch {op_mode}."
-        )
-        if (
-            op_mode
-            and operation_mode != self._mode
-            and operation_mode in self._operation_list
-        ):
-            new_mode = await self._dhw.set_operation_mode(op_mode)
-            _LOGGER.debug(f"Set operation mode to {new_mode}.")
-        else:
-            _LOGGER.error(
-                f"Correct operation mode must be provided. I got {operation_mode}"
-            )
+        _LOGGER.debug(f"Setting operation mode of {self._name} to {operation_mode}.")
+        status = await self.bosch_object.set_ha_mode(operation_mode)
+        if status > 0:
+            return True
+        return False
 
     def update(self):
         """Get the latest date."""
@@ -175,7 +199,7 @@ class BoschWaterHeater(WaterHeaterDevice):
             or self._low_temp != self._dhw.min_temp
             or self._max_temp != self._dhw.max_temp
         ):
-            self._state == self._dhw.state
+            self._state = self._dhw.state
             self._target_temperature = self._dhw.target_temperature
             self._current_temperature = self._dhw.current_temp
             self._operation_list = self._dhw.ha_modes

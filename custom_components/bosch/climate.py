@@ -22,7 +22,8 @@ from .const import (
     CLIMATE,
     UNITS_CONVERTER,
     SWITCHPOINT,
-    SIGNAL_BOSCH
+    SIGNAL_BOSCH,
+    BOSCH_STATE
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ class BoschThermostat(ClimateDevice):
         data = super().state_attributes
         data[SETPOINT] = self._hc.setpoint
         data[SWITCHPOINT] = self._hc.schedule.active_program
+        data[BOSCH_STATE] = self._state
         return data
 
     @property
