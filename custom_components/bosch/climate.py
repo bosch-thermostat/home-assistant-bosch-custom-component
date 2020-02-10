@@ -1,6 +1,5 @@
 """Support for Bosch Thermostat Climate."""
 import logging
-from datetime import timedelta
 from bosch_thermostat_http.const import (
     SYSTEM_BRAND,
     SYSTEM_TYPE,
@@ -11,8 +10,6 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.components.climate import ClimateDevice
 from homeassistant.components.climate.const import SUPPORT_TARGET_TEMPERATURE
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
-from homeassistant.helpers.event import async_track_point_in_time
-import homeassistant.util.dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -23,7 +20,7 @@ from .const import (
     UNITS_CONVERTER,
     SWITCHPOINT,
     SIGNAL_BOSCH,
-    BOSCH_STATE
+    BOSCH_STATE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,10 +128,10 @@ class BoschThermostat(ClimateDevice):
 
     # async def async_purge(self, now):
     #     pass
-        # _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
-        # is_value_updated = await self._hc.
-        # if is_value_updated:
-        # dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
+    # _LOGGER.error("This is not needed for RC35, but probably needed for Rc300. We need to download manual uri if switched to manual.")
+    # is_value_updated = await self._hc.
+    # if is_value_updated:
+    # dispatcher_send(self.hass, SIGNAL_CLIMATE_UPDATE_BOSCH)
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set operation mode."""

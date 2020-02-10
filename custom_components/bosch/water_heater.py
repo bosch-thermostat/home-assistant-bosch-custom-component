@@ -20,7 +20,7 @@ from homeassistant.components.water_heater import (
     SUPPORT_TARGET_TEMPERATURE,
     WaterHeaterDevice,
     ATTR_TARGET_TEMP_HIGH,
-    ATTR_TARGET_TEMP_LOW
+    ATTR_TARGET_TEMP_LOW,
 )
 
 

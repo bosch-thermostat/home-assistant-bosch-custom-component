@@ -1,7 +1,7 @@
 # home-assistant-bosch-custom-component
 HA custom component for Bosch thermostat
 
-**It will only work with Home Assistant 0.100 and higher.**
+**It will only work with Home Assistant 0.105 and higher.**
 
 It is @alpha version of Bosch thermostat component.
 Toghether with [@moustic999](https://github.com/moustic999) we developed library to communicate with Bosch gateway.

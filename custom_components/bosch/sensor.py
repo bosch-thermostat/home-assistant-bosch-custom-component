@@ -1,7 +1,7 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
 
-from bosch_thermostat_http.const import SYSTEM_BRAND, SYSTEM_TYPE, STATUS, VALUE
+from bosch_thermostat_http.const import SYSTEM_BRAND, SYSTEM_TYPE
 from homeassistant.helpers.entity import Entity
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -15,7 +15,7 @@ from .const import (
     UUID,
     SENSOR,
     SOLAR,
-    SIGNAL_BOSCH
+    SIGNAL_BOSCH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,16 +35,30 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     solars = []
     data[SENSOR] = [
         BoschSensor(
-            hass, uuid, sensor, data[GATEWAY], sensor.name, sensor.attr_id, sensor.attr_id in enabled_sensors
+            hass,
+            uuid,
+            sensor,
+            data[GATEWAY],
+            sensor.name,
+            sensor.attr_id,
+            sensor.attr_id in enabled_sensors,
         )
         for sensor in data[GATEWAY].sensors
     ]
     data[SOLAR] = []
     for circuit in data[GATEWAY].solar_circuits:
         for circuit_sensor in circuit.get_all_properties:
-            solars.append(CircuitSensor(
-                hass, uuid, circuit, data[GATEWAY], circuit_sensor, circuit_sensor, circuit_sensor in enabled_solars
-            ))
+            solars.append(
+                CircuitSensor(
+                    hass,
+                    uuid,
+                    circuit,
+                    data[GATEWAY],
+                    circuit_sensor,
+                    circuit_sensor,
+                    circuit_sensor in enabled_solars,
+                )
+            )
     async_add_entities(data[SENSOR])
     if solars:
         data[SOLAR] = solars
@@ -54,8 +68,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 class BoschBaseSensor(Entity):
-
-    def __init__(self, hass, uuid, bosch_object, gateway, name, attr_uri, is_enabled=False):
+    def __init__(
+        self, hass, uuid, bosch_object, gateway, name, attr_uri, is_enabled=False
+    ):
         """Initialize the sensor."""
         self.hass = hass
         self._bosch_object = bosch_object
@@ -148,17 +163,17 @@ class BoschBaseSensor(Entity):
         if self._str.allowed_values in data:
             self._attrs[self._str.allowed_values] = data[self._str.allowed_values]
         if self._str.open in bosch_state_data:
-            self._attrs["{}_{}".format(self._str.state, self._str.open)] = bosch_state_data[
-                self._str.open
-            ]
+            self._attrs[
+                "{}_{}".format(self._str.state, self._str.open)
+            ] = bosch_state_data[self._str.open]
         if self._str.short in bosch_state_data:
-            self._attrs["{}_{}".format(self._str.state, self._str.short)] = bosch_state_data[
-                self._str.short
-            ]
+            self._attrs[
+                "{}_{}".format(self._str.state, self._str.short)
+            ] = bosch_state_data[self._str.short]
         if self._str.invalid in bosch_state_data:
-            self._attrs["{}_{}".format(self._str.state, self._str.invalid)] = bosch_state_data[
-                self._str.invalid
-            ]
+            self._attrs[
+                "{}_{}".format(self._str.state, self._str.invalid)
+            ] = bosch_state_data[self._str.invalid]
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

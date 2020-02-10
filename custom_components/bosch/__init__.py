@@ -1,8 +1,7 @@
 """Platform to control a Bosch IP thermostats units."""
+import asyncio
 import logging
 import random
-import asyncio
-
 from datetime import timedelta
 
 import voluptuous as vol
@@ -10,19 +9,14 @@ from bosch_thermostat_http.const import (
     DHW,
     HC,
     SC,
+    SENSORS_LIST,
     SYSTEM_BRAND,
     SYSTEM_TYPE,
-    SENSORS_LIST,
-    SOLAR_CIRCUITS,
-    HEATING_CIRCUITS,
-    DHW_CIRCUITS,
 )
 from bosch_thermostat_http.exceptions import DeviceException
 from bosch_thermostat_http.version import __version__ as LIBVERSION
 
 import homeassistant.helpers.config_validation as cv
-
-from homeassistant.util.json import load_json, save_json
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -35,6 +29,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.util.json import load_json, save_json
 
 from .config_flow import configured_hosts
 from .const import (
@@ -44,14 +39,14 @@ from .const import (
     GATEWAY,
     SENSOR,
     SENSORS,
+    SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
-    WATER_HEATER,
-    UUID,
-    SOLAR,
     SIGNAL_SOLAR_UPDATE_BOSCH,
-    SIGNAL_BOSCH,
+    SOLAR,
+    UUID,
+    WATER_HEATER,
 )
 
 SCAN_INTERVAL = timedelta(seconds=60)
