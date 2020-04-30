@@ -81,16 +81,16 @@ class BoschThermostat(ClimateEntity):
             "via_hub": (DOMAIN, self._uuid),
         }
 
-    # @property
-    # def state_attributes(self):
-    #     data = super().state_attributes
-        # try:
-        #     data[SETPOINT] = self._hc.setpoint
-        #     data[SWITCHPOINT] = self._hc.schedule.active_program
-        #     data[BOSCH_STATE] = self._state
-        # except NotImplementedError:
-        #     pass
-        # return data
+    @property
+    def state_attributes(self):
+        data = super().state_attributes
+        try:
+            data[SETPOINT] = self._hc.setpoint
+            data[SWITCHPOINT] = self._hc.schedule.active_program
+            data[BOSCH_STATE] = self._state
+        except NotImplementedError:
+            pass
+        return data
 
     @property
     def bosch_object(self):
