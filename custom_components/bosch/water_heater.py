@@ -5,13 +5,12 @@ For more details about this platform, please refer to the documentation at...
 """
 import logging
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from bosch_thermostat_http.const import GATEWAY, SYSTEM_BRAND, SYSTEM_TYPE, SETPOINT
+from bosch_thermostat_client.const import GATEWAY, SETPOINT
 
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.config_validation import (  # noqa: F401
     PLATFORM_SCHEMA,
     PLATFORM_SCHEMA_BASE,
-    make_entity_service_schema,
 )
 
 from homeassistant.components.water_heater import (
@@ -122,8 +121,8 @@ class BoschWaterHeater(WaterHeaterDevice):
         """Get attributes about the device."""
         return {
             "identifiers": {(DOMAIN, self._unique_id)},
-            "manufacturer": self._gateway.get_info(SYSTEM_BRAND),
-            "model": self._gateway.get_info(SYSTEM_TYPE),
+            "manufacturer": self._gateway.device_model,
+            "model": self._gateway.device_type,
             "name": "Water heater " + self._name,
             "sw_version": self._gateway.firmware,
             "via_hub": (DOMAIN, self._uuid),

@@ -1,13 +1,11 @@
 """Support for Bosch Thermostat Climate."""
 import logging
-from bosch_thermostat_http.const import (
-    SYSTEM_BRAND,
-    SYSTEM_TYPE,
+from bosch_thermostat_client.const import (
     SETPOINT,
 )
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.components.climate import ClimateDevice
+from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import SUPPORT_TARGET_TEMPERATURE
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
@@ -44,7 +42,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     pass
 
 
-class BoschThermostat(ClimateDevice):
+class BoschThermostat(ClimateEntity):
     """Representation of a Bosch thermostat."""
 
     def __init__(self, hass, uuid, hc, gateway):
@@ -76,20 +74,23 @@ class BoschThermostat(ClimateDevice):
         """Get attributes about the device."""
         return {
             "identifiers": {(DOMAIN, self._unique_id)},
-            "manufacturer": self._gateway.get_info(SYSTEM_BRAND),
-            "model": self._gateway.get_info(SYSTEM_TYPE),
+            "manufacturer": self._gateway.device_model,
+            "model": self._gateway.device_type,
             "name": "Heating circuit " + self._name,
             "sw_version": self._gateway.firmware,
             "via_hub": (DOMAIN, self._uuid),
         }
 
-    @property
-    def state_attributes(self):
-        data = super().state_attributes
-        data[SETPOINT] = self._hc.setpoint
-        data[SWITCHPOINT] = self._hc.schedule.active_program
-        data[BOSCH_STATE] = self._state
-        return data
+    # @property
+    # def state_attributes(self):
+    #     data = super().state_attributes
+        # try:
+        #     data[SETPOINT] = self._hc.setpoint
+        #     data[SWITCHPOINT] = self._hc.schedule.active_program
+        #     data[BOSCH_STATE] = self._state
+        # except NotImplementedError:
+        #     pass
+        # return data
 
     @property
     def bosch_object(self):
@@ -144,7 +145,7 @@ class BoschThermostat(ClimateDevice):
         if status > 0:
             return True
         return False
-
+    
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
@@ -160,6 +161,16 @@ class BoschThermostat(ClimateDevice):
     def hvac_modes(self):
         """List of available operation modes."""
         return self._hvac_modes
+
+    @property
+    def min_temp(self):
+        """Return the minimum temperature."""
+        return self._hc.min_temp
+
+    @property
+    def max_temp(self):
+        """Return the maximum temperature."""
+        return self._hc.max_temp
 
     def update(self):
         """Update state of device."""

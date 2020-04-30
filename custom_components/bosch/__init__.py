@@ -5,16 +5,15 @@ import random
 from datetime import timedelta
 
 import voluptuous as vol
-from bosch_thermostat_http.const import (
+from bosch_thermostat_client.const import (
     DHW,
     HC,
     SC,
-    SENSORS_LIST,
-    SYSTEM_BRAND,
-    SYSTEM_TYPE,
+    XMPP
 )
-from bosch_thermostat_http.exceptions import DeviceException
-from bosch_thermostat_http.version import __version__ as LIBVERSION
+from bosch_thermostat_client import gateway_chooser
+from bosch_thermostat_client.exceptions import DeviceException
+from bosch_thermostat_client.version import __version__ as LIBVERSION
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant import config_entries
@@ -47,6 +46,9 @@ from .const import (
     SOLAR,
     UUID,
     WATER_HEATER,
+    CONF_PROTOCOL,
+    CONF_DEVICE_TYPE,
+    ACCESS_TOKEN
 )
 
 SCAN_INTERVAL = timedelta(seconds=60)
@@ -70,47 +72,10 @@ DATA_CONFIGS = "bosch_configs"
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.All(
-            cv.ensure_list,
-            [
-                vol.Schema(
-                    {
-                        vol.Required(CONF_ADDRESS): cv.string,
-                        vol.Required(CONF_PASSWORD): cv.string,
-                        vol.Required(CONF_ACCESS_TOKEN): cv.string,
-                        vol.Optional(SENSORS): vol.All(
-                            cv.ensure_list, [vol.In(SENSORS_LIST)]
-                        ),
-                    }
-                )
-            ],
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
-
 
 async def async_setup(hass: HomeAssistantType, config: ConfigType):
     """Initialize the Bosch platform."""
     hass.data[DOMAIN] = {}
-    configs = config.get(DOMAIN)
-    configured = configured_hosts(hass)
-    if configs:
-        for config in configs:
-            host = config[CONF_ADDRESS]
-            if host in configured and configured[host].get(SENSORS, []) == config.get(
-                SENSORS, []
-            ):
-                continue
-            hass.async_create_task(
-                hass.config_entries.flow.async_init(
-                    DOMAIN,
-                    context={"source": config_entries.SOURCE_IMPORT},
-                    data=config,
-                )
-            )
     return True
 
 
@@ -118,11 +83,18 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
     _LOGGER.info(f"Setting up Bosch component version {LIBVERSION}.")
     uuid = entry.data[UUID]
-    if entry.data[CONF_ADDRESS] and entry.data[ACCESS_KEY]:
-        gateway_entry = BoschGatewayEntry(hass, uuid, entry)
-        hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
-        return await gateway_entry.async_init()
-    return False
+    gateway_entry = BoschGatewayEntry(
+        hass=hass,
+        uuid=uuid,
+        host=entry.data[CONF_ADDRESS],
+        protocol=entry.data[CONF_PROTOCOL],
+        device_type=entry.data[CONF_DEVICE_TYPE],
+        access_key=entry.data[ACCESS_KEY],
+        access_token=entry.data[ACCESS_TOKEN],
+        entry=entry
+    )
+    hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
+    return await gateway_entry.async_init()
 
 
 async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
@@ -139,28 +111,40 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
 class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
-    def __init__(self, hass, uuid, entry):
+    def __init__(self, hass, uuid, host, protocol, device_type, access_key, access_token, entry):
         """Init Bosch gateway entry config class."""
         self.hass = hass
         self.uuid = uuid
-        self.entry = entry
-        self.address = entry.data[CONF_ADDRESS]
-        self.access_key = entry.data[ACCESS_KEY]
-        self._sensors_list = entry.data.get(SENSORS, None)
-        self.websession = async_get_clientsession(self.hass, verify_ssl=False)
+        self._host = host
+        self._access_key = access_key
+        self._access_token = access_token
+        self._device_type = device_type
+        self._protocol = protocol
+        self._entry = entry
+        if protocol == XMPP:
+            self._session = self.hass.loop
+        else:
+            self._session = async_get_clientsession(self.hass, verify_ssl=False)
         self._debug_service_registered = False
         self.gateway = None
         self.prefs = None
         self._initial_update = False
         self.supported_platforms = []
         self._update_lock = None
+        self._sensors_list = ["outdoor_t1"]
 
     async def async_init(self):
         """Init async items in entry."""
-        import bosch_thermostat_http as bosch
+        import bosch_thermostat_client as bosch
 
         self._update_lock = asyncio.Lock()
-        self.gateway = bosch.Gateway(self.websession, self.address, self.access_key)
+        BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
+        self.gateway = BoschGateway(
+            session=self._session,
+            session_type=self._protocol,
+            host=self._host,
+            access_key=self._access_key,
+            access_token=self._access_token)
         if await self.async_init_bosch():
             self.hass.helpers.dispatcher.async_dispatcher_connect(
                 SIGNAL_BOSCH, self.get_signals
@@ -170,17 +154,17 @@ class BoschGatewayEntry:
                     continue
                 self.hass.async_create_task(
                     self.hass.config_entries.async_forward_entry_setup(
-                        self.entry, component
+                        self._entry, component
                     )
                 )
             device_registry = (
                 await self.hass.helpers.device_registry.async_get_registry()
             )
             device_registry.async_get_or_create(
-                config_entry_id=self.entry.entry_id,
+                config_entry_id=self._entry.entry_id,
                 identifiers={(DOMAIN, self.uuid)},
-                manufacturer=self.gateway.get_info(SYSTEM_BRAND),
-                model=self.gateway.get_info(SYSTEM_TYPE),
+                manufacturer=self.gateway.device_model,
+                model=self.gateway.device_type,
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware,
             )
@@ -207,11 +191,11 @@ class BoschGatewayEntry:
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
-        _LOGGER.debug("Checking connection to Bosch gateway as %s.", self.address)
+        _LOGGER.debug("Checking connection to Bosch gateway as %s.", self._host)
         if not await self.gateway.check_connection():
             _LOGGER.error(
                 "Cannot connect to Bosch gateway, host %s with UUID: %s",
-                self.address,
+                self._host,
                 self.uuid,
             )
             return False
@@ -225,7 +209,7 @@ class BoschGatewayEntry:
             supported_bosch = await self.gateway.get_capabilities()
             for supported in supported_bosch:
                 self.supported_platforms.append(SUPPORTED_PLATFORMS[supported])
-            self.gateway.initialize_sensors(self._sensors_list)
+            self.gateway.initialize_sensors()
             self.supported_platforms.append(SENSOR)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
         _LOGGER.info("Bosch initialized.")

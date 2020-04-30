@@ -2,42 +2,34 @@
     "config": {
         "title": "Bosch thermostat",
         "step": {
-            "init": {
-              "title": "Bosch thermostat config",
-              "data": {
-                  "address": "IP address",
-                  "access_token": "Access token",
-                  "password": "Password",
-                  "TEST": "TEST BOOLEAN"
-              }
-            },
-            "sensors": {
-                "title": "Bosch sensor config",
+            "choose_type": {
+                "title": "Choose device type.",
                 "data": {
-                    "outdoor_t1": "Outdoor temperature",
-                    "hotWater_t2": "Hotwater temp",
-                    "supply_t1_setpoint": "Supply temp setpoint",
-                    "supply_t1": "Actual supply temp",
-                    "return": "Return temp",
-                    "healthStatus": "Health status",
-                    "actualPower": "Actual Power",
-                    "actualModulation": "Actual modulation",
-                    "CHpumpModulation": "Actual heating pump modulation",
-                    "totalSystem": "Total system uptime mins",
-                    "energyConsumption": "Energy consumption",
-                    "startDateTime": "Start time",
-                    "systemPressure": "System pressure"
+                    "device_type": "Choose type of your device."
                 }
             },
-            "user": {
-              "title": "Bosch thermostat config",
+            "protocol": {
+              "title": "Bosch IVT Protocol. HTTP is local. XMPP is cloud!",
+              "data": {
+                  "Protocol": "Either http or xmpp"
+              }
+            },
+            "http_config": {
+              "title": "Bosch thermostat HTTP config",
               "data": {
                   "address": "IP address",
                   "access_token": "Access token",
-                  "password": "Password",
-                  "TEST": "TEST BOOLEAN"
+                  "password": "Password"
               }
-            }
+            },
+            "xmpp_config": {
+                "title": "Bosch thermostat XMPP config",
+                "data": {
+                    "address": "Serial number of device",
+                    "access_token": "Access token",
+                    "password": "Password"
+                }
+              }
         },
         "error": {
             "service_unavailable": "No service available"
@@ -46,34 +38,6 @@
             "faulty_credentials": "Bad user credentials or wrong IP",
             "already_configured": "Controller site is already configured",
             "unknown": "Unknown reason. Check LOGS."
-        }
-    },
-    "options": {
-        "step": {
-            "init": {
-                "data": {}
-            },
-            "sensors": {
-                "title": "Bosch sensor config",
-                "data": {
-                    "outdoor_t1": "Outdoor temperature",
-                    "hotWater_t2": "Hotwater temp",
-                    "supply_t1_setpoint": "Supply temp setpoint",
-                    "supply_t1": "Actual supply temp",
-                    "return": "Return temp",
-                    "healthStatus": "Health status",
-                    "actualPower": "Actual Power",
-                    "actualModulation": "Actual modulation",
-                    "CHpumpModulation": "Actual heating pump modulation",
-                    "totalSystem": "Total system uptime mins",
-                    "energyConsumption": "Energy consumption",
-                    "startDateTime": "Start time",
-                    "systemPressure": "System pressure"
-                }
-            }
-        },
-        "abort": {
-            "cantdoit": "Sorry, I can't update options yet..."
         }
     }
 }

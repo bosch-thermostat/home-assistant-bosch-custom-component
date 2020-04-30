@@ -4,7 +4,11 @@ import voluptuous as vol
 
 DOMAIN = "bosch"
 ACCESS_KEY = "access_key"
+ACCESS_TOKEN = "access_token"
 UUID = "uuid"
+
+CONF_PROTOCOL = "http_xmpp"
+CONF_DEVICE_TYPE = "device_type"
 
 GATEWAY = "gateway"
 CLIMATE = "climate"

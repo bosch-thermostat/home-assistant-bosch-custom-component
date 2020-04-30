@@ -1,10 +1,11 @@
 {
   "domain": "bosch",
   "name": "Bosch",
-  "documentation": "https://github.com/pszafer/home-assistant-bosch-custom-component",
+  "documentation": "https://github.com/bosch-thermostat/home-assistant-bosch-custom-component",
   "dependencies": [],
-  "codeowners": ["@pszafer", "@moustic999"],
-  "requirements": ["bosch-thermostat-http-client==0.7.2"],
+  "after_dependencies": ["http"],
+  "codeowners": ["@pszafer"],
+  "requirements": ["bosch-thermostat-client==0.8.3"],
   "zeroconf": ["_buderus._tcp.local."],
   "config_flow": true
 }

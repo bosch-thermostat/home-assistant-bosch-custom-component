@@ -1,7 +1,6 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
 
-from bosch_thermostat_http.const import SYSTEM_BRAND, SYSTEM_TYPE
 from homeassistant.helpers.entity import Entity
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -18,6 +17,8 @@ from .const import (
     SIGNAL_BOSCH,
 )
 
+from bosch_thermostat_client.const import VALUE, UNITS
+from bosch_thermostat_client.const.ivt import INVALID
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -74,7 +75,6 @@ class BoschBaseSensor(Entity):
         """Initialize the sensor."""
         self.hass = hass
         self._bosch_object = bosch_object
-        self._str = self._bosch_object.strings
         self._gateway = gateway
         self._name = name
         self._attr_uri = attr_uri
@@ -91,6 +91,18 @@ class BoschBaseSensor(Entity):
         self.hass.helpers.dispatcher.async_dispatcher_connect(
             self.signal, self.async_update
         )
+
+    @property
+    def _domain_identifier(self):
+        raise NotImplementedError
+
+    @property
+    def _sensor_name(self):
+        raise NotImplementedError
+
+    @property
+    def signal(self):
+        raise NotImplementedError
 
     @property
     def name(self):
@@ -132,8 +144,8 @@ class BoschBaseSensor(Entity):
         """Get attributes about the device."""
         return {
             "identifiers": self._domain_identifier,
-            "manufacturer": self._gateway.get_info(SYSTEM_BRAND),
-            "model": self._gateway.get_info(SYSTEM_TYPE),
+            "manufacturer": self._gateway.device_model,
+            "model": self._gateway.device_type,
             "name": self._sensor_name,
             "sw_version": self._gateway.firmware,
             "via_hub": (DOMAIN, self._uuid),
@@ -143,7 +155,7 @@ class BoschBaseSensor(Entity):
         """Update state of device."""
         _LOGGER.debug("Update of sensor %s called.", self.unique_id)
         data = self._bosch_object.get_property(self._attr_uri)
-        self._state = data.get(self._str.val, self._str.invalid)
+        self._state = data.get(VALUE, INVALID)
         self._attrs = {}
         self._attrs["stateExtra"] = self._bosch_object.state
         if not data:
@@ -154,26 +166,8 @@ class BoschBaseSensor(Entity):
         self.attrs_write(data)
 
     def attrs_write(self, data):
-        self._unit_of_measurement = UNITS_CONVERTER.get(data.get(self._str.units))
-        bosch_state_data = data.get(self._str.state, {})
-        if self._str.min in data:
-            self._attrs[self._str.min] = data[self._str.min]
-        if self._str.max in data:
-            self._attrs[self._str.max] = data[self._str.max]
-        if self._str.allowed_values in data:
-            self._attrs[self._str.allowed_values] = data[self._str.allowed_values]
-        if self._str.open in bosch_state_data:
-            self._attrs[
-                "{}_{}".format(self._str.state, self._str.open)
-            ] = bosch_state_data[self._str.open]
-        if self._str.short in bosch_state_data:
-            self._attrs[
-                "{}_{}".format(self._str.state, self._str.short)
-            ] = bosch_state_data[self._str.short]
-        if self._str.invalid in bosch_state_data:
-            self._attrs[
-                "{}_{}".format(self._str.state, self._str.invalid)
-            ] = bosch_state_data[self._str.invalid]
+        self._unit_of_measurement = UNITS_CONVERTER.get(data.get(UNITS))
+        self._attrs = data
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

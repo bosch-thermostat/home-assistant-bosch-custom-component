@@ -7,12 +7,20 @@ import voluptuous as vol
 
 from homeassistant.core import callback
 from homeassistant import config_entries
-from bosch_thermostat_http.gateway import Gateway
-from bosch_thermostat_http.exceptions import DeviceException
+from bosch_thermostat_client import gateway_chooser
+from bosch_thermostat_client.const import XMPP
+from bosch_thermostat_client.const.nefit import NEFIT
+from bosch_thermostat_client.const.ivt import IVT, HTTP
+from bosch_thermostat_client.exceptions import DeviceException
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import CONF_ADDRESS, CONF_ACCESS_TOKEN, CONF_PASSWORD
+from .const import CONF_PROTOCOL, CONF_DEVICE_TYPE
 
-from .const import DOMAIN, ACCESS_KEY, UUID, SENSORS
+
+DEVICE_TYPE = [NEFIT, IVT]
+PROTOCOLS = [HTTP, XMPP]
+
+from .const import DOMAIN, ACCESS_KEY, UUID, ACCESS_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +35,9 @@ def configured_hosts(hass):
             UUID: entry.data[UUID],
             CONF_ADDRESS: entry.data[CONF_ADDRESS],
             ACCESS_KEY: entry.data[ACCESS_KEY],
-            SENSORS: entry.data.get(SENSORS, []),
+            ACCESS_TOKEN: entry.data[ACCESS_TOKEN],
+            CONF_DEVICE_TYPE: entry.data[CONF_DEVICE_TYPE],
+            CONF_PROTOCOL: entry.data[CONF_PROTOCOL]
         }
     return out
 
@@ -41,82 +51,125 @@ class BoschFlowHandler(config_entries.ConfigFlow):
 
     def __init__(self):
         """Initialize Bosch flow."""
+        self._choose_type = None
         self._host = None
         self._access_token = None
         self._password = None
+        self._protocol = None
+        self._device_type = None
 
     async def async_step_user(self, user_input=None):
         """Handle flow initiated by user."""
-        return await self.async_step_init(user_input)
+        return await self.async_step_choose_type(user_input)
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_choose_type(self, user_input=None):
         errors = {}
         if user_input is not None:
-            self.host = self.context["address"] = user_input["address"]
-            self.access_token = user_input["access_token"]
-            password = user_input.get(CONF_PASSWORD)
-            websession = async_get_clientsession(self.hass, verify_ssl=False)
-            try:
-                device = Gateway(websession, self.host, self.access_token, password)
-                if await device.check_connection():
-                    return await self._entry_from_gateway(device)
-            except DeviceException as err:
-                _LOGGER.error("Wrong IP or credentials at %s - %s", self.host, err)
-                return self.async_abort(reason="faulty_credentials")
-            except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.error("Error connecting Bosch at %s - %s", self.host, err)
-
+            self._choose_type = user_input[CONF_DEVICE_TYPE]
+            if self._choose_type == IVT:
+                return self.async_show_form(
+                        step_id="protocol",
+                        data_schema=vol.Schema(
+                            {
+                                vol.Required(CONF_PROTOCOL): vol.All(vol.Upper, vol.In(PROTOCOLS)),
+                            }
+                        ),
+                        errors=errors,
+                )
+            elif self._choose_type == NEFIT:
+                return await self.async_step_protocol({CONF_PROTOCOL: XMPP})
         return self.async_show_form(
-            step_id="init",
+            step_id="choose_type",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ADDRESS): str,
-                    vol.Required(CONF_ACCESS_TOKEN): str,
-                    vol.Optional(CONF_PASSWORD): str,
+                vol.Required(CONF_DEVICE_TYPE): vol.All(vol.Upper, vol.In(DEVICE_TYPE)),
                 }
             ),
             errors=errors,
         )
-
-    async def async_step_import(self, user_input=None):
-        """Handle a flow import."""
-        if (
-            user_input[CONF_ADDRESS]
-            and user_input[CONF_PASSWORD]
-            and user_input[CONF_ACCESS_TOKEN]
-        ):
-            address = user_input[CONF_ADDRESS]
-            sensors = user_input.get(SENSORS, [])
-            websession = async_get_clientsession(self.hass, verify_ssl=False)
-            try:
-                device = Gateway(
-                    websession,
-                    address,
-                    user_input[CONF_ACCESS_TOKEN],
-                    user_input[CONF_PASSWORD],
+    
+    async def async_step_protocol(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            self._protocol = user_input[CONF_PROTOCOL]
+            step_name = self._protocol.lower() + "_config"
+            return self.async_show_form(
+                        step_id=step_name,
+                        data_schema=vol.Schema(
+                        {
+                        vol.Required(CONF_ADDRESS): str,
+                        vol.Required(CONF_ACCESS_TOKEN): str,
+                        vol.Optional(CONF_PASSWORD): str,
+                        }
+                    ),
+                        errors=errors,
+            )
+        return self.async_show_form(
+                        step_id="protocol",
+                        data_schema=vol.Schema(
+                            {
+                                vol.Required(CONF_PROTOCOL): vol.All(vol.Upper, vol.In(PROTOCOLS)),
+                            }
+                        ),
+                        errors=errors,
                 )
-                if await device.check_connection():
-                    return await self._entry_from_gateway(device, sensors)
-            except DeviceException as err:
-                _LOGGER.error("Wrong IP or credentials at %s - %s", address, err)
-                return self.async_abort(reason="faulty_credentials")
-            except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.error("Error connecting Bosch at %s - %s", address, err)
-        return self.async_abort(reason="unknown")
+
+    async def async_step_http_config(self, user_input=None):
+        if user_input is not None:
+            self._host = user_input[CONF_ADDRESS]
+            self._access_token = user_input[CONF_ACCESS_TOKEN]
+            self._password = user_input.get(CONF_PASSWORD)
+            return await self.configure_gateway(
+                device_type=self._choose_type,
+                session=async_get_clientsession(self.hass, verify_ssl=False),
+                session_type=self._protocol,
+                host=self._host,
+                access_token=self._access_token,
+                password=self._password
+            )
+
+    async def async_step_xmpp_config(self, user_input=None):
+        if user_input is not None:
+            self._host = user_input[CONF_ADDRESS]
+            self._access_token = user_input[CONF_ACCESS_TOKEN]
+            self._password = user_input.get(CONF_PASSWORD)
+            return await self.configure_gateway(
+                device_type=self._choose_type,
+                session=self.hass.loop,
+                session_type=self._protocol,
+                host=self._host,
+                access_token=self._access_token,
+                password=self._password
+            )
+
+
+    async def configure_gateway(self, device_type, session, session_type, host, access_token, password=None):
+        try:
+            BoschGateway = gateway_chooser(device_type)
+            device = BoschGateway(session=session,
+                                  session_type=session_type,
+                                  host=host,
+                                  access_token=access_token,
+                                  password=password)
+            uuid = await device.check_connection()
+            if uuid:
+                return await self._entry_from_gateway(device, uuid)
+        except DeviceException as err:
+            _LOGGER.error("Wrong IP or credentials at %s - %s", host, err)
+            return self.async_abort(reason="faulty_credentials")
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.error("Error connecting Bosch at %s - %s", host, err)
 
     async def async_step_discovery(self, discovery_info=None):
         """Handle a flow discovery."""
         _LOGGER.debug("Discovered Bosch unit : %s", discovery_info)
-        self.bosch_config[UUID] = discovery_info["properties"][UUID]
-        self.bosch_config[CONF_ADDRESS] = discovery_info["host"]
-        return await self.async_step_init()
+        pass
 
-    async def _entry_from_gateway(self, gateway, sensors=None):
+    async def _entry_from_gateway(self, gateway, uuid):
         """Return a config entry from an initialized bridge."""
         # Remove all other entries of hubs with same ID or host
-
+        _LOGGER.debug("Adding entry.")
         host = gateway.host
-        uuid = await gateway.check_connection()
         device_name = gateway.device_name if gateway.device_name else "Unknown"
         same_gateway_entries = [
             entry.entry_id
@@ -135,9 +188,9 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 CONF_ADDRESS: host,
                 UUID: uuid,
                 ACCESS_KEY: gateway.access_key,
-                SENSORS: sensors,
+                ACCESS_TOKEN: gateway.access_token,
+                CONF_DEVICE_TYPE: self._choose_type,
+                CONF_PROTOCOL: self._protocol
             }
-            if sensors
-            else {CONF_ADDRESS: host, UUID: uuid, ACCESS_KEY: gateway.access_key}
         )
         return self.async_create_entry(title=device_name, data=data)
