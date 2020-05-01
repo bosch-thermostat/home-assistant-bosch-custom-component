@@ -5,7 +5,7 @@ from bosch_thermostat_client.const import (
 )
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.components.climate import ClimateEntity
+from homeassistant.components.climate import ClimateDevice as ClimateEntity #FIX for 0.109, remove in 0.110.
 from homeassistant.components.climate.const import SUPPORT_TARGET_TEMPERATURE
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 
