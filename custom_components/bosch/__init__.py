@@ -272,12 +272,13 @@ class BoschGatewayEntry:
         """Make bosch scan for debug purposes of thermostat."""
         filename = self.hass.config.path("www/bosch_scan.json")
         try:
-            _LOGGER.info("Starting rawscan of Bosch component")
-            rawscan = await self.gateway.rawscan()
-            save_json(filename, rawscan)
-            url = "{}{}".format(self.hass.config.api.base_url, "/local/bosch_scan.json")
-            _LOGGER.info(
-                "Rawscan success. Your URL: {}?v{}".format(url, random.randint(0, 5000))
-            )
+            async with self._update_lock:
+                _LOGGER.info("Starting rawscan of Bosch component")
+                rawscan = await self.gateway.rawscan()
+                save_json(filename, rawscan)
+                url = "{}{}".format(self.hass.config.api.base_url, "/local/bosch_scan.json")
+                _LOGGER.info(
+                    "Rawscan success. Your URL: {}?v{}".format(url, random.randint(0, 5000))
+                )
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
