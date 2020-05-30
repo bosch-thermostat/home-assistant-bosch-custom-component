@@ -17,7 +17,7 @@ from homeassistant.components.water_heater import (
     STATE_OFF,
     SUPPORT_OPERATION_MODE,
     SUPPORT_TARGET_TEMPERATURE,
-    WaterHeaterDevice,
+    WaterHeaterEntity,
     ATTR_TARGET_TEMP_HIGH,
     ATTR_TARGET_TEMP_LOW,
 )
@@ -68,7 +68,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     pass
 
 
-class BoschWaterHeater(WaterHeaterDevice):
+class BoschWaterHeater(WaterHeaterEntity):
     """Representation of an EcoNet water heater."""
 
     def __init__(self, hass, uuid, dhw, gateway):
