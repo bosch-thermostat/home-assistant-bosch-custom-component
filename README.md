@@ -14,6 +14,9 @@ Supported types of devices:
 - NEFIT(XMPP only):
   - Junkers CT100
 
+** Not working with CT200 **
+Help to get Magic key from Bosch app appreciated.
+
 ## Configuration
 
 ### Integration.

@@ -190,7 +190,7 @@ class BoschWaterHeater(WaterHeaterEntity):
         _LOGGER.debug("Updating Bosch water_heater.")
         if not self._dhw or not self._dhw.update_initialized:
             return
-        self._temperature_units = UNITS_CONVERTER.get(self._dhw.temp_units)
+        self._temperature_units = UNITS_CONVERTER.get(self._dhw.temp_units if self._dhw.temp_units else 'C')
         if (
             self._state != self._dhw.state
             or self._operation_list == self._dhw.ha_modes

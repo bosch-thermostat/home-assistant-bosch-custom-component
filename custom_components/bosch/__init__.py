@@ -9,7 +9,9 @@ from bosch_thermostat_client.const import (
     DHW,
     HC,
     SC,
-    XMPP
+    XMPP,
+    SENSOR,
+    SENSORS
 )
 from bosch_thermostat_client import gateway_chooser
 from bosch_thermostat_client.exceptions import DeviceException
@@ -36,8 +38,8 @@ from .const import (
     CLIMATE,
     DOMAIN,
     GATEWAY,
-    SENSOR,
-    SENSORS,
+    # SENSOR,
+    # SENSORS,
     SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
@@ -63,11 +65,13 @@ SIGNALS = {
     SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
 }
 
-SUPPORTED_PLATFORMS = {HC: CLIMATE, DHW: WATER_HEATER, SC: SOLAR}
+SUPPORTED_PLATFORMS = {HC: CLIMATE, DHW: WATER_HEATER, SC: SENSOR, SENSOR: SENSOR}
 
 CUSTOM_DB = "custom_bosch_db.json"
 SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
 BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
+TASK = "task"
+INTERVAL = "interval"
 DATA_CONFIGS = "bosch_configs"
 
 _LOGGER = logging.getLogger(__name__)
@@ -99,10 +103,10 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Unload a config entry."""
+    _LOGGER.debug("Removing entry.")
     uuid = entry.data[UUID]
-    await hass.config_entries.async_forward_entry_unload(entry, SENSOR)
-    await hass.config_entries.async_forward_entry_unload(entry, CLIMATE)
-    await hass.config_entries.async_forward_entry_unload(entry, WATER_HEATER)
+    remove_listener = hass.data[DOMAIN][uuid].pop(INTERVAL)
+    remove_listener()
     bosch = hass.data[DOMAIN].pop(uuid)
     await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
     return True
@@ -120,7 +124,7 @@ class BoschGatewayEntry:
         self._access_token = access_token
         self._device_type = device_type
         self._protocol = protocol
-        self._entry = entry
+        self.config_entry = entry
         if protocol == XMPP:
             self._session = self.hass.loop
         else:
@@ -129,9 +133,9 @@ class BoschGatewayEntry:
         self.gateway = None
         self.prefs = None
         self._initial_update = False
+        self._signal_registered = False
         self.supported_platforms = []
         self._update_lock = None
-        self._sensors_list = ["outdoor_t1"]
 
     async def async_init(self):
         """Init async items in entry."""
@@ -154,14 +158,14 @@ class BoschGatewayEntry:
                     continue
                 self.hass.async_create_task(
                     self.hass.config_entries.async_forward_entry_setup(
-                        self._entry, component
+                        self.config_entry, component
                     )
                 )
             device_registry = (
                 await self.hass.helpers.device_registry.async_get_registry()
             )
             device_registry.async_get_or_create(
-                config_entry_id=self._entry.entry_id,
+                config_entry_id=self.config_entry.entry_id,
                 identifiers={(DOMAIN, self.uuid)},
                 manufacturer=self.gateway.device_model,
                 model=self.gateway.device_type,
@@ -180,12 +184,15 @@ class BoschGatewayEntry:
     def get_signals(self):
         if all(
             k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
-        ):
-            self.hass.async_create_task(self.thermostat_refresh())
+        ) and not self._signal_registered:
+            _LOGGER.debug("Registering service debug and service update interval.")
+            # self.hass.async_create_task(self.thermostat_refresh(event_time=781))
+            self._signal_registered = True
             self.register_update()
             self.register_service(True, True)
 
     async def async_reset(self):
+        _LOGGER.debug("Removing service debug and service update interval.")
         self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
         self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
@@ -208,9 +215,9 @@ class BoschGatewayEntry:
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
             for supported in supported_bosch:
-                self.supported_platforms.append(SUPPORTED_PLATFORMS[supported])
-            self.gateway.initialize_sensors()
-            self.supported_platforms.append(SENSOR)
+                element = SUPPORTED_PLATFORMS[supported]
+                if element not in self.supported_platforms:
+                    self.supported_platforms.append(element)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
         _LOGGER.info("Bosch initialized.")
         return True
@@ -232,9 +239,9 @@ class BoschGatewayEntry:
 
     def register_update(self):
         """Register interval auto update."""
-        async_track_time_interval(self.hass, self.thermostat_refresh, SCAN_INTERVAL)
+        self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(self.hass, self.thermostat_refresh, SCAN_INTERVAL)
 
-    async def component_update(self, component_type=None):
+    async def component_update(self, component_type=None, event_time=None):
         """Update data from DHW."""
         if component_type in self.supported_platforms:
             updated = False
@@ -242,6 +249,7 @@ class BoschGatewayEntry:
             for entity in entities:
                 if entity.enabled:
                     try:
+                        _LOGGER.debug("Updating component %s by %s", component_type, id(self))
                         await entity.bosch_object.update()
                         updated = True
                     except DeviceException as err:
@@ -263,10 +271,9 @@ class BoschGatewayEntry:
             return
         _LOGGER.debug("Updating Bosch thermostat entitites.")
         async with self._update_lock:
-            await self.component_update(SENSOR)
-            await self.component_update(CLIMATE)
-            await self.component_update(WATER_HEATER)
-            await self.component_update(SOLAR)
+            await self.component_update(SENSOR, event_time)
+            await self.component_update(CLIMATE, event_time)
+            await self.component_update(WATER_HEATER, event_time)
 
     async def async_handle_debug_service(self, service_call):
         """Make bosch scan for debug purposes of thermostat."""
@@ -282,3 +289,22 @@ class BoschGatewayEntry:
                 )
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
+
+
+    async def async_reset(self):
+        """Reset this device to default state."""
+        unload_ok = all(
+            await asyncio.gather(
+                *[
+                    self.hass.config_entries.async_forward_entry_unload(
+                        self.config_entry, component
+                    )
+                    for component in self.supported_platforms
+                ]
+            )
+        )
+        if not unload_ok:
+            _LOGGER.debug("Unload failed!")
+            return False
+
+        return True

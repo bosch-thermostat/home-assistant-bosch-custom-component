@@ -12,7 +12,7 @@ CONF_DEVICE_TYPE = "device_type"
 
 GATEWAY = "gateway"
 CLIMATE = "climate"
-SENSOR = "sensor"
+# SENSOR = "sensor"
 SOLAR = "solar"
 WATER_HEATER = "water_heater"
 VALUE = "value"
