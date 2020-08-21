@@ -87,6 +87,7 @@ celerybeat-schedule
 env/
 venv/
 venv
+custom_components/bosch/venv
 ENV/
 env.bak/
 venv.bak/
