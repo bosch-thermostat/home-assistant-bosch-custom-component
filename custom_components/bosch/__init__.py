@@ -3,6 +3,7 @@ import asyncio
 import logging
 import random
 from datetime import timedelta
+from homeassistant.helpers.network import get_url
 
 import voluptuous as vol
 from bosch_thermostat_client.const import (
@@ -283,7 +284,7 @@ class BoschGatewayEntry:
                 _LOGGER.info("Starting rawscan of Bosch component")
                 rawscan = await self.gateway.rawscan()
                 save_json(filename, rawscan)
-                url = "{}{}".format(self.hass.config.api.base_url, "/local/bosch_scan.json")
+                url = "{}{}".format(get_url(self.hass), "/local/bosch_scan.json")
                 _LOGGER.info(
                     "Rawscan success. Your URL: {}?v{}".format(url, random.randint(0, 5000))
                 )
