@@ -13,6 +13,7 @@ Supported types of devices:
   - RC300
 - NEFIT(XMPP only):
   - Junkers CT100
+  - Bosch Remote room controller CT100
 
 ** Not working with CT200 **
 Help to get Magic key from Bosch app appreciated.
