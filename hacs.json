@@ -2,5 +2,6 @@
     "name": "Bosch thermostat",
     "domains": ["climate", "water_heater", "sensor"],
     "homeassistant": "0.110.0",
-    "render_readme": true
+    "render_readme": true,
+    "iot_class": ["Cloud Polling", "Cloud Push", "Local Polling", "Local Push"]
   }

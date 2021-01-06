@@ -1,7 +1,7 @@
 # home-assistant-bosch-custom-component
 HA custom component for Bosch thermostat
 
-** Not working with CT200 **
+**Not working with CT200.**
 Help to get Magic key from Bosch app appreciated.
 
 **It will only work with Home Assistant 0.109 and higher.**
@@ -48,11 +48,6 @@ logger:
     custom_components.bosch: debug
     bosch_thermostat_http: debug
 ```
-
-# Known bugs.
-* initial loading takes about one minute.
-
-Bug reported in HA Lovelace - https://github.com/home-assistant/home-assistant-polymer/issues/3195
 
 # First config help needed.
 Come to Discord channel https://discord.gg/WeWQGNR and let's try to figure out if you have unknown device for us or if there is issue with component.
