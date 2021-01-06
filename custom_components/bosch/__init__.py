@@ -29,7 +29,7 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_time_interval, async_call_later
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 from homeassistant.util.json import load_json, save_json
 
@@ -241,6 +241,7 @@ class BoschGatewayEntry:
     def register_update(self):
         """Register interval auto update."""
         self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(self.hass, self.thermostat_refresh, SCAN_INTERVAL)
+        delay = async_call_later(self.hass, 5, self.thermostat_refresh)
 
     async def component_update(self, component_type=None, event_time=None):
         """Update data from DHW."""
