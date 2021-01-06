@@ -2,7 +2,6 @@ name: Validate
 
 on:
   push:
-  pull_request:
   schedule:
     - cron: "0 0 * * *"
 
@@ -15,3 +14,4 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "CHANGE_ME!"
+      - uses: home-assistant/actions/hassfest@master
