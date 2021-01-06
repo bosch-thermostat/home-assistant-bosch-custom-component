@@ -1,6 +1,9 @@
 # home-assistant-bosch-custom-component
 HA custom component for Bosch thermostat
 
+** Not working with CT200 **
+Help to get Magic key from Bosch app appreciated.
+
 **It will only work with Home Assistant 0.109 and higher.**
 
 It is @alpha version of Bosch thermostat component.
@@ -15,8 +18,6 @@ Supported types of devices:
   - Junkers CT100
   - Bosch Remote room controller CT100
 
-** Not working with CT200 **
-Help to get Magic key from Bosch app appreciated.
 
 ## Configuration
 
