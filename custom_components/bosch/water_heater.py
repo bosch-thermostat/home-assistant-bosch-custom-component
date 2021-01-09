@@ -4,41 +4,38 @@ Support for water heaters connected to Bosch thermostat.
 For more details about this platform, please refer to the documentation at...
 """
 import logging
-from homeassistant.helpers.dispatcher import async_dispatcher_send
-from bosch_thermostat_client.const import GATEWAY, SETPOINT
 
+from bosch_thermostat_client.const import GATEWAY, SETPOINT
+from homeassistant.components.water_heater import (
+    ATTR_TARGET_TEMP_HIGH,
+    ATTR_TARGET_TEMP_LOW,
+    STATE_OFF,
+    SUPPORT_OPERATION_MODE,
+    SUPPORT_TARGET_TEMPERATURE,
+    WaterHeaterEntity,
+)
+from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.config_validation import (  # noqa: F401
     PLATFORM_SCHEMA,
     PLATFORM_SCHEMA_BASE,
 )
-
-from homeassistant.components.water_heater import (
-    STATE_OFF,
-    SUPPORT_OPERATION_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
-    WaterHeaterEntity,
-    ATTR_TARGET_TEMP_HIGH,
-    ATTR_TARGET_TEMP_LOW,
-)
-
-
-from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
+    BOSCH_STATE,
+    CHARGE,
+    DEFAULT_MAX_TEMP,
+    DEFAULT_MIN_TEMP,
     DOMAIN,
+    SERVICE_CHARGE_SCHEMA,
+    SERVICE_CHARGE_START,
+    SIGNAL_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
+    SWITCHPOINT,
     UNITS_CONVERTER,
     UUID,
     WATER_HEATER,
-    SWITCHPOINT,
-    SIGNAL_BOSCH,
-    SERVICE_CHARGE_SCHEMA,
-    SERVICE_CHARGE_START,
-    DEFAULT_MAX_TEMP,
-    DEFAULT_MIN_TEMP,
-    CHARGE,
-    BOSCH_STATE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -190,7 +187,9 @@ class BoschWaterHeater(WaterHeaterEntity):
         _LOGGER.debug("Updating Bosch water_heater.")
         if not self._dhw or not self._dhw.update_initialized:
             return
-        self._temperature_units = UNITS_CONVERTER.get(self._dhw.temp_units if self._dhw.temp_units else 'C')
+        self._temperature_units = UNITS_CONVERTER.get(
+            self._dhw.temp_units if self._dhw.temp_units else "C"
+        )
         if (
             self._state != self._dhw.state
             or self._operation_list == self._dhw.ha_modes

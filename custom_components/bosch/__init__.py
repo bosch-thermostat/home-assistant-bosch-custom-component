@@ -3,22 +3,13 @@ import asyncio
 import logging
 import random
 from datetime import timedelta
-from homeassistant.helpers.network import get_url
-
-import voluptuous as vol
-from bosch_thermostat_client.const import (
-    DHW,
-    HC,
-    SC,
-    XMPP,
-    SENSOR,
-    SENSORS
-)
-from bosch_thermostat_client import gateway_chooser
-from bosch_thermostat_client.exceptions import DeviceException
-from bosch_thermostat_client.version import __version__ as LIBVERSION
 
 import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
+from bosch_thermostat_client import gateway_chooser
+from bosch_thermostat_client.const import DHW, HC, SC, SENSOR, SENSORS, XMPP
+from bosch_thermostat_client.exceptions import DeviceException
+from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -29,18 +20,20 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_interval, async_call_later
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.network import get_url
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 from homeassistant.util.json import load_json, save_json
 
 from .config_flow import configured_hosts
-from .const import (
+from .const import (  # SENSOR,; SENSORS,
     ACCESS_KEY,
+    ACCESS_TOKEN,
     CLIMATE,
+    CONF_DEVICE_TYPE,
+    CONF_PROTOCOL,
     DOMAIN,
     GATEWAY,
-    # SENSOR,
-    # SENSORS,
     SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
@@ -49,9 +42,6 @@ from .const import (
     SOLAR,
     UUID,
     WATER_HEATER,
-    CONF_PROTOCOL,
-    CONF_DEVICE_TYPE,
-    ACCESS_TOKEN
 )
 
 SCAN_INTERVAL = timedelta(seconds=60)
@@ -96,7 +86,7 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         device_type=entry.data[CONF_DEVICE_TYPE],
         access_key=entry.data[ACCESS_KEY],
         access_token=entry.data[ACCESS_TOKEN],
-        entry=entry
+        entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
     return await gateway_entry.async_init()
@@ -116,7 +106,9 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
 class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
-    def __init__(self, hass, uuid, host, protocol, device_type, access_key, access_token, entry):
+    def __init__(
+        self, hass, uuid, host, protocol, device_type, access_key, access_token, entry
+    ):
         """Init Bosch gateway entry config class."""
         self.hass = hass
         self.uuid = uuid
@@ -149,7 +141,8 @@ class BoschGatewayEntry:
             session_type=self._protocol,
             host=self._host,
             access_key=self._access_key,
-            access_token=self._access_token)
+            access_token=self._access_token,
+        )
         if await self.async_init_bosch():
             self.hass.helpers.dispatcher.async_dispatcher_connect(
                 SIGNAL_BOSCH, self.get_signals
@@ -183,9 +176,12 @@ class BoschGatewayEntry:
         return False
 
     def get_signals(self):
-        if all(
-            k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
-        ) and not self._signal_registered:
+        if (
+            all(
+                k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
+            )
+            and not self._signal_registered
+        ):
             _LOGGER.debug("Registering service debug and service update interval.")
             # self.hass.async_create_task(self.thermostat_refresh(event_time=781))
             self._signal_registered = True
@@ -240,7 +236,9 @@ class BoschGatewayEntry:
 
     def register_update(self):
         """Register interval auto update."""
-        self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(self.hass, self.thermostat_refresh, SCAN_INTERVAL)
+        self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(
+            self.hass, self.thermostat_refresh, SCAN_INTERVAL
+        )
         delay = async_call_later(self.hass, 5, self.thermostat_refresh)
 
     async def component_update(self, component_type=None, event_time=None):
@@ -251,7 +249,9 @@ class BoschGatewayEntry:
             for entity in entities:
                 if entity.enabled:
                     try:
-                        _LOGGER.debug("Updating component %s by %s", component_type, id(self))
+                        _LOGGER.debug(
+                            "Updating component %s by %s", component_type, id(self)
+                        )
                         await entity.bosch_object.update()
                         updated = True
                     except DeviceException as err:
@@ -287,11 +287,12 @@ class BoschGatewayEntry:
                 save_json(filename, rawscan)
                 url = "{}{}".format(get_url(self.hass), "/local/bosch_scan.json")
                 _LOGGER.info(
-                    "Rawscan success. Your URL: {}?v{}".format(url, random.randint(0, 5000))
+                    "Rawscan success. Your URL: {}?v{}".format(
+                        url, random.randint(0, 5000)
+                    )
                 )
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
-
 
     async def async_reset(self):
         """Reset this device to default state."""

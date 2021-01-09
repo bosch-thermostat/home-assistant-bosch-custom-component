@@ -1,24 +1,23 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
 
+from bosch_thermostat_client.const import DHW, HC, SC, SENSOR, SENSORS, UNITS, VALUE
+from bosch_thermostat_client.const.ivt import INVALID
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
 
-from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .const import (
+    CLIMATE,
     DOMAIN,
+    GATEWAY,
+    SIGNAL_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
-    GATEWAY,
+    SOLAR,
     UNITS_CONVERTER,
     UUID,
-    SOLAR,
-    CLIMATE,
     WATER_HEATER,
-    SIGNAL_BOSCH,
 )
-
-from bosch_thermostat_client.const import VALUE, UNITS, DHW, HC, SC, SENSOR, SENSORS
-from bosch_thermostat_client.const.ivt import INVALID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,8 +25,9 @@ CIRCUITS = [DHW, HC, SC]
 CIRCUITS_SENSOR_NAMES = {
     DHW: "Water heater ",
     HC: "Heating circuit ",
-    SC: "Solar circuit "
+    SC: "Solar circuit ",
 }
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the Bosch Thermostat Sensor Platform."""
@@ -95,7 +95,7 @@ class BoschBaseSensor(Entity):
         self._bosch_object = bosch_object
         self._gateway = gateway
         self._domain_name = domain_name
-        self._name = (domain_name + " " + name) if domain_name != 'Sensors' else name
+        self._name = (domain_name + " " + name) if domain_name != "Sensors" else name
         self._attr_uri = attr_uri
         self._state = None
         self._update_init = True

@@ -1,24 +1,22 @@
 """Support for Bosch Thermostat Climate."""
 import logging
-from bosch_thermostat_client.const import (
-    SETPOINT,
-)
 
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from bosch_thermostat_client.const import SETPOINT
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import SUPPORT_TARGET_TEMPERATURE
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
+    BOSCH_STATE,
+    CLIMATE,
     DOMAIN,
     GATEWAY,
-    SIGNAL_CLIMATE_UPDATE_BOSCH,
-    UUID,
-    CLIMATE,
-    UNITS_CONVERTER,
-    SWITCHPOINT,
     SIGNAL_BOSCH,
-    BOSCH_STATE,
+    SIGNAL_CLIMATE_UPDATE_BOSCH,
+    SWITCHPOINT,
+    UNITS_CONVERTER,
+    UUID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -145,7 +143,7 @@ class BoschThermostat(ClimateEntity):
         if status > 0:
             return True
         return False
-    
+
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)

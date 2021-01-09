@@ -1,6 +1,6 @@
 """Constants for the bosch component."""
-from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
 import voluptuous as vol
+from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
 
 DOMAIN = "bosch"
 ACCESS_KEY = "access_key"
