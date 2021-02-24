@@ -5,19 +5,18 @@ import random
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client import gateway_chooser
-from bosch_thermostat_client.const import DHW, HC, SC, SENSOR, SENSORS, XMPP
-from bosch_thermostat_client.exceptions import DeviceException, FirmwareException, UnknownDevice
+from bosch_thermostat_client.const import DHW, HC, SC, SENSOR, XMPP
+from bosch_thermostat_client.exceptions import (
+    DeviceException,
+    FirmwareException,
+    UnknownDevice,
+)
 from bosch_thermostat_client.version import __version__ as LIBVERSION
-from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
-    CONF_ACCESS_TOKEN,
     CONF_ADDRESS,
-    CONF_PASSWORD,
-    EVENT_HOMEASSISTANT_STOP
-
+    EVENT_HOMEASSISTANT_STOP,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -47,9 +46,8 @@ from .const import (
     FIRMWARE_SCAN_INTERVAL,
     SERVICE_UPDATE,
     SCAN_INTERVAL,
-    SCAN_SENSOR_INTERVAL,
     INTERVAL,
-    FW_INTERVAL
+    FW_INTERVAL,
 )
 
 
@@ -153,7 +151,6 @@ class BoschGatewayEntry:
         """Init async items in entry."""
         import bosch_thermostat_client as bosch
 
-
         _LOGGER.debug("Initializing Bosch integration.")
         self._update_lock = asyncio.Lock()
         BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
@@ -217,10 +214,10 @@ class BoschGatewayEntry:
             self.register_update()
             self.register_service(True, True)
 
-    async def async_reset(self):
-        _LOGGER.debug("Removing service debug and service update interval.")
-        self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
-        self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
+    # async def async_reset(self):
+    #     _LOGGER.debug("Removing service debug and service update interval.")
+    #     self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
+    #     self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
@@ -274,9 +271,11 @@ class BoschGatewayEntry:
             self.hass, self.thermostat_refresh, SCAN_INTERVAL
         )
         self.hass.data[DOMAIN][self.uuid][FW_INTERVAL] = async_track_time_interval(
-            self.hass, self.firmware_refresh, FIRMWARE_SCAN_INTERVAL ### SCAN INTERVAL FV
+            self.hass,
+            self.firmware_refresh,
+            FIRMWARE_SCAN_INTERVAL,  ### SCAN INTERVAL FV
         )
-        delay = async_call_later(self.hass, 5, self.thermostat_refresh)
+        async_call_later(self.hass, 5, self.thermostat_refresh)
 
     async def component_update(self, component_type=None, event_time=None):
         """Update data from DHW."""
@@ -334,7 +333,11 @@ class BoschGatewayEntry:
                 _LOGGER.info("Starting rawscan of Bosch component")
                 rawscan = await self.gateway.rawscan()
                 save_json(filename, rawscan)
-                url = "{}{}{}".format(get_url(self.hass), "/local/bosch_scan.json?v", random.randint(0, 5000))
+                url = "{}{}{}".format(
+                    get_url(self.hass),
+                    "/local/bosch_scan.json?v",
+                    random.randint(0, 5000),
+                )
                 _LOGGER.info(f"Rawscan success. Your URL: {url}")
                 self.hass.components.persistent_notification.async_create(
                     title="Bosch scan",
@@ -361,5 +364,7 @@ class BoschGatewayEntry:
         if not unload_ok:
             _LOGGER.debug("Unload failed!")
             return False
+        self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
+        self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
         return True

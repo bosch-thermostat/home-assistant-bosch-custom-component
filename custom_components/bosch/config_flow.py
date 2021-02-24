@@ -1,28 +1,34 @@
 """Config flow to configure esphome component."""
-import asyncio
 import logging
-
 import voluptuous as vol
+
 from bosch_thermostat_client import gateway_chooser
 from bosch_thermostat_client.const import XMPP
 from bosch_thermostat_client.const.ivt import HTTP, IVT
 from bosch_thermostat_client.const.nefit import NEFIT
-from bosch_thermostat_client.exceptions import (DeviceException,
-                                                FirmwareException,
-                                                UnknownDevice,
-                                                EncryptionException)
+from bosch_thermostat_client.exceptions import (
+    DeviceException,
+    EncryptionException,
+    FirmwareException,
+    UnknownDevice,
+)
 from homeassistant import config_entries
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
-from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import create_notification_firmware
-from .const import CONF_DEVICE_TYPE, CONF_PROTOCOL
+from .const import (
+    CONF_DEVICE_TYPE,
+    CONF_PROTOCOL,
+    ACCESS_KEY,
+    ACCESS_TOKEN,
+    DOMAIN,
+    UUID,
+)
 
 DEVICE_TYPE = [NEFIT, IVT]
 PROTOCOLS = [HTTP, XMPP]
 
-from .const import ACCESS_KEY, ACCESS_TOKEN, DOMAIN, UUID
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -7,16 +7,13 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
 
 from .const import (
-    CLIMATE,
     DOMAIN,
     GATEWAY,
     SIGNAL_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
-    SOLAR,
     UNITS_CONVERTER,
     UUID,
-    WATER_HEATER,
 )
 
 _LOGGER = logging.getLogger(__name__)
