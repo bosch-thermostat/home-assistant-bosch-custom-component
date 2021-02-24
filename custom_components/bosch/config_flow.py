@@ -17,7 +17,6 @@ from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import create_notification_firmware
-<<<<<<< HEAD
 from .const import (
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
@@ -26,9 +25,6 @@ from .const import (
     DOMAIN,
     UUID,
 )
-=======
-from .const import CONF_DEVICE_TYPE, CONF_PROTOCOL
->>>>>>> e1da264ba334d32658102417b609754b928ceac8
 
 DEVICE_TYPE = [NEFIT, IVT]
 PROTOCOLS = [HTTP, XMPP]
