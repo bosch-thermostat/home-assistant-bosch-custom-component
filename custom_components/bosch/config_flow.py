@@ -7,12 +7,16 @@ from bosch_thermostat_client import gateway_chooser
 from bosch_thermostat_client.const import XMPP
 from bosch_thermostat_client.const.ivt import HTTP, IVT
 from bosch_thermostat_client.const.nefit import NEFIT
-from bosch_thermostat_client.exceptions import DeviceException
+from bosch_thermostat_client.exceptions import (DeviceException,
+                                                FirmwareException,
+                                                UnknownDevice,
+                                                EncryptionException)
 from homeassistant import config_entries
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from . import create_notification_firmware
 from .const import CONF_DEVICE_TYPE, CONF_PROTOCOL
 
 DEVICE_TYPE = [NEFIT, IVT]
@@ -21,23 +25,6 @@ PROTOCOLS = [HTTP, XMPP]
 from .const import ACCESS_KEY, ACCESS_TOKEN, DOMAIN, UUID
 
 _LOGGER = logging.getLogger(__name__)
-
-
-@callback
-def configured_hosts(hass):
-    """Return a set of the configured hosts."""
-    """For future to use with discovery!"""
-    out = {}
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        out[entry.data[CONF_ADDRESS]] = {
-            UUID: entry.data[UUID],
-            CONF_ADDRESS: entry.data[CONF_ADDRESS],
-            ACCESS_KEY: entry.data[ACCESS_KEY],
-            ACCESS_TOKEN: entry.data[ACCESS_TOKEN],
-            CONF_DEVICE_TYPE: entry.data[CONF_DEVICE_TYPE],
-            CONF_PROTOCOL: entry.data[CONF_PROTOCOL],
-        }
-    return out
 
 
 @config_entries.HANDLERS.register(DOMAIN)
@@ -94,9 +81,8 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         errors = {}
         if user_input is not None:
             self._protocol = user_input[CONF_PROTOCOL]
-            step_name = self._protocol.lower() + "_config"
             return self.async_show_form(
-                step_id=step_name,
+                step_id=f"{self._protocol.lower()}_config",
                 data_schema=vol.Schema(
                     {
                         vol.Required(CONF_ADDRESS): str,
@@ -156,44 +142,33 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 access_token=access_token,
                 password=password,
             )
-            uuid = await device.check_connection()
+            try:
+                uuid = await device.check_connection()
+            except (FirmwareException, UnknownDevice) as err:
+                create_notification_firmware(hass=self.hass, msg=err)
+                uuid = device.uuid
             if uuid:
-                return await self._entry_from_gateway(device, uuid)
-        except DeviceException as err:
+                await self.async_set_unique_id(uuid)
+                self._abort_if_unique_id_configured()
+        except (DeviceException, EncryptionException) as err:
             _LOGGER.error("Wrong IP or credentials at %s - %s", host, err)
             return self.async_abort(reason="faulty_credentials")
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error("Error connecting Bosch at %s - %s", host, err)
+        else:
+            _LOGGER.debug("Adding Bosch entry.")
+            return self.async_create_entry(
+                title=device.device_name or "Unknown model",
+                data={
+                    CONF_ADDRESS: device.host,
+                    UUID: uuid,
+                    ACCESS_KEY: device.access_key,
+                    ACCESS_TOKEN: device.access_token,
+                    CONF_DEVICE_TYPE: self._choose_type,
+                    CONF_PROTOCOL: self._protocol,
+                },
+            )
 
     async def async_step_discovery(self, discovery_info=None):
         """Handle a flow discovery."""
         _LOGGER.debug("Discovered Bosch unit : %s", discovery_info)
-        pass
-
-    async def _entry_from_gateway(self, gateway, uuid):
-        """Return a config entry from an initialized bridge."""
-        # Remove all other entries of hubs with same ID or host
-        _LOGGER.debug("Adding entry.")
-        host = gateway.host
-        device_name = gateway.device_name if gateway.device_name else "Unknown"
-        same_gateway_entries = [
-            entry.entry_id
-            for entry in self.hass.config_entries.async_entries(DOMAIN)
-            if entry.data[UUID] == uuid
-        ]
-        if same_gateway_entries:
-            await asyncio.wait(
-                [
-                    self.hass.config_entries.async_remove(entry_id)
-                    for entry_id in same_gateway_entries
-                ]
-            )
-        data = {
-            CONF_ADDRESS: host,
-            UUID: uuid,
-            ACCESS_KEY: gateway.access_key,
-            ACCESS_TOKEN: gateway.access_token,
-            CONF_DEVICE_TYPE: self._choose_type,
-            CONF_PROTOCOL: self._protocol,
-        }
-        return self.async_create_entry(title=device_name, data=data)
