@@ -1,10 +1,10 @@
 # home-assistant-bosch-custom-component
-HA custom component for Bosch thermostat
+HA custom component for Bosch thermostats.
 
 **Not working with CT200.**
 Help to get Magic key from Bosch app appreciated.
 
-**It will only work with Home Assistant 0.109 and higher.**
+**It will only work with Home Assistant 0.109 and and Python >3.7 higher.**
 
 It is @alpha version of Bosch thermostat component.
 Supported protocols:
@@ -14,6 +14,7 @@ Supported protocols:
 Supported types of devices:
 - IVT (HTTP/XMPP):
   - RC300
+  - RC200
 - NEFIT(XMPP only):
   - Junkers CT100
   - Bosch Remote room controller CT100
@@ -46,7 +47,7 @@ logger:
   default: warning
   logs:
     custom_components.bosch: debug
-    bosch_thermostat_http: debug
+    bosch_thermostat_client: debug
 ```
 
 # First config help needed.

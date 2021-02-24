@@ -1,4 +1,6 @@
 """Constants for the bosch component."""
+from datetime import timedelta
+
 import voluptuous as vol
 from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
 
@@ -30,7 +32,8 @@ BOSCH_STATE = "bosch_state"
 SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In(["start", "stop"])}
 
 SERVICE_CHARGE_START = "set_dhw_charge"
-
+SERVICE_DEBUG = "debug_scan"
+SERVICE_UPDATE = "update_thermostat"
 
 SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"
@@ -52,3 +55,10 @@ UNITS_CONVERTER = {
     "µA": "µA",
     " ": None,
 }
+
+NOTIFICATION_ID = "bosch_notification"
+SCAN_INTERVAL = timedelta(seconds=30)
+FIRMWARE_SCAN_INTERVAL = timedelta(hours=4)
+SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
+INTERVAL = "interval"
+FW_INTERVAL = "fw_interval"

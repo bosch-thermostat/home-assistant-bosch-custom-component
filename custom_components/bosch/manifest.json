@@ -1,12 +1,12 @@
 {
   "domain": "bosch",
-  "name": "Bosch",
+  "name": "Bosch thermostat",
   "documentation": "https://github.com/bosch-thermostat/home-assistant-bosch-custom-component",
   "dependencies": [],
   "after_dependencies": ["http"],
   "codeowners": ["@pszafer"],
-  "requirements": ["bosch-thermostat-client==0.9.12"],
-  "version": "0.9.12",
+  "requirements": ["bosch-thermostat-client==0.10.0"],
+  "version": "0.10.0",
   "zeroconf": ["_buderus._tcp.local."],
   "config_flow": true,
   "issue_tracker": "https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/issues"
