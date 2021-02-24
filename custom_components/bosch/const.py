@@ -1,4 +1,6 @@
 """Constants for the bosch component."""
+from datetime import timedelta
+
 import voluptuous as vol
 from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
 from datetime import timedelta

@@ -32,6 +32,8 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
     DOMAIN,
+    FIRMWARE_SCAN_INTERVAL,
+    FW_INTERVAL,
     GATEWAY,
     NOTIFICATION_ID,
     SIGNAL_BOSCH,
@@ -49,7 +51,6 @@ from .const import (
     INTERVAL,
     FW_INTERVAL,
 )
-
 
 SIGNALS = {
     CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
