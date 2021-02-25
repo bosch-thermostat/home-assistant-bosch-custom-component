@@ -268,7 +268,7 @@ class BoschGatewayEntry:
         self.hass.data[DOMAIN][self.uuid][FW_INTERVAL] = async_track_time_interval(
             self.hass,
             self.firmware_refresh,
-            FIRMWARE_SCAN_INTERVAL,  ### SCAN INTERVAL FV
+            FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
         )
         async_call_later(self.hass, 5, self.thermostat_refresh)
 
