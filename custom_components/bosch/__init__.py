@@ -13,11 +13,7 @@ from bosch_thermostat_client.exceptions import (
 )
 from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    CONF_ADDRESS,
-    EVENT_HOMEASSISTANT_STOP,
-)
+from homeassistant.const import ATTR_ENTITY_ID, CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
@@ -25,17 +21,21 @@ from homeassistant.helpers.network import get_url
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 from homeassistant.util.json import load_json, save_json
 
+from .const import CLIMATE  # SENSOR,; SENSORS,
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
-    CLIMATE,  # SENSOR,; SENSORS,
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
     DOMAIN,
     FIRMWARE_SCAN_INTERVAL,
     FW_INTERVAL,
     GATEWAY,
+    INTERVAL,
     NOTIFICATION_ID,
+    SCAN_INTERVAL,
+    SERVICE_DEBUG,
+    SERVICE_UPDATE,
     SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
@@ -44,12 +44,6 @@ from .const import (
     SOLAR,
     UUID,
     WATER_HEATER,
-    SERVICE_DEBUG,
-    FIRMWARE_SCAN_INTERVAL,
-    SERVICE_UPDATE,
-    SCAN_INTERVAL,
-    INTERVAL,
-    FW_INTERVAL,
 )
 
 SIGNALS = {
@@ -274,7 +268,7 @@ class BoschGatewayEntry:
         self.hass.data[DOMAIN][self.uuid][FW_INTERVAL] = async_track_time_interval(
             self.hass,
             self.firmware_refresh,
-            FIRMWARE_SCAN_INTERVAL,  ### SCAN INTERVAL FV
+            FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
         )
         async_call_later(self.hass, 5, self.thermostat_refresh)
 

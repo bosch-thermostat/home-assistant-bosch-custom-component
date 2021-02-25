@@ -3,7 +3,6 @@ from datetime import timedelta
 
 import voluptuous as vol
 from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
-from datetime import timedelta
 
 DOMAIN = "bosch"
 ACCESS_KEY = "access_key"
