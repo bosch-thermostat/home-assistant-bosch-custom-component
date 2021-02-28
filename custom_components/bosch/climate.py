@@ -3,7 +3,10 @@ import logging
 
 from bosch_thermostat_client.const import SETPOINT
 from homeassistant.components.climate import ClimateEntity
-from homeassistant.components.climate.const import SUPPORT_TARGET_TEMPERATURE
+from homeassistant.components.climate.const import (
+    SUPPORT_TARGET_TEMPERATURE,
+    SUPPORT_PRESET_MODE,
+)
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -108,7 +111,9 @@ class BoschThermostat(ClimateEntity):
     @property
     def supported_features(self):
         """Return the list of supported features."""
-        return SUPPORT_TARGET_TEMPERATURE
+        return SUPPORT_TARGET_TEMPERATURE | (
+            SUPPORT_PRESET_MODE if self._hc.support_presets else 0
+        )
 
     @property
     def temperature_unit(self):
@@ -162,6 +167,18 @@ class BoschThermostat(ClimateEntity):
     def max_temp(self):
         """Return the maximum temperature."""
         return self._hc.max_temp
+
+    @property
+    def preset_modes(self):
+        return self._hc.preset_modes
+
+    @property
+    def preset_mode(self):
+        return self._hc.preset_mode
+
+    async def async_set_preset_mode(self, preset_mode):
+        """Set new target preset mode."""
+        await self._hc.set_preset_mode(preset_mode)
 
     def update(self):
         """Update state of device."""
