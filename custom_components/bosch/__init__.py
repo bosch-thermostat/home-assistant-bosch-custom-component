@@ -2,10 +2,11 @@
 import asyncio
 import logging
 import random
+from datetime import datetime, timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client.const import DHW, HC, SC, SENSOR, XMPP
+from bosch_thermostat_client.const import DHW, HC, RECORDINGS, SC, SENSOR, XMPP
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
@@ -16,9 +17,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_point_in_utc_time,
+    async_track_time_interval,
+)
 from homeassistant.helpers.network import get_url
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.util import dt as dt_util
 from homeassistant.util.json import load_json, save_json
 
 from .const import CLIMATE  # SENSOR,; SENSORS,
@@ -39,6 +45,7 @@ from .const import (
     SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
+    SIGNAL_RECORDING_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SOLAR,
@@ -63,6 +70,8 @@ TASK = "task"
 DATA_CONFIGS = "bosch_configs"
 
 _LOGGER = logging.getLogger(__name__)
+
+HOUR = timedelta(hours=1)
 
 
 async def async_setup(hass: HomeAssistantType, config: ConfigType):
@@ -141,6 +150,7 @@ class BoschGatewayEntry:
         self._signal_registered = False
         self.supported_platforms = []
         self._update_lock = None
+        self._recording_sub = None
 
     async def async_init(self):
         """Init async items in entry."""
@@ -204,15 +214,9 @@ class BoschGatewayEntry:
             and not self._signal_registered
         ):
             _LOGGER.debug("Registering service debug and service update interval.")
-            # self.hass.async_create_task(self.thermostat_refresh(event_time=781))
             self._signal_registered = True
             self.register_update()
             self.register_service(True, True)
-
-    # async def async_reset(self):
-    #     _LOGGER.debug("Removing service debug and service update interval.")
-    #     self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
-    #     self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
@@ -245,6 +249,40 @@ class BoschGatewayEntry:
         _LOGGER.info("Bosch initialized.")
         return True
 
+    async def recording_sensors_update(self, now=None):
+        entities = self.hass.data[DOMAIN][self.uuid].get(RECORDINGS, [])
+        updated = False
+        for entity in entities:
+            if entity.enabled:
+                try:
+                    _LOGGER.debug("Updating component Recording Sensor by %s", id(self))
+                    await entity.bosch_object.update()
+                    updated = True
+                except DeviceException as err:
+                    _LOGGER.warning(
+                        "Bosch object of entity %s is no longer available. %s",
+                        entity.name,
+                        err,
+                    )
+        if self._recording_sub is not None:
+            self._recording_sub()
+            self._recording_sub = None
+
+        def rounder(t):
+            if t.minute >= 50:
+                return t.replace(second=0, microsecond=0, minute=0, hour=t.hour + 2)
+            else:
+                return t.replace(second=0, microsecond=0, minute=0, hour=t.hour + 1)
+
+        nexti = rounder(dt_util.now())
+        self._recording_sub = async_track_point_in_utc_time(
+            self.hass, self.recording_sensors_update, nexti
+        )
+        if updated:
+            _LOGGER.debug("Bosch recording entitites updated.")
+            async_dispatcher_send(self.hass, SIGNAL_RECORDING_UPDATE_BOSCH)
+            return True
+
     def register_service(self, debug=False, update=False):
         """Register service to use in HA."""
         if debug and not self._debug_service_registered:
@@ -271,9 +309,10 @@ class BoschGatewayEntry:
             FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
         )
         async_call_later(self.hass, 5, self.thermostat_refresh)
+        self.hass.async_create_task(self.recording_sensors_update())
 
     async def component_update(self, component_type=None, event_time=None):
-        """Update data from DHW."""
+        """Update data from HC, DHW, Sensors."""
         if component_type in self.supported_platforms:
             updated = False
             entities = self.hass.data[DOMAIN][self.uuid][component_type]
@@ -359,6 +398,9 @@ class BoschGatewayEntry:
         if not unload_ok:
             _LOGGER.debug("Unload failed!")
             return False
+        if self._recording_sub is not None:
+            self._recording_sub()
+            self._recording_sub = None
         self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
         self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 

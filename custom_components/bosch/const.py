@@ -27,6 +27,7 @@ SIGNAL_CLIMATE_UPDATE_BOSCH = "bosch_climate_update"
 SIGNAL_SENSOR_UPDATE_BOSCH = "bosch_sensor_update"
 SIGNAL_DHW_UPDATE_BOSCH = "bosch_dhw_update"
 SIGNAL_SOLAR_UPDATE_BOSCH = "bosch_solar_update"
+SIGNAL_RECORDING_UPDATE_BOSCH = "bosch_recording_update"
 BOSCH_STATE = "bosch_state"
 
 SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In(["start", "stop"])}
@@ -57,7 +58,7 @@ UNITS_CONVERTER = {
 }
 
 NOTIFICATION_ID = "bosch_notification"
-SCAN_INTERVAL = timedelta(seconds=30)
+SCAN_INTERVAL = timedelta(seconds=60)
 FIRMWARE_SCAN_INTERVAL = timedelta(hours=4)
 SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
 INTERVAL = "interval"

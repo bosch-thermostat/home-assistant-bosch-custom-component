@@ -1,7 +1,16 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
 
-from bosch_thermostat_client.const import DHW, HC, SC, SENSOR, SENSORS, UNITS, VALUE
+from bosch_thermostat_client.const import (
+    DHW,
+    HC,
+    RECORDINGS,
+    SC,
+    SENSOR,
+    SENSORS,
+    UNITS,
+    VALUE,
+)
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
@@ -10,6 +19,7 @@ from .const import (
     DOMAIN,
     GATEWAY,
     SIGNAL_BOSCH,
+    SIGNAL_RECORDING_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
@@ -36,40 +46,48 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
     enabled_sensors = config_entry.data.get(SENSORS, [])
-    data[SENSOR] = [
-        BoschSensor(
-            hass=hass,
-            uuid=uuid,
-            bosch_object=sensor,
-            gateway=data[GATEWAY],
-            name=sensor.name,
-            attr_uri=sensor.attr_id,
-            domain_name="Sensors",
-            is_enabled=sensor.attr_id in enabled_sensors,
+    data[SENSOR] = []
+    data[RECORDINGS] = []
+
+    def get_target_sensor(sensor_kind):
+        if sensor_kind == RECORDINGS:
+            return (RECORDINGS, RecordingSensor, "Recording")
+        return (SENSOR, BoschSensor, "Sensors")
+
+    for sensor in data[GATEWAY].sensors:
+        (target, SensorClass, domain_name) = get_target_sensor(sensor.kind)
+        data[target].append(
+            SensorClass(
+                hass=hass,
+                uuid=uuid,
+                bosch_object=sensor,
+                gateway=data[GATEWAY],
+                name=sensor.name,
+                attr_uri=sensor.attr_id,
+                domain_name=domain_name,
+                is_enabled=sensor.attr_id in enabled_sensors,
+            )
         )
-        for sensor in data[GATEWAY].sensors
-    ]
+
     for circ_type in CIRCUITS:
         circuits = data[GATEWAY].get_circuits(circ_type)
         for circuit in circuits:
             for sensor in circuit.sensors:
                 data[SENSOR].append(
                     CircuitSensor(
-                        hass,
-                        uuid,
-                        sensor,
-                        data[GATEWAY],
-                        sensor.name,
-                        sensor.attr_id,
-                        circuit.name,
-                        circ_type,
-                        sensor.attr_id in enabled_sensors,
+                        hass=hass,
+                        uuid=uuid,
+                        bosch_object=sensor,
+                        gateway=data[GATEWAY],
+                        name=sensor.name,
+                        attr_uri=sensor.attr_id,
+                        domain_name=circuit.name,
+                        circuit_type=circ_type,
+                        is_enabled=sensor.attr_id in enabled_sensors,
                     )
                 )
     async_add_entities(data[SENSOR])
-    # if solars:
-    #     data[SOLAR] = solars
-    #     async_add_entities(data[SOLAR])
+    async_add_entities(data[RECORDINGS])
     async_dispatcher_send(hass, SIGNAL_BOSCH)
     return True
 
@@ -213,3 +231,22 @@ class CircuitSensor(BoschBaseSensor):
     @property
     def signal(self):
         return SIGNAL_SOLAR_UPDATE_BOSCH
+
+
+class RecordingSensor(BoschBaseSensor):
+    """Representation of Recording Sensor."""
+
+    @property
+    def _sensor_name(self):
+        return "Recording sensors"
+
+    @property
+    def signal(self):
+        return SIGNAL_RECORDING_UPDATE_BOSCH
+
+    def attrs_write(self, data):
+        self._unit_of_measurement = self._bosch_object.unit_of_measurement
+        self._attrs = data
+        if self._update_init:
+            self._update_init = False
+            self.async_schedule_update_ha_state()
