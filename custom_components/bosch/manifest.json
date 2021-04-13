@@ -10,7 +10,7 @@
     "@pszafer"
   ],
   "requirements": [
-    "bosch-thermostat-client==0.12.0"
+    "https://github.com/doudz/bosch-thermostat-client-python/archive/refs/heads/ct200.zip#bosch-thermostat-client==0.12.0"
   ],
   "version": "0.12.0",
   "zeroconf": [
