@@ -128,7 +128,6 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             self._access_token = user_input[CONF_ACCESS_TOKEN]
             self._password = user_input.get(CONF_PASSWORD)
             if "127.0.0.1" in user_input[CONF_ADDRESS]:
-                print("127.0.0.1!!!")
                 return await self.configure_gateway(
                     device_type=self._choose_type,
                     session=async_get_clientsession(self.hass, verify_ssl=False),
