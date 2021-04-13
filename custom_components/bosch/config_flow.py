@@ -127,6 +127,16 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             self._host = user_input[CONF_ADDRESS]
             self._access_token = user_input[CONF_ACCESS_TOKEN]
             self._password = user_input.get(CONF_PASSWORD)
+            if "127.0.0.1" in user_input[CONF_ADDRESS]:
+                print("127.0.0.1!!!")
+                return await self.configure_gateway(
+                    device_type=self._choose_type,
+                    session=async_get_clientsession(self.hass, verify_ssl=False),
+                    session_type=HTTP,
+                    host=self._host,
+                    access_token=self._access_token,
+                    password=self._password,
+                )
             return await self.configure_gateway(
                 device_type=self._choose_type,
                 session=self.hass.loop,
@@ -171,7 +181,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                     ACCESS_KEY: device.access_key,
                     ACCESS_TOKEN: device.access_token,
                     CONF_DEVICE_TYPE: self._choose_type,
-                    CONF_PROTOCOL: self._protocol,
+                    CONF_PROTOCOL: session_type,
                 },
             )
 
