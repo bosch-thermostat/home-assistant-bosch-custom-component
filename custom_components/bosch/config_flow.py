@@ -6,6 +6,7 @@ from bosch_thermostat_client import gateway_chooser
 from bosch_thermostat_client.const import XMPP
 from bosch_thermostat_client.const.ivt import HTTP, IVT
 from bosch_thermostat_client.const.nefit import NEFIT
+from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     EncryptionException,
@@ -26,7 +27,7 @@ from .const import (
     UUID,
 )
 
-DEVICE_TYPE = [NEFIT, IVT]
+DEVICE_TYPE = [NEFIT, IVT, EASYCONTROL]
 PROTOCOLS = [HTTP, XMPP]
 
 
@@ -69,7 +70,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                     ),
                     errors=errors,
                 )
-            elif self._choose_type == NEFIT:
+            elif self._choose_type in (NEFIT, EASYCONTROL):
                 return await self.async_step_protocol({CONF_PROTOCOL: XMPP})
         return self.async_show_form(
             step_id="choose_type",
