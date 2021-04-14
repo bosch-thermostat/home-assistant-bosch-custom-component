@@ -269,10 +269,12 @@ class BoschGatewayEntry:
             self._recording_sub = None
 
         def rounder(t):
-            if t.minute >= 50:
-                return t.replace(second=0, microsecond=0, minute=0, hour=t.hour + 2)
-            else:
-                return t.replace(second=0, microsecond=0, minute=0, hour=t.hour + 1)
+            matching_seconds = [0]
+            matching_minutes = [2]
+            matching_hours = dt_util.parse_time_expression("*", 0, 23)
+            return dt_util.find_next_time_expression_time(
+                t, matching_seconds, matching_minutes, matching_hours
+            )
 
         nexti = rounder(dt_util.now())
         self._recording_sub = async_track_point_in_utc_time(
