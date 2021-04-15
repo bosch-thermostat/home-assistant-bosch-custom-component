@@ -51,6 +51,9 @@ class BoschThermostat(ClimateEntity):
         self.hass = hass
 
         self._hc = hc
+        self._name_prefix = (
+            "Zone circuit " if "/zones" in hc.attr_id else "Heating circuit "
+        )
 
         self._name = self._hc.name
         self._temperature_unit = TEMP_CELSIUS
@@ -78,7 +81,7 @@ class BoschThermostat(ClimateEntity):
             "identifiers": {(DOMAIN, self._unique_id)},
             "manufacturer": self._gateway.device_model,
             "model": self._gateway.device_type,
-            "name": "Heating circuit " + self._name,
+            "name": f"{self._name_prefix} {self._name}",
             "sw_version": self._gateway.firmware,
             "via_hub": (DOMAIN, self._uuid),
         }
@@ -94,10 +97,6 @@ class BoschThermostat(ClimateEntity):
         except NotImplementedError:
             pass
         return data
-
-    @property
-    def extra_state_attributes(self):
-        return {ATTR_FRIENDLY_NAME: self._name + "haha"}
 
     @property
     def bosch_object(self):

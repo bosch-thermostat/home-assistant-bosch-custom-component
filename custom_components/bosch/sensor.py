@@ -228,7 +228,7 @@ class CircuitSensor(BoschBaseSensor):
 
     @property
     def _sensor_name(self):
-        return CIRCUITS_SENSOR_NAMES[self._circuit_type] + self._domain_name
+        return CIRCUITS_SENSOR_NAMES[self._circuit_type] + " " + self._domain_name
 
     @property
     def signal(self):
