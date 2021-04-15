@@ -6,6 +6,7 @@ from bosch_thermostat_client.const import (
     HC,
     RECORDINGS,
     SC,
+    ZN,
     SENSOR,
     SENSORS,
     UNITS,
@@ -28,11 +29,12 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-CIRCUITS = [DHW, HC, SC]
+CIRCUITS = [DHW, HC, SC, ZN]
 CIRCUITS_SENSOR_NAMES = {
     DHW: "Water heater ",
     HC: "Heating circuit ",
     SC: "Solar circuit ",
+    ZN: "Zone circuit",
 }
 
 

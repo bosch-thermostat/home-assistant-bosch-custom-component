@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client.const import DHW, HC, RECORDINGS, SC, SENSOR, XMPP
+from bosch_thermostat_client.const import DHW, HC, RECORDINGS, SC, SENSOR, XMPP, ZN
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
@@ -60,7 +60,13 @@ SIGNALS = {
     SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
 }
 
-SUPPORTED_PLATFORMS = {HC: CLIMATE, DHW: WATER_HEATER, SC: SENSOR, SENSOR: SENSOR}
+SUPPORTED_PLATFORMS = {
+    HC: CLIMATE,
+    DHW: WATER_HEATER,
+    SC: SENSOR,
+    SENSOR: SENSOR,
+    ZN: CLIMATE,
+}
 
 CUSTOM_DB = "custom_bosch_db.json"
 SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
@@ -314,7 +320,7 @@ class BoschGatewayEntry:
         self.hass.async_create_task(self.recording_sensors_update())
 
     async def component_update(self, component_type=None, event_time=None):
-        """Update data from HC, DHW, Sensors."""
+        """Update data from HC, DHW, ZN, Sensors."""
         if component_type in self.supported_platforms:
             updated = False
             entities = self.hass.data[DOMAIN][self.uuid][component_type]

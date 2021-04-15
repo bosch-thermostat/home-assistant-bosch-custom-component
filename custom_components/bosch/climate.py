@@ -7,7 +7,7 @@ from homeassistant.components.climate.const import (
     SUPPORT_PRESET_MODE,
     SUPPORT_TARGET_TEMPERATURE,
 )
-from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
+from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS, ATTR_FRIENDLY_NAME
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
@@ -51,6 +51,7 @@ class BoschThermostat(ClimateEntity):
         self.hass = hass
 
         self._hc = hc
+
         self._name = self._hc.name
         self._temperature_unit = TEMP_CELSIUS
         self._mode = {}
@@ -87,11 +88,16 @@ class BoschThermostat(ClimateEntity):
         data = super().state_attributes
         try:
             data[SETPOINT] = self._hc.setpoint
-            data[SWITCHPOINT] = self._hc.schedule.active_program
+            if self._hc.schedule:
+                data[SWITCHPOINT] = self._hc.schedule.active_program
             data[BOSCH_STATE] = self._state
         except NotImplementedError:
             pass
         return data
+
+    @property
+    def extra_state_attributes(self):
+        return {ATTR_FRIENDLY_NAME: self._name + "haha"}
 
     @property
     def bosch_object(self):
