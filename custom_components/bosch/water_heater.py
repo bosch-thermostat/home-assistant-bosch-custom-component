@@ -136,7 +136,8 @@ class BoschWaterHeater(WaterHeaterEntity):
         data.pop(ATTR_TARGET_TEMP_HIGH, None)
         data.pop(ATTR_TARGET_TEMP_LOW, None)
         data[SETPOINT] = self._dhw.setpoint
-        data[SWITCHPOINT] = self._dhw.schedule.active_program
+        if self._dhw.schedule:
+            data[SWITCHPOINT] = self._dhw.schedule.active_program
         data[BOSCH_STATE] = self._state
         return data
 

@@ -10,6 +10,7 @@ from bosch_thermostat_client.const import (
     SENSORS,
     UNITS,
     VALUE,
+    ZN,
 )
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -28,11 +29,12 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-CIRCUITS = [DHW, HC, SC]
+CIRCUITS = [DHW, HC, SC, ZN]
 CIRCUITS_SENSOR_NAMES = {
     DHW: "Water heater ",
     HC: "Heating circuit ",
     SC: "Solar circuit ",
+    ZN: "Zone circuit",
 }
 
 
