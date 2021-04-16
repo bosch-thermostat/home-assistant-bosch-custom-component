@@ -11,6 +11,7 @@ from bosch_thermostat_client.const import (
     SENSORS,
     UNITS,
     VALUE,
+    ZN,
 )
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
