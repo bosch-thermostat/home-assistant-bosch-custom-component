@@ -31,7 +31,9 @@ SIGNAL_RECORDING_UPDATE_BOSCH = "bosch_recording_update"
 SIGNAL_SWITCH = "bosch_switch_update"
 BOSCH_STATE = "bosch_state"
 
-SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In(["start", "stop"])}
+START = "start"
+STOP = "stop"
+SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In([START, STOP])}
 
 SERVICE_CHARGE_START = "set_dhw_charge"
 SERVICE_DEBUG = "debug_scan"

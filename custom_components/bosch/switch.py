@@ -9,7 +9,7 @@ from bosch_thermostat_client.const import GATEWAY
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CHARGE, DOMAIN, SIGNAL_BOSCH, SIGNAL_SWITCH, UUID
+from .const import CHARGE, DOMAIN, SIGNAL_BOSCH, SIGNAL_SWITCH, START, STOP, UUID
 
 SWITCH = "switch"
 ICON = "mdi:fire"
@@ -53,6 +53,7 @@ class BoschWaterHeaterCharge(SwitchEntity):
         self._uuid = uuid
         self.sensor = sensor
         self._cached_state = None
+        self._last_updated = None
 
     @property
     def icon(self):
@@ -78,12 +79,12 @@ class BoschWaterHeaterCharge(SwitchEntity):
     @property
     def is_on(self):
         """Return true if switch is on."""
-        return True if self._cached_state == "start" else False
+        return True if self._cached_state == START else False
 
     async def async_added_to_hass(self):
         """Register callbacks."""
         self.hass.helpers.dispatcher.async_dispatcher_connect(
-            SIGNAL_SWITCH, self.update
+            SIGNAL_SWITCH, self.async_update
         )
 
     @property
@@ -94,17 +95,21 @@ class BoschWaterHeaterCharge(SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Turn on switch."""
         _LOGGER.debug("Turning on charge switch.")
-        await self._dhw.set_service_call(CHARGE, "START")
+        await self._dhw.set_service_call(CHARGE, START)
         self._cached_state = "start"
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn off switch."""
         _LOGGER.debug("Turning off charge switch.")
-        await self._dhw.set_service_call(CHARGE, "stop")
+        await self._dhw.set_service_call(CHARGE, STOP)
         self._cached_state = "stop"
+        self.async_write_ha_state()
 
-    def update(self):
+    async def async_update(self):
+        _LOGGER.debug("Update of charge switch called.")
         self._cached_state = self.sensor.state
+        self.async_write_ha_state()
 
     @property
     def signal(self):
@@ -121,3 +126,8 @@ class BoschWaterHeaterCharge(SwitchEntity):
     @property
     def _domain_identifier(self):
         return {(DOMAIN, self._domain_name + self._uuid)}
+
+    @property
+    def should_poll(self):
+        """Don't poll."""
+        return False

@@ -1,5 +1,6 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
+from datetime import datetime, timedelta
 
 from bosch_thermostat_client.const import (
     DHW,
@@ -15,17 +16,17 @@ from bosch_thermostat_client.const import (
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
-from datetime import timedelta, datetime
+
 from .const import (
     DOMAIN,
     GATEWAY,
+    MINS,
     SIGNAL_BOSCH,
     SIGNAL_RECORDING_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
     UUID,
-    MINS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -211,7 +212,7 @@ class BoschBaseSensor(Entity):
                     self._state = self._bosch_object.state
                     self._attrs["stateExtra"] = self._bosch_object.state_message
                 return
-            self.attrs_write(data, units)
+            self.attrs_write(data=data, units=units)
 
     def time_sensor_data(self, data):
         value = data.get(VALUE, INVALID)
@@ -219,7 +220,7 @@ class BoschBaseSensor(Entity):
             hour=0, minute=0, second=0, microsecond=0
         ) + timedelta(minutes=value)
         data["device_class"] = "timestamp"
-        self.attrs_write(data, units=None)
+        self.attrs_write(data=data, units=None)
 
     def attrs_write(self, data, units):
         self._attrs = data
@@ -264,7 +265,7 @@ class RecordingSensor(BoschBaseSensor):
     def signal(self):
         return SIGNAL_RECORDING_UPDATE_BOSCH
 
-    def attrs_write(self, data):
+    def attrs_write(self, data, **kwargs):
         self._unit_of_measurement = self._bosch_object.unit_of_measurement
         self._attrs = data
         if self._update_init:
