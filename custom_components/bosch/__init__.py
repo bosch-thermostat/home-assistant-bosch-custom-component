@@ -1,6 +1,5 @@
 """Platform to control a Bosch IP thermostats units."""
 import asyncio
-from custom_components.bosch.switch import SWITCH
 import logging
 import random
 from datetime import timedelta
@@ -27,6 +26,8 @@ from homeassistant.helpers.network import get_url
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import load_json, save_json
+
+from custom_components.bosch.switch import SWITCH
 
 from .const import CLIMATE  # SENSOR,; SENSORS,
 from .const import (

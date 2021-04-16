@@ -9,13 +9,7 @@ from bosch_thermostat_client.const import GATEWAY
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import (
-    CHARGE,
-    DOMAIN,
-    SIGNAL_BOSCH,
-    SIGNAL_SWITCH,
-    UUID,
-)
+from .const import CHARGE, DOMAIN, SIGNAL_BOSCH, SIGNAL_SWITCH, UUID
 
 SWITCH = "switch"
 ICON = "mdi:fire"

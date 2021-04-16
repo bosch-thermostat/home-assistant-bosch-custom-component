@@ -6,7 +6,6 @@ from bosch_thermostat_client.const import (
     HC,
     RECORDINGS,
     SC,
-    ZN,
     SENSOR,
     SENSORS,
     UNITS,
