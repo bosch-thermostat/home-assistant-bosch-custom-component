@@ -16,7 +16,7 @@ from bosch_thermostat_client.const import (
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
-
+from datetime import timedelta, datetime
 from .const import (
     DOMAIN,
     GATEWAY,
@@ -26,6 +26,7 @@ from .const import (
     SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
     UUID,
+    MINS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -193,20 +194,37 @@ class BoschBaseSensor(Entity):
         """Update state of device."""
         _LOGGER.debug("Update of sensor %s called.", self.unique_id)
         data = self._bosch_object.get_property(self._attr_uri)
-        self._state = data.get(VALUE, INVALID)
-        self._attrs = {}
-        self._attrs["stateExtra"] = self._bosch_object.state
-        if not data:
-            if not self._bosch_object.update_initialized:
-                self._state = self._bosch_object.state
-                self._attrs["stateExtra"] = self._bosch_object.state_message
-            return
-        self.attrs_write(data)
 
-    def attrs_write(self, data):
-        if not isinstance(data, list):
-            self._unit_of_measurement = UNITS_CONVERTER.get(data.get(UNITS))
+        def get_units():
+            if not isinstance(data, list):
+                return UNITS_CONVERTER.get(data.get(UNITS))
+            return None
+
+        units = get_units()
+        if units == MINS and data:
+            self.time_sensor_data(data)
+        else:
+            self._state = data.get(VALUE, INVALID)
+            self._attrs = {}
+            self._attrs["stateExtra"] = self._bosch_object.state
+            if not data:
+                if not self._bosch_object.update_initialized:
+                    self._state = self._bosch_object.state
+                    self._attrs["stateExtra"] = self._bosch_object.state_message
+                return
+            self.attrs_write(data, units)
+
+    def time_sensor_data(self, data):
+        value = data.get(VALUE, INVALID)
+        self._state = datetime.now().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(minutes=value)
+        data["device_class"] = "timestamp"
+        self.attrs_write(data, units=None)
+
+    def attrs_write(self, data, units):
         self._attrs = data
+        self._unit_of_measurement = units
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

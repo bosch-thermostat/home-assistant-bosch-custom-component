@@ -40,6 +40,7 @@ SERVICE_UPDATE = "update_thermostat"
 SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"
 CHARGE = "charge"
+MINS = "mins"
 
 UNITS_CONVERTER = {
     "C": TEMP_CELSIUS,
@@ -48,7 +49,7 @@ UNITS_CONVERTER = {
     "l/min": "l/min",
     "l/h": "l/h",
     "kg/l": "kg/l",
-    "mins": "mins",
+    "mins": MINS,
     "kW": "kW",
     "kWh": "kWh",
     "Wh": "Wh",
