@@ -295,6 +295,7 @@ class BoschGatewayEntry:
         self._recording_sub = async_track_point_in_utc_time(
             self.hass, self.recording_sensors_update, nexti
         )
+        _LOGGER.debug("Next update of recording sensors scheduled at: %s", nexti)
         if updated:
             _LOGGER.debug("Bosch recording entitites updated.")
             async_dispatcher_send(self.hass, SIGNAL_RECORDING_UPDATE_BOSCH)
