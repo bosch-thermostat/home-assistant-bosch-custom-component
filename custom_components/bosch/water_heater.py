@@ -122,7 +122,7 @@ class BoschWaterHeater(WaterHeaterEntity):
             "model": self._gateway.device_type,
             "name": "Water heater " + self._name,
             "sw_version": self._gateway.firmware,
-            "via_hub": (DOMAIN, self._uuid),
+            "via_device": (DOMAIN, self._uuid),
         }
 
     @property

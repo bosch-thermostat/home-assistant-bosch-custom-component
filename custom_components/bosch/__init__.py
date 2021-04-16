@@ -1,8 +1,9 @@
 """Platform to control a Bosch IP thermostats units."""
 import asyncio
+from custom_components.bosch.switch import SWITCH
 import logging
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -48,6 +49,7 @@ from .const import (
     SIGNAL_RECORDING_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
+    SIGNAL_SWITCH,
     SOLAR,
     UUID,
     WATER_HEATER,
@@ -58,11 +60,13 @@ SIGNALS = {
     WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
     SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
     SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
+    SWITCH: SIGNAL_SWITCH,
 }
 
 SUPPORTED_PLATFORMS = {
     HC: CLIMATE,
     DHW: WATER_HEATER,
+    SWITCH: SWITCH,
     SC: SENSOR,
     SENSOR: SENSOR,
     ZN: CLIMATE,
@@ -256,6 +260,10 @@ class BoschGatewayEntry:
         return True
 
     async def recording_sensors_update(self, now=None):
+        """Update of recording sensors.
+        It suppose to be called only once an hour
+        so sensor get's average data from Bosch.
+        """
         entities = self.hass.data[DOMAIN][self.uuid].get(RECORDINGS, [])
         updated = False
         for entity in entities:
@@ -354,6 +362,7 @@ class BoschGatewayEntry:
             await self.component_update(SENSOR, event_time)
             await self.component_update(CLIMATE, event_time)
             await self.component_update(WATER_HEATER, event_time)
+            await self.component_update(SWITCH, event_time)
 
     async def firmware_refresh(self, event_time=None):
         """Call Bosch to refresh firmware info."""
