@@ -1,5 +1,6 @@
 """Support for Bosch Thermostat Sensor."""
 import logging
+from datetime import datetime, timedelta
 
 from bosch_thermostat_client.const import (
     DHW,
@@ -15,17 +16,17 @@ from bosch_thermostat_client.const import (
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
-from datetime import timedelta, datetime
+
 from .const import (
     DOMAIN,
     GATEWAY,
+    MINS,
     SIGNAL_BOSCH,
     SIGNAL_RECORDING_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
     UUID,
-    MINS,
 )
 
 _LOGGER = logging.getLogger(__name__)
