@@ -111,7 +111,7 @@ class BoschThermostat(ClimateEntity):
         return self._unique_id
 
     @property
-    def name(self) -> str:
+    def name(self):
         """Return the name of the thermostat, if any."""
         return self._name
 
@@ -128,7 +128,7 @@ class BoschThermostat(ClimateEntity):
         return self._temperature_unit
 
     @property
-    def current_temperature(self) -> float:
+    def current_temperature(self):
         """Return the current temperature."""
         return self._current_temperature
 
@@ -156,12 +156,12 @@ class BoschThermostat(ClimateEntity):
         await self._hc.set_temperature(temperature)
 
     @property
-    def hvac_mode(self) -> str:
+    def hvac_mode(self):
         """Return current operation ie. heat, cool, idle."""
         return self._hvac_mode
 
     @property
-    def hvac_action(self) -> str:
+    def hvac_action(self):
         """Hvac action."""
         hvac_action = self._hc.hvac_action
         if hvac_action == HVAC_HEAT:
@@ -170,26 +170,26 @@ class BoschThermostat(ClimateEntity):
             return CURRENT_HVAC_IDLE
 
     @property
-    def hvac_modes(self) -> list[str]:
+    def hvac_modes(self):
         """List of available operation modes."""
         return self._hvac_modes
 
     @property
-    def min_temp(self) -> float:
+    def min_temp(self):
         """Return the minimum temperature."""
         return self._hc.min_temp
 
     @property
-    def max_temp(self) -> float:
+    def max_temp(self):
         """Return the maximum temperature."""
         return self._hc.max_temp
 
     @property
-    def preset_modes(self) -> list[str]:
+    def preset_modes(self):
         return self._hc.preset_modes
 
     @property
-    def preset_mode(self) -> str:
+    def preset_mode(self):
         return self._hc.preset_mode
 
     async def async_set_preset_mode(self, preset_mode):
