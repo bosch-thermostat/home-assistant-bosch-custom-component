@@ -1,11 +1,13 @@
 """Support for Bosch Thermostat Climate."""
 import logging
 
-from bosch_thermostat_client.const import SETPOINT
+from bosch_thermostat_client.const import SETPOINT, HVAC_HEAT, HVAC_OFF
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     SUPPORT_PRESET_MODE,
     SUPPORT_TARGET_TEMPERATURE,
+    CURRENT_HVAC_HEAT,
+    CURRENT_HVAC_IDLE,
 )
 from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -109,7 +111,7 @@ class BoschThermostat(ClimateEntity):
         return self._unique_id
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Return the name of the thermostat, if any."""
         return self._name
 
@@ -126,7 +128,7 @@ class BoschThermostat(ClimateEntity):
         return self._temperature_unit
 
     @property
-    def current_temperature(self):
+    def current_temperature(self) -> float:
         """Return the current temperature."""
         return self._current_temperature
 
@@ -154,31 +156,40 @@ class BoschThermostat(ClimateEntity):
         await self._hc.set_temperature(temperature)
 
     @property
-    def hvac_mode(self):
+    def hvac_mode(self) -> str:
         """Return current operation ie. heat, cool, idle."""
         return self._hvac_mode
 
     @property
-    def hvac_modes(self):
+    def hvac_action(self) -> str:
+        """Hvac action."""
+        hvac_action = self._hc.hvac_action
+        if hvac_action == HVAC_HEAT:
+            return CURRENT_HVAC_HEAT
+        if hvac_action == HVAC_OFF:
+            return CURRENT_HVAC_IDLE
+
+    @property
+    def hvac_modes(self) -> list[str]:
         """List of available operation modes."""
         return self._hvac_modes
 
     @property
-    def min_temp(self):
+    def min_temp(self) -> float:
         """Return the minimum temperature."""
         return self._hc.min_temp
 
     @property
-    def max_temp(self):
+    def max_temp(self) -> float:
         """Return the maximum temperature."""
         return self._hc.max_temp
 
     @property
-    def preset_modes(self):
+    def preset_modes(self) -> list[str]:
         return self._hc.preset_modes
 
     @property
-    def preset_mode(self):
+    def preset_mode(self) -> str:
         return self._hc.preset_mode
 
     async def async_set_preset_mode(self, preset_mode):
