@@ -216,9 +216,14 @@ class BoschBaseSensor(Entity):
 
     def time_sensor_data(self, data):
         value = data.get(VALUE, INVALID)
-        self._state = datetime.now().replace(
+        now = datetime.now()
+        next_from_midnight = datetime.now().replace(
             hour=0, minute=0, second=0, microsecond=0
         ) + timedelta(minutes=value)
+        if now >= next_from_midnight:
+            self._state = next_from_midnight + timedelta(days=1)
+        else:
+            self._state = next_from_midnight
         data["device_class"] = "timestamp"
         self.attrs_write(data=data, units=None)
 
