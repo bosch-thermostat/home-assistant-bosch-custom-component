@@ -163,7 +163,11 @@ class BoschWaterHeater(WaterHeaterEntity):
     @property
     def supported_features(self):
         """Return the list of supported features."""
-        if self._dhw.ha_mode == STATE_OFF or self._dhw.setpoint == STATE_OFF:
+        if (
+            self._dhw.ha_mode == STATE_OFF
+            or self._dhw.setpoint == STATE_OFF
+            or not self._dhw.support_target_temp
+        ):
             return SUPPORT_OPERATION_MODE
         return SUPPORT_FLAGS_HEATER
 

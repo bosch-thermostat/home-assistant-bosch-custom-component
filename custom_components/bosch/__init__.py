@@ -365,6 +365,7 @@ class BoschGatewayEntry:
             await self.component_update(CLIMATE, event_time)
             await self.component_update(WATER_HEATER, event_time)
             await self.component_update(SWITCH, event_time)
+            _LOGGER.debug("Finish updating entities. Waiting for next scheduled check.")
 
     async def firmware_refresh(self, event_time=None):
         """Call Bosch to refresh firmware info."""
