@@ -6,7 +6,16 @@ from datetime import timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client.const import DHW, HC, RECORDINGS, SC, SENSOR, XMPP, ZN
+from bosch_thermostat_client.const import (
+    DHW,
+    HC,
+    HTTP,
+    RECORDINGS,
+    SC,
+    SENSOR,
+    XMPP,
+    ZN,
+)
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
@@ -41,6 +50,7 @@ from .const import (
     GATEWAY,
     INTERVAL,
     NOTIFICATION_ID,
+    RECORDING_INTERVAL,
     SCAN_INTERVAL,
     SERVICE_DEBUG,
     SERVICE_UPDATE,
@@ -113,8 +123,12 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Unload a config entry."""
     _LOGGER.debug("Removing entry.")
     uuid = entry.data[UUID]
-    hass.data[DOMAIN][uuid].pop(INTERVAL)()
-    hass.data[DOMAIN][uuid].pop(FW_INTERVAL)()
+    data = hass.data[DOMAIN][uuid]
+    data.pop(INTERVAL)()
+    data.pop(FW_INTERVAL)()
+    recording_callback = data.pop(RECORDING_INTERVAL)
+    if recording_callback:
+        recording_callback()
     bosch = hass.data[DOMAIN].pop(uuid)
     await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
     return True
@@ -150,10 +164,6 @@ class BoschGatewayEntry:
         self._device_type = device_type
         self._protocol = protocol
         self.config_entry = entry
-        if protocol == XMPP:
-            self._session = self.hass.loop
-        else:
-            self._session = async_get_clientsession(self.hass, verify_ssl=False)
         self._debug_service_registered = False
         self.gateway = None
         self.prefs = None
@@ -161,7 +171,6 @@ class BoschGatewayEntry:
         self._signal_registered = False
         self.supported_platforms = []
         self._update_lock = None
-        self._recording_sub = None
 
     async def async_init(self):
         """Init async items in entry."""
@@ -171,7 +180,9 @@ class BoschGatewayEntry:
         self._update_lock = asyncio.Lock()
         BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
         self.gateway = BoschGateway(
-            session=self._session,
+            session=async_get_clientsession(self.hass, verify_ssl=False)
+            if self._protocol == HTTP
+            else None,
             session_type=self._protocol,
             host=self._host,
             access_key=self._access_key,
@@ -266,6 +277,8 @@ class BoschGatewayEntry:
         so sensor get's average data from Bosch.
         """
         entities = self.hass.data[DOMAIN][self.uuid].get(RECORDINGS, [])
+        if not entities:
+            return
         updated = False
         for entity in entities:
             if entity.enabled:
@@ -279,9 +292,10 @@ class BoschGatewayEntry:
                         entity.name,
                         err,
                     )
-        if self._recording_sub is not None:
-            self._recording_sub()
-            self._recording_sub = None
+        recording_callback = self.hass.data[DOMAIN][self.uuid].pop(RECORDING_INTERVAL)
+        if recording_callback is not None:
+            recording_callback()
+            recording_callback = None
 
         def rounder(t):
             matching_seconds = [0]
@@ -292,7 +306,9 @@ class BoschGatewayEntry:
             )
 
         nexti = rounder(dt_util.now())
-        self._recording_sub = async_track_point_in_utc_time(
+        self.hass.data[DOMAIN][self.uuid][
+            RECORDING_INTERVAL
+        ] = async_track_point_in_utc_time(
             self.hass, self.recording_sensors_update, nexti
         )
         _LOGGER.debug("Next update of recording sensors scheduled at: %s", nexti)
@@ -418,9 +434,6 @@ class BoschGatewayEntry:
         if not unload_ok:
             _LOGGER.debug("Unload failed!")
             return False
-        if self._recording_sub is not None:
-            self._recording_sub()
-            self._recording_sub = None
         self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
         self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
