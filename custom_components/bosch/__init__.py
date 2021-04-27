@@ -126,11 +126,7 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     data = hass.data[DOMAIN][uuid]
     data.pop(INTERVAL)()
     data.pop(FW_INTERVAL)()
-<<<<<<< HEAD
     recording_callback = data.pop(RECORDING_INTERVAL, None)
-=======
-    recording_callback = data.pop(RECORDING_INTERVAL)
->>>>>>> f2ce3feea2383e4868d81282dc43169a883c386e
     if recording_callback:
         recording_callback()
     bosch = hass.data[DOMAIN].pop(uuid)
@@ -296,13 +292,9 @@ class BoschGatewayEntry:
                         entity.name,
                         err,
                     )
-<<<<<<< HEAD
         recording_callback = self.hass.data[DOMAIN][self.uuid].pop(
             RECORDING_INTERVAL, None
         )
-=======
-        recording_callback = self.hass.data[DOMAIN][self.uuid].pop(RECORDING_INTERVAL)
->>>>>>> f2ce3feea2383e4868d81282dc43169a883c386e
         if recording_callback is not None:
             recording_callback()
             recording_callback = None
