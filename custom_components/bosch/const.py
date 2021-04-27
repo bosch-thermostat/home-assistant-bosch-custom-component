@@ -67,3 +67,4 @@ FIRMWARE_SCAN_INTERVAL = timedelta(hours=4)
 SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
 INTERVAL = "interval"
 FW_INTERVAL = "fw_interval"
+RECORDING_INTERVAL = "recording_interval"
