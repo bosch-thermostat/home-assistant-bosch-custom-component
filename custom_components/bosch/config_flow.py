@@ -139,7 +139,6 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 )
             return await self.configure_gateway(
                 device_type=self._choose_type,
-                session=self.hass.loop,
                 session_type=self._protocol,
                 host=self._host,
                 access_token=self._access_token,
@@ -147,16 +146,16 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             )
 
     async def configure_gateway(
-        self, device_type, session, session_type, host, access_token, password=None
+        self, device_type, session_type, host, access_token, password=None, session=None
     ):
         try:
             BoschGateway = gateway_chooser(device_type)
             device = BoschGateway(
-                session=session,
                 session_type=session_type,
                 host=host,
                 access_token=access_token,
                 password=password,
+                session=session,
             )
             try:
                 uuid = await device.check_connection()

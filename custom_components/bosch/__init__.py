@@ -12,7 +12,6 @@ from bosch_thermostat_client.const import (
     RECORDINGS,
     SC,
     SENSOR,
-    XMPP,
     ZN,
     HTTP,
 )
@@ -126,7 +125,7 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     data = hass.data[DOMAIN][uuid]
     data.pop(INTERVAL)()
     data.pop(FW_INTERVAL)()
-    recording_callback = data.pop(RECORDING_INTERVAL)
+    recording_callback = data.pop(RECORDING_INTERVAL, None)
     if recording_callback:
         recording_callback()
     bosch = hass.data[DOMAIN].pop(uuid)
@@ -292,7 +291,9 @@ class BoschGatewayEntry:
                         entity.name,
                         err,
                     )
-        recording_callback = self.hass.data[DOMAIN][self.uuid].pop(RECORDING_INTERVAL)
+        recording_callback = self.hass.data[DOMAIN][self.uuid].pop(
+            RECORDING_INTERVAL, None
+        )
         if recording_callback is not None:
             recording_callback()
             recording_callback = None
