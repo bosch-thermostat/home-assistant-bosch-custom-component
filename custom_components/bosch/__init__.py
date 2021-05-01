@@ -48,7 +48,6 @@ from .const import (
     FW_INTERVAL,
     GATEWAY,
     INTERVAL,
-    RECORDING_INTERVAL,
     NOTIFICATION_ID,
     RECORDING_INTERVAL,
     SCAN_INTERVAL,
@@ -124,11 +123,15 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     _LOGGER.debug("Removing entry.")
     uuid = entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
-    data.pop(INTERVAL)()
-    data.pop(FW_INTERVAL)()
-    recording_callback = data.pop(RECORDING_INTERVAL, None)
-    if recording_callback:
-        recording_callback()
+
+    def remove_entry(key):
+        value = data.pop(key, None)
+        if value:
+            value()
+
+    remove_entry(INTERVAL)
+    remove_entry(FW_INTERVAL)
+    remove_entry(RECORDING_INTERVAL)
     bosch = hass.data[DOMAIN].pop(uuid)
     await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
     return True
