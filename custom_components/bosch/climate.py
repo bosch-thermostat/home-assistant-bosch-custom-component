@@ -209,13 +209,9 @@ class BoschThermostat(ClimateEntity):
             or self._hvac_modes != self._hc.ha_modes
             or self._hvac_mode != self._hc.ha_mode
         ):
-            print("update!")
             self._state = self._hc.state
             self._target_temperature = self._hc.target_temperature
             self._current_temperature = self._hc.current_temp
             self._hvac_modes = self._hc.ha_modes
-            print("self._hc", self._hc.ha_mode)
             self._hvac_mode = self._hc.ha_mode
             self.async_schedule_update_ha_state()
-        else:
-            print("nie roznia sie!")

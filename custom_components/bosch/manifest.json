@@ -10,7 +10,7 @@
     "@pszafer"
   ],
   "requirements": [
-    "bosch-thermostat-client==0.12.1dev11"
+    "bosch-thermostat-client==0.12.1"
   ],
   "version": "0.12.1",
   "zeroconf": [
