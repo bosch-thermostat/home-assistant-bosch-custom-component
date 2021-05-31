@@ -7,7 +7,7 @@ HA custom component for Bosch thermostats.
 It is @alpha version of Bosch thermostat component.
 Supported protocols:
 - XMPP -> connect to bosch cloud!
-- HTTP -> connect locally - not available for many devices.
+- HTTP -> connect locally - available only for IVT devices.
 
 Supported types of devices:
 - IVT (HTTP/XMPP):
@@ -27,6 +27,7 @@ Supported types of devices:
 Go to integration page, add Bosch component and follow on going screens.
 By default all sensors are disabled!
 Go to integration device `Bosch sensors` and enable sensor you'd like to see.
+If you have troubles, go to wiki and read more detailed installation instructions.
 
 # Help
 
