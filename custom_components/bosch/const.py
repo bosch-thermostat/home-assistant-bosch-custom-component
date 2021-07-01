@@ -4,6 +4,12 @@ from datetime import timedelta
 import voluptuous as vol
 from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
 
+from bosch_thermostat_client.const import (
+    DHW,
+    HC,
+    SC,
+    ZN,
+)
 DOMAIN = "bosch"
 ACCESS_KEY = "access_key"
 ACCESS_TOKEN = "access_token"
@@ -43,6 +49,7 @@ SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"
 CHARGE = "charge"
 MINS = "mins"
+SWITCH = "switch"
 
 UNITS_CONVERTER = {
     "C": TEMP_CELSIUS,
@@ -68,3 +75,11 @@ SCAN_SENSOR_INTERVAL = timedelta(seconds=120)
 INTERVAL = "interval"
 FW_INTERVAL = "fw_interval"
 RECORDING_INTERVAL = "recording_interval"
+
+CIRCUITS = [DHW, HC, SC, ZN]
+CIRCUITS_SENSOR_NAMES = {
+    DHW: "Water heater ",
+    HC: "Heating circuit ",
+    SC: "Solar circuit ",
+    ZN: "Zone circuit",
+}
