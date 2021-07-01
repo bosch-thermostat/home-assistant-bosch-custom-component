@@ -6,15 +6,7 @@ from datetime import timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client.const import (
-    DHW,
-    HC,
-    RECORDINGS,
-    SC,
-    SENSOR,
-    ZN,
-    HTTP,
-)
+from bosch_thermostat_client.const import DHW, HC, HTTP, RECORDINGS, SC, SENSOR, ZN
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
@@ -351,7 +343,7 @@ class BoschGatewayEntry:
         self.hass.async_create_task(self.recording_sensors_update())
 
     async def component_update(self, component_type=None, event_time=None):
-        """Update data from HC, DHW, ZN, Sensors."""
+        """Update data from HC, DHW, ZN, Sensors, Switch."""
         if component_type in self.supported_platforms:
             updated = False
             entities = self.hass.data[DOMAIN][self.uuid][component_type]

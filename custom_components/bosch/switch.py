@@ -9,10 +9,16 @@ from bosch_thermostat_client.const import GATEWAY
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CHARGE, DOMAIN, SIGNAL_BOSCH, SIGNAL_SWITCH, START, STOP, UUID
+from .const import (
+    CIRCUITS,
+    CIRCUITS_SENSOR_NAMES,
+    DOMAIN,
+    SIGNAL_BOSCH,
+    SIGNAL_SWITCH,
+    SWITCH,
+    UUID,
+)
 
-SWITCH = "switch"
-ICON = "mdi:fire"
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -20,17 +26,40 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
+    enabled_switches = config_entry.data.get(SWITCH, [])
     data_switch = []
-    for dhw in data[GATEWAY].dhw_circuits:
-        for sensor in dhw.sensors:
-            if sensor.name.lower() == CHARGE:
+    for switch in data[GATEWAY].switches:
+        data_switch.append(
+            BoschSwitch(
+                hass=hass,
+                uuid=uuid,
+                bosch_object=switch,
+                gateway=data[GATEWAY],
+                name=switch.name,
+                attr_uri=switch.attr_id,
+                domain_name="Switches",
+                is_enabled=switch.attr_id in enabled_switches,
+            )
+        )
+    for circ_type in CIRCUITS:
+        circuits = data[GATEWAY].get_circuits(circ_type)
+        for circuit in circuits:
+            for switch in circuit.switches:
                 data_switch.append(
-                    BoschWaterHeaterCharge(uuid, dhw, sensor, data[GATEWAY])
+                    CircuitSwitch(
+                        hass=hass,
+                        uuid=uuid,
+                        bosch_object=switch,
+                        gateway=data[GATEWAY],
+                        name=switch.name,
+                        attr_uri=switch.attr_id,
+                        domain_name=circuit.name,
+                        circuit_type=circ_type,
+                        is_enabled=switch.attr_id in enabled_switches,
+                    )
                 )
-                break
-    if data_switch:
-        data[SWITCH] = data_switch
-        async_add_entities(data[SWITCH])
+    data[SWITCH] = data_switch
+    async_add_entities(data[SWITCH])
     async_dispatcher_send(hass, SIGNAL_BOSCH)
     return True
 
@@ -40,24 +69,36 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     pass
 
 
-class BoschWaterHeaterCharge(SwitchEntity):
+class BoschBaseSwitch(SwitchEntity):
     """Representation of a Bosch charge."""
 
-    def __init__(self, uuid, dhw, sensor, gateway):
+    def __init__(
+        self,
+        hass,
+        uuid,
+        bosch_object,
+        gateway,
+        name,
+        attr_uri,
+        domain_name,
+        circuit_type=None,
+        is_enabled=False,
+    ):
         """Set up device and add update callback to get data from websocket."""
-        self._dhw = dhw
-        self._name = self._dhw.name
-        self._unique_id = self._dhw.name + sensor.name + uuid
+        self.hass = hass
+        self._bosch_object = bosch_object
         self._gateway = gateway
-        self._domain_name = dhw.name
+        self._domain_name = domain_name
+        self._name = name
+        self._attr_uri = attr_uri
+        self._state = bosch_object.state
+        self._update_init = True
+        self._unit_of_measurement = None
         self._uuid = uuid
-        self.sensor = sensor
-        self._cached_state = None
-        self._last_updated = None
-
-    @property
-    def icon(self):
-        return ICON
+        self._unique_id = self._domain_name + self._name + self._uuid
+        self._attrs = {}
+        self._circuit_type = circuit_type
+        self._is_enabled = is_enabled
 
     @property
     def device_info(self):
@@ -66,7 +107,7 @@ class BoschWaterHeaterCharge(SwitchEntity):
             "identifiers": self._domain_identifier,
             "manufacturer": self._gateway.device_model,
             "model": self._gateway.device_type,
-            "name": "Water heater " + self._name,
+            "name": self._sensor_name,
             "sw_version": self._gateway.firmware,
             "via_device": (DOMAIN, self._uuid),
         }
@@ -79,7 +120,7 @@ class BoschWaterHeaterCharge(SwitchEntity):
     @property
     def is_on(self):
         """Return true if switch is on."""
-        return True if self._cached_state == START else False
+        return self._state
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -90,25 +131,23 @@ class BoschWaterHeaterCharge(SwitchEntity):
     @property
     def bosch_object(self):
         """Return upstream component. Used for refreshing."""
-        return self.sensor
+        return self._bosch_object
 
     async def async_turn_on(self, **kwargs):
         """Turn on switch."""
-        _LOGGER.debug("Turning on charge switch.")
-        await self._dhw.set_service_call(CHARGE, START)
-        self._cached_state = "start"
-        self.async_write_ha_state()
-
-    async def async_turn_off(self, **kwargs):
-        """Turn off switch."""
-        _LOGGER.debug("Turning off charge switch.")
-        await self._dhw.set_service_call(CHARGE, STOP)
-        self._cached_state = "stop"
+        _LOGGER.debug("Turning on %s switch.", self._name)
+        await self._bosch_object.turn_on()
+        self._state = True
         self.async_write_ha_state()
 
     async def async_update(self):
-        _LOGGER.debug("Update of charge switch called.")
-        self._cached_state = self.sensor.state
+        self._state = self._bosch_object.state
+
+    async def async_turn_off(self, **kwargs):
+        """Turn off switch."""
+        _LOGGER.debug("Turning off %s switch.", self._name)
+        await self._bosch_object.turn_off()
+        self._state = False
         self.async_write_ha_state()
 
     @property
@@ -117,11 +156,7 @@ class BoschWaterHeaterCharge(SwitchEntity):
 
     @property
     def name(self):
-        return self._sensor_name
-
-    @property
-    def _sensor_name(self):
-        return "Charge switch"
+        return self._name
 
     @property
     def _domain_identifier(self):
@@ -131,3 +166,24 @@ class BoschWaterHeaterCharge(SwitchEntity):
     def should_poll(self):
         """Don't poll."""
         return False
+
+    @property
+    def entity_registry_enabled_default(self):
+        """Return if the entity should be enabled when first added to the entity registry."""
+        return self._is_enabled
+
+
+class BoschSwitch(BoschBaseSwitch):
+    """Representation of a Bosch switch."""
+
+    @property
+    def _sensor_name(self):
+        return "Bosch switches"
+
+
+class CircuitSwitch(BoschBaseSwitch):
+    """Representation of a Bosch circuit switch."""
+
+    @property
+    def _sensor_name(self):
+        return CIRCUITS_SENSOR_NAMES[self._circuit_type] + " " + self._domain_name
