@@ -6,15 +6,7 @@ from datetime import timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client.const import (
-    DHW,
-    HC,
-    RECORDINGS,
-    SC,
-    SENSOR,
-    ZN,
-    HTTP,
-)
+from bosch_thermostat_client.const import DHW, HC, HTTP, RECORDINGS, SC, SENSOR, ZN
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,

@@ -10,8 +10,15 @@ from bosch_thermostat_client.const import GATEWAY
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import DOMAIN, SIGNAL_BOSCH, SWITCH, SIGNAL_SWITCH, UUID, CIRCUITS, CIRCUITS_SENSOR_NAMES
-
+from .const import (
+    CIRCUITS,
+    CIRCUITS_SENSOR_NAMES,
+    DOMAIN,
+    SIGNAL_BOSCH,
+    SIGNAL_SWITCH,
+    SWITCH,
+    UUID,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,12 +70,21 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     pass
 
 
-
-
 class BoschBaseSwitch(SwitchEntity):
     """Representation of a Bosch charge."""
 
-    def __init__(self, hass, uuid, bosch_object, gateway, name, attr_uri, domain_name, circuit_type=None, is_enabled=False):
+    def __init__(
+        self,
+        hass,
+        uuid,
+        bosch_object,
+        gateway,
+        name,
+        attr_uri,
+        domain_name,
+        circuit_type=None,
+        is_enabled=False,
+    ):
         """Set up device and add update callback to get data from websocket."""
         self.hass = hass
         self._bosch_object = bosch_object
@@ -130,7 +146,6 @@ class BoschBaseSwitch(SwitchEntity):
             self._state = self._bosch_object.state
             self.async_write_ha_state()
 
-
     async def async_turn_off(self, **kwargs):
         """Turn off switch."""
         _LOGGER.debug("Turning off %s switch.", self._name)
@@ -160,6 +175,7 @@ class BoschBaseSwitch(SwitchEntity):
         """Return if the entity should be enabled when first added to the entity registry."""
         return self._is_enabled
 
+
 class BoschSwitch(BoschBaseSwitch):
     """Representation of a Bosch switch."""
 
@@ -170,6 +186,7 @@ class BoschSwitch(BoschBaseSwitch):
 
 class CircuitSwitch(BoschBaseSwitch):
     """Representation of a Bosch circuit switch."""
+
     @property
     def _sensor_name(self):
         return CIRCUITS_SENSOR_NAMES[self._circuit_type] + " " + self._domain_name

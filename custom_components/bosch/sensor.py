@@ -2,18 +2,14 @@
 import logging
 from datetime import datetime, timedelta
 
-from bosch_thermostat_client.const import (
-    RECORDINGS,
-    SENSOR,
-    SENSORS,
-    UNITS,
-    VALUE,
-)
+from bosch_thermostat_client.const import RECORDINGS, SENSOR, SENSORS, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
 
 from .const import (
+    CIRCUITS,
+    CIRCUITS_SENSOR_NAMES,
     DOMAIN,
     GATEWAY,
     MINS,
@@ -23,12 +19,9 @@ from .const import (
     SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
     UUID,
-    CIRCUITS,
-    CIRCUITS_SENSOR_NAMES
 )
 
 _LOGGER = logging.getLogger(__name__)
-
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
