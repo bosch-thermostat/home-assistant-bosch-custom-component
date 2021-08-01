@@ -1,15 +1,17 @@
 # home-assistant-bosch-custom-component
-HA custom component for Bosch thermostats.
 
+HA custom component for Bosch thermostats.
 
 **It will only work with Home Assistant 0.109 and and Python >3.7 higher.**
 
 It is @alpha version of Bosch thermostat component.
 Supported protocols:
+
 - XMPP -> connect to bosch cloud!
 - HTTP -> connect locally - available only for IVT devices.
 
 Supported types of devices:
+
 - IVT (HTTP/XMPP):
   - RC300
   - RC200
@@ -19,6 +21,15 @@ Supported types of devices:
 - EASYCONTROL(XMPP only):
   - Bosch CT200
 
+## Installation
+
+## Manually
+
+Download this repository into your configuration directory.
+
+## HACS
+
+Preferred way. Go to https://hacs.xyz/ and learn more about installation of custom components.
 
 ## Configuration
 
@@ -41,6 +52,7 @@ To make debugscan go to HA developer tools -> Services and choose
 Download `json` file and attach it somewhere. The `json` file is stored under <hass-config>/www/bosch_scan.json. Please make sure the www folder exists prior to running the scan.
 
 ## Debugging
+
 Example logger config for debugging:
 
 ```
@@ -52,4 +64,5 @@ logger:
 ```
 
 # First config help needed.
+
 Come to Discord channel https://discord.gg/WeWQGNR and let's try to figure out if you have unknown device for us or if there is issue with component.

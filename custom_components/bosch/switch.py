@@ -4,6 +4,7 @@ Support for water heaters connected to Bosch thermostat.
 For more details about this platform, please refer to the documentation at...
 """
 import logging
+from sre_parse import State
 
 from bosch_thermostat_client.const import GATEWAY
 from homeassistant.components.switch import SwitchEntity
@@ -125,7 +126,9 @@ class BoschBaseSwitch(SwitchEntity):
         self.async_write_ha_state()
 
     async def async_update(self):
-        self._state = self._bosch_object.state
+        if self._state != self._bosch_object.state:
+            self._state = self._bosch_object.state
+            self.async_write_ha_state()
 
 
     async def async_turn_off(self, **kwargs):
