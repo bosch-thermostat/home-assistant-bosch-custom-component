@@ -14,6 +14,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
 
 from .const import (
+    CIRCUITS,
+    CIRCUITS_SENSOR_NAMES,
     DOMAIN,
     GATEWAY,
     MINS,
@@ -28,7 +30,6 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):

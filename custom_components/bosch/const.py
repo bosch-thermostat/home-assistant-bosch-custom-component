@@ -2,6 +2,7 @@
 from datetime import timedelta
 
 import voluptuous as vol
+from bosch_thermostat_client.const import DHW, HC, SC, ZN
 from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
 
 from bosch_thermostat_client.const import (
