@@ -25,8 +25,6 @@ from .const import (
     SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
     UUID,
-    CIRCUITS,
-    CIRCUITS_SENSOR_NAMES
 )
 
 _LOGGER = logging.getLogger(__name__)
