@@ -9,8 +9,15 @@ from bosch_thermostat_client.const import GATEWAY
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import DOMAIN, SIGNAL_BOSCH, SWITCH, SIGNAL_SWITCH, UUID, CIRCUITS, CIRCUITS_SENSOR_NAMES
-
+from .const import (
+    CIRCUITS,
+    CIRCUITS_SENSOR_NAMES,
+    DOMAIN,
+    SIGNAL_BOSCH,
+    SIGNAL_SWITCH,
+    SWITCH,
+    UUID,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
