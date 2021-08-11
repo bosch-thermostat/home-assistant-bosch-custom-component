@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import voluptuous as vol
 from bosch_thermostat_client.const import DHW, HC, SC, ZN
-from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
+from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT, ENERGY_KILO_WATT_HOUR
 
 DOMAIN = "bosch"
 ACCESS_KEY = "access_key"
@@ -55,7 +55,7 @@ UNITS_CONVERTER = {
     "kg/l": "kg/l",
     "mins": MINS,
     "kW": "kW",
-    "kWh": "kWh",
+    "kWh": ENERGY_KILO_WATT_HOUR,
     "Wh": "Wh",
     "Pascal": "Pascal",
     "bar": "bar",
