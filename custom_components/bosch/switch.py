@@ -69,12 +69,21 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     pass
 
 
-
-
 class BoschBaseSwitch(SwitchEntity):
     """Representation of a Bosch charge."""
 
-    def __init__(self, hass, uuid, bosch_object, gateway, name, attr_uri, domain_name, circuit_type=None, is_enabled=False):
+    def __init__(
+        self,
+        hass,
+        uuid,
+        bosch_object,
+        gateway,
+        name,
+        attr_uri,
+        domain_name,
+        circuit_type=None,
+        is_enabled=False,
+    ):
         """Set up device and add update callback to get data from websocket."""
         self.hass = hass
         self._bosch_object = bosch_object
@@ -165,6 +174,7 @@ class BoschBaseSwitch(SwitchEntity):
         """Return if the entity should be enabled when first added to the entity registry."""
         return self._is_enabled
 
+
 class BoschSwitch(BoschBaseSwitch):
     """Representation of a Bosch switch."""
 
@@ -175,6 +185,7 @@ class BoschSwitch(BoschBaseSwitch):
 
 class CircuitSwitch(BoschBaseSwitch):
     """Representation of a Bosch circuit switch."""
+
     @property
     def _sensor_name(self):
         return CIRCUITS_SENSOR_NAMES[self._circuit_type] + " " + self._domain_name
