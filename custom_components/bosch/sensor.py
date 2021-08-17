@@ -188,7 +188,10 @@ class BoschBaseSensor(Entity):
         if units == MINS and data:
             self.time_sensor_data(data)
         else:
-            self._state = data.get(VALUE, INVALID)
+            if data.get(INVALID, False):
+                self._state = INVALID
+            else:
+                self._state = data.get(VALUE, INVALID)
             self._attrs = {}
             self._attrs["stateExtra"] = self._bosch_object.state
             if not data:
@@ -213,7 +216,8 @@ class BoschBaseSensor(Entity):
 
     def attrs_write(self, data, units):
         self._attrs = data
-        self._unit_of_measurement = units
+        if self._state != INVALID:
+            self._unit_of_measurement = units
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
