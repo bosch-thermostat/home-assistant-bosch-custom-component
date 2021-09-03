@@ -29,6 +29,7 @@ SIGNAL_SENSOR_UPDATE_BOSCH = "bosch_sensor_update"
 SIGNAL_DHW_UPDATE_BOSCH = "bosch_dhw_update"
 SIGNAL_SOLAR_UPDATE_BOSCH = "bosch_solar_update"
 SIGNAL_RECORDING_UPDATE_BOSCH = "bosch_recording_update"
+SIGNAL_ENERGY_UPDATE_BOSCH = "bosch_energy_update"
 SIGNAL_SWITCH = "bosch_switch_update"
 BOSCH_STATE = "bosch_state"
 

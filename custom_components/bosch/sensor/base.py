@@ -1,86 +1,28 @@
-"""Support for Bosch Thermostat Sensor."""
 import logging
 from datetime import datetime, timedelta
-
-from bosch_thermostat_client.const import RECORDINGS, SENSOR, SENSORS, UNITS, VALUE
+from homeassistant.components.sensor import (
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    SensorEntity,
+)
+from bosch_thermostat_client.const import UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
-from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.entity import Entity
 
-from .const import (
-    CIRCUITS,
-    CIRCUITS_SENSOR_NAMES,
+from ..const import (
     DOMAIN,
-    GATEWAY,
     MINS,
-    SIGNAL_BOSCH,
-    SIGNAL_RECORDING_UPDATE_BOSCH,
-    SIGNAL_SENSOR_UPDATE_BOSCH,
-    SIGNAL_SOLAR_UPDATE_BOSCH,
     UNITS_CONVERTER,
-    UUID,
+)
+
+
+from homeassistant.const import (
+    DEVICE_CLASS_ENERGY,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the Bosch Thermostat Sensor Platform."""
-    pass
-
-
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the Bosch Thermostat from a config entry."""
-    uuid = config_entry.data[UUID]
-    data = hass.data[DOMAIN][uuid]
-    enabled_sensors = config_entry.data.get(SENSORS, [])
-    data[SENSOR] = []
-    data[RECORDINGS] = []
-
-    def get_target_sensor(sensor_kind):
-        if sensor_kind == RECORDINGS:
-            return (RECORDINGS, RecordingSensor, "Recording")
-        return (SENSOR, BoschSensor, "Sensors")
-
-    for sensor in data[GATEWAY].sensors:
-        (target, SensorClass, domain_name) = get_target_sensor(sensor.kind)
-        data[target].append(
-            SensorClass(
-                hass=hass,
-                uuid=uuid,
-                bosch_object=sensor,
-                gateway=data[GATEWAY],
-                name=sensor.name,
-                attr_uri=sensor.attr_id,
-                domain_name=domain_name,
-                is_enabled=sensor.attr_id in enabled_sensors,
-            )
-        )
-
-    for circ_type in CIRCUITS:
-        circuits = data[GATEWAY].get_circuits(circ_type)
-        for circuit in circuits:
-            for sensor in circuit.sensors:
-                data[SENSOR].append(
-                    CircuitSensor(
-                        hass=hass,
-                        uuid=uuid,
-                        bosch_object=sensor,
-                        gateway=data[GATEWAY],
-                        name=sensor.name,
-                        attr_uri=sensor.attr_id,
-                        domain_name=circuit.name,
-                        circuit_type=circ_type,
-                        is_enabled=sensor.attr_id in enabled_sensors,
-                    )
-                )
-    async_add_entities(data[SENSOR])
-    async_add_entities(data[RECORDINGS])
-    async_dispatcher_send(hass, SIGNAL_BOSCH)
-    return True
-
-
-class BoschBaseSensor(Entity):
+class BoschBaseSensor(SensorEntity):
     def __init__(
         self,
         hass,
@@ -143,12 +85,12 @@ class BoschBaseSensor(Entity):
         return self._bosch_object
 
     @property
-    def state(self):
+    def native_value(self):
         """Return the state of the sensor."""
         return self._state
 
     @property
-    def unit_of_measurement(self):
+    def native_unit_of_measurement(self):
         """Return the unit of measurement of the sensor."""
         return self._unit_of_measurement
 
@@ -185,6 +127,13 @@ class BoschBaseSensor(Entity):
             return None
 
         units = get_units()
+
+        if self._bosch_object.device_class == DEVICE_CLASS_ENERGY:
+            self._attr_device_class = DEVICE_CLASS_ENERGY
+        if self._bosch_object.state_class == STATE_CLASS_MEASUREMENT:
+            self._attr_state_class = STATE_CLASS_MEASUREMENT
+        elif self._bosch_object.state_class == STATE_CLASS_TOTAL_INCREASING:
+            self._attr_state_class = STATE_CLASS_TOTAL_INCREASING
         if units == MINS and data:
             self.time_sensor_data(data)
         else:
@@ -218,49 +167,6 @@ class BoschBaseSensor(Entity):
         self._attrs = data
         if self._state != INVALID:
             self._unit_of_measurement = units
-        if self._update_init:
-            self._update_init = False
-            self.async_schedule_update_ha_state()
-
-
-class BoschSensor(BoschBaseSensor):
-    """Representation of a Bosch sensor."""
-
-    @property
-    def _sensor_name(self):
-        return "Bosch sensors"
-
-    @property
-    def signal(self):
-        return SIGNAL_SENSOR_UPDATE_BOSCH
-
-
-class CircuitSensor(BoschBaseSensor):
-    """Representation of a Bosch sensor."""
-
-    @property
-    def _sensor_name(self):
-        return CIRCUITS_SENSOR_NAMES[self._circuit_type] + " " + self._domain_name
-
-    @property
-    def signal(self):
-        return SIGNAL_SOLAR_UPDATE_BOSCH
-
-
-class RecordingSensor(BoschBaseSensor):
-    """Representation of Recording Sensor."""
-
-    @property
-    def _sensor_name(self):
-        return "Recording sensors"
-
-    @property
-    def signal(self):
-        return SIGNAL_RECORDING_UPDATE_BOSCH
-
-    def attrs_write(self, data, **kwargs):
-        self._unit_of_measurement = self._bosch_object.unit_of_measurement
-        self._attrs = data
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

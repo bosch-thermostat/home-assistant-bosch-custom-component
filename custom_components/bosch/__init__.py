@@ -48,7 +48,6 @@ from .const import (
     SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
-    SIGNAL_RECORDING_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
@@ -267,51 +266,56 @@ class BoschGatewayEntry:
         return True
 
     async def recording_sensors_update(self, now=None):
-        """Update of recording sensors.
+        """Update of 1-hour sensors.
         It suppose to be called only once an hour
         so sensor get's average data from Bosch.
         """
         entities = self.hass.data[DOMAIN][self.uuid].get(RECORDINGS, [])
         if not entities:
             return
-        updated = False
-        for entity in entities:
-            if entity.enabled:
-                try:
-                    _LOGGER.debug("Updating component Recording Sensor by %s", id(self))
-                    await entity.bosch_object.update()
-                    updated = True
-                except DeviceException as err:
-                    _LOGGER.warning(
-                        "Bosch object of entity %s is no longer available. %s",
-                        entity.name,
-                        err,
-                    )
         recording_callback = self.hass.data[DOMAIN][self.uuid].pop(
             RECORDING_INTERVAL, None
         )
         if recording_callback is not None:
             recording_callback()
             recording_callback = None
+        updated = False
+        signals = []
+        now = dt_util.now()
+        for entity in entities:
+            if entity.enabled:
+                try:
+                    _LOGGER.debug("Updating component 1-hour Sensor by %s", id(self))
+                    await entity.bosch_object.update(time=now)
+                    updated = True
+                    if entity.signal not in signals:
+                        signals.append(entity.signal)
+                except DeviceException as err:
+                    _LOGGER.warning(
+                        "Bosch object of entity %s is no longer available. %s",
+                        entity.name,
+                        err,
+                    )
 
         def rounder(t):
             matching_seconds = [0]
-            matching_minutes = [2]
+            matching_minutes = [6]  # 6
             matching_hours = dt_util.parse_time_expression("*", 0, 23)
             return dt_util.find_next_time_expression_time(
                 t, matching_seconds, matching_minutes, matching_hours
             )
 
-        nexti = rounder(dt_util.now())
+        nexti = rounder(now + timedelta(seconds=1))
         self.hass.data[DOMAIN][self.uuid][
             RECORDING_INTERVAL
         ] = async_track_point_in_utc_time(
             self.hass, self.recording_sensors_update, nexti
         )
-        _LOGGER.debug("Next update of recording sensors scheduled at: %s", nexti)
+        _LOGGER.debug("Next update of 1-hour sensors scheduled at: %s", nexti)
         if updated:
-            _LOGGER.debug("Bosch recording entitites updated.")
-            async_dispatcher_send(self.hass, SIGNAL_RECORDING_UPDATE_BOSCH)
+            _LOGGER.debug("Bosch 1-hour entitites updated.")
+            for signal in signals:
+                async_dispatcher_send(self.hass, signal)
             return True
 
     def register_service(self, debug=False, update=False):
