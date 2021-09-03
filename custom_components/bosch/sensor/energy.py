@@ -1,15 +1,13 @@
-from .base import BoschBaseSensor
+from bosch_thermostat_client.const import UNITS
 from homeassistant.const import (
-    ENERGY_KILO_WATT_HOUR,
-    TEMP_CELSIUS,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_TEMPERATURE,
+    ENERGY_KILO_WATT_HOUR,
+    TEMP_CELSIUS,
 )
-from ..const import (
-    SIGNAL_ENERGY_UPDATE_BOSCH,
-    VALUE,
-)
-from bosch_thermostat_client.const import UNITS
+
+from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
+from .bosch import BoschSensor
 
 EnergySensors = [
     {"name": "energy temperature", "attr": "T", "unitOfMeasure": TEMP_CELSIUS},
@@ -22,7 +20,7 @@ EnergySensors = [
 ]
 
 
-class EnergySensor(BoschBaseSensor):
+class EnergySensor(BoschSensor):
     """Representation of Energy Sensor."""
 
     def __init__(
@@ -55,10 +53,6 @@ class EnergySensor(BoschBaseSensor):
             circuit_type=None,
             is_enabled=is_enabled,
         )
-
-    @property
-    def _sensor_name(self):
-        return "Energy sensors"
 
     async def async_update(self):
         """Update state of device."""
