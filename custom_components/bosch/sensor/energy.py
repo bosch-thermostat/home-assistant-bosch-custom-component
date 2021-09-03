@@ -9,6 +9,7 @@ from ..const import (
     SIGNAL_ENERGY_UPDATE_BOSCH,
     VALUE,
 )
+from homeassistant.components.sensor import STATE_CLASS_MEASUREMENT
 from bosch_thermostat_client.const import UNITS
 
 EnergySensors = [
@@ -68,3 +69,7 @@ class EnergySensor(BoschSensor):
     @property
     def signal(self):
         return SIGNAL_ENERGY_UPDATE_BOSCH
+
+    @property
+    def state_class(self):
+        return STATE_CLASS_MEASUREMENT
