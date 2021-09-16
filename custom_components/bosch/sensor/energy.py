@@ -4,6 +4,7 @@ from homeassistant.const import (
     TEMP_CELSIUS,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_TEMPERATURE,
+    STATE_UNAVAILABLE,
 )
 from ..const import (
     SIGNAL_ENERGY_UPDATE_BOSCH,
@@ -60,7 +61,11 @@ class EnergySensor(BoschSensor):
     async def async_update(self):
         """Update state of device."""
         data = self._bosch_object.get_property(self._attr_uri)
-        self._state = data.get(VALUE).get(self._read_attr)
+        value = data.get(VALUE)
+        if not value or self._read_attr not in value:
+            self._state = STATE_UNAVAILABLE
+            return
+        self._state = value.get(self._read_attr)
         self._attr_last_reset = data.get("last_reset")
         if self._update_init:
             self._update_init = False
