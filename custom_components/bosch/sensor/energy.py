@@ -1,17 +1,15 @@
 from .bosch import BoschSensor
+from bosch_thermostat_client.const import UNITS
 from homeassistant.const import (
-    ENERGY_KILO_WATT_HOUR,
-    TEMP_CELSIUS,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_UNAVAILABLE,
-)
-from ..const import (
-    SIGNAL_ENERGY_UPDATE_BOSCH,
-    VALUE,
+    ENERGY_KILO_WATT_HOUR,
+    TEMP_CELSIUS,
 )
 from homeassistant.components.sensor import STATE_CLASS_MEASUREMENT
-from bosch_thermostat_client.const import UNITS
+
+from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
 
 EnergySensors = [
     {"name": "energy temperature", "attr": "T", "unitOfMeasure": TEMP_CELSIUS},

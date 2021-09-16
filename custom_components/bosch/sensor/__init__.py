@@ -5,18 +5,11 @@ from bosch_thermostat_client.const import RECORDINGS, SENSOR, SENSORS
 from bosch_thermostat_client.const.easycontrol import ENERGY
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from ..const import (
-    CIRCUITS,
-    DOMAIN,
-    GATEWAY,
-    SIGNAL_BOSCH,
-    UUID,
-)
-
-from .recording import RecordingSensor
+from ..const import CIRCUITS, DOMAIN, GATEWAY, SIGNAL_BOSCH, UUID
 from .bosch import BoschSensor
-from .energy import EnergySensor, EnergySensors
 from .circuit import CircuitSensor
+from .energy import EnergySensor, EnergySensors
+from .recording import RecordingSensor
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):

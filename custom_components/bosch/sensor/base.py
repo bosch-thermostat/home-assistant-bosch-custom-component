@@ -1,23 +1,16 @@
 import logging
 from datetime import datetime, timedelta
+
+from bosch_thermostat_client.const import UNITS, VALUE
+from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     SensorEntity,
 )
-from bosch_thermostat_client.const import UNITS, VALUE
-from bosch_thermostat_client.const.ivt import INVALID
+from homeassistant.const import DEVICE_CLASS_ENERGY
 
-from ..const import (
-    DOMAIN,
-    MINS,
-    UNITS_CONVERTER,
-)
-
-
-from homeassistant.const import (
-    DEVICE_CLASS_ENERGY,
-)
+from ..const import DOMAIN, MINS, UNITS_CONVERTER
 
 _LOGGER = logging.getLogger(__name__)
 

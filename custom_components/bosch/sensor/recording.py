@@ -1,8 +1,5 @@
+from ..const import SIGNAL_RECORDING_UPDATE_BOSCH
 from .base import BoschBaseSensor
-
-from ..const import (
-    SIGNAL_RECORDING_UPDATE_BOSCH,
-)
 
 
 class RecordingSensor(BoschBaseSensor):

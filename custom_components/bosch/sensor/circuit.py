@@ -1,9 +1,5 @@
+from ..const import CIRCUITS_SENSOR_NAMES, SIGNAL_SOLAR_UPDATE_BOSCH
 from .base import BoschBaseSensor
-
-from ..const import (
-    CIRCUITS_SENSOR_NAMES,
-    SIGNAL_SOLAR_UPDATE_BOSCH,
-)
 
 
 class CircuitSensor(BoschBaseSensor):
