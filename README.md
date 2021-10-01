@@ -1,7 +1,7 @@
 # home-assistant-bosch-custom-component
 
 HA custom component for Bosch thermostats.
-If you like this component consider sponsoring my work: [https://github.com/sponsors/pszafer]
+If you like this component consider sponsoring my work: [:heart: Sponsor](https://github.com/sponsors/pszafer)
 
 **It will only work with at least Home Assistant 2021.9.x and and Python >=3.8.**
 
