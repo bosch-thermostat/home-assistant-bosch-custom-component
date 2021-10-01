@@ -6,7 +6,16 @@ from datetime import timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from bosch_thermostat_client.const import DHW, HC, HTTP, RECORDINGS, SC, SENSOR, ZN
+from bosch_thermostat_client.const import (
+    DHW,
+    HC,
+    HTTP,
+    RECORDINGS,
+    SC,
+    SENSOR,
+    ZN,
+    NUMBER,
+)
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
@@ -49,28 +58,34 @@ from .const import (
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
     SIGNAL_SENSOR_UPDATE_BOSCH,
+    SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
     SOLAR,
     UUID,
     WATER_HEATER,
+    BINARY_SENSOR,
+    SIGNAL_NUMBER,
 )
 
 SIGNALS = {
     CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
     WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
     SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
+    BINARY_SENSOR: SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
     SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
     SWITCH: SIGNAL_SWITCH,
+    NUMBER: SIGNAL_NUMBER,
 }
 
 SUPPORTED_PLATFORMS = {
-    HC: CLIMATE,
-    DHW: WATER_HEATER,
-    SWITCH: SWITCH,
-    SC: SENSOR,
-    SENSOR: SENSOR,
-    ZN: CLIMATE,
+    HC: [CLIMATE],
+    DHW: [WATER_HEATER],
+    SWITCH: [SWITCH],
+    NUMBER: [NUMBER],
+    SC: [SENSOR],
+    SENSOR: [SENSOR, BINARY_SENSOR],
+    ZN: [CLIMATE],
 }
 
 CUSTOM_DB = "custom_bosch_db.json"
@@ -224,10 +239,10 @@ class BoschGatewayEntry:
 
     def get_signals(self):
         if (
+            not self._signal_registered and
             all(
                 k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
             )
-            and not self._signal_registered
         ):
             _LOGGER.debug("Registering service debug and service update interval.")
             self._signal_registered = True
@@ -258,9 +273,10 @@ class BoschGatewayEntry:
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
             for supported in supported_bosch:
-                element = SUPPORTED_PLATFORMS[supported]
-                if element not in self.supported_platforms:
-                    self.supported_platforms.append(element)
+                elements = SUPPORTED_PLATFORMS[supported]
+                for element in elements:
+                    if element not in self.supported_platforms:
+                        self.supported_platforms.append(element)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
         _LOGGER.info("Bosch initialized.")
         return True
@@ -379,9 +395,11 @@ class BoschGatewayEntry:
         _LOGGER.debug("Updating Bosch thermostat entitites.")
         async with self._update_lock:
             await self.component_update(SENSOR, event_time)
+            await self.component_update(BINARY_SENSOR, event_time)
             await self.component_update(CLIMATE, event_time)
             await self.component_update(WATER_HEATER, event_time)
             await self.component_update(SWITCH, event_time)
+            await self.component_update(NUMBER, event_time)
             _LOGGER.debug("Finish updating entities. Waiting for next scheduled check.")
 
     async def firmware_refresh(self, event_time=None):

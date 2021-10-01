@@ -1,7 +1,6 @@
 """Support for Bosch Thermostat Sensor."""
-import logging
 
-from bosch_thermostat_client.const import RECORDINGS, SENSOR, SENSORS
+from bosch_thermostat_client.const import RECORDINGS, SENSOR, SENSORS, REGULAR
 from bosch_thermostat_client.const.easycontrol import ENERGY
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -10,11 +9,6 @@ from .bosch import BoschSensor
 from .circuit import CircuitSensor
 from .energy import EnergySensor, EnergySensors
 from .recording import RecordingSensor
-
-
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the Bosch Thermostat Sensor Platform."""
-    pass
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -37,7 +31,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         gateway=data[GATEWAY],
                         name=sensor.name,
                         attr_uri=sensor.attr_id,
-                        domain_name="Recording",
                         is_enabled=sensor.attr_id in enabled_sensors,
                     )
                 ],
@@ -53,27 +46,27 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         gateway=data[GATEWAY],
                         sensor_attributes=energy,
                         attr_uri=sensor.attr_id,
-                        domain_name="Sensors",
                         is_enabled=sensor.attr_id in enabled_sensors,
                     )
                     for energy in EnergySensors
                 ],
             )
-        return (
-            SENSOR,
-            [
-                BoschSensor(
-                    hass=hass,
-                    uuid=uuid,
-                    bosch_object=sensor,
-                    gateway=data[GATEWAY],
-                    name=sensor.name,
-                    attr_uri=sensor.attr_id,
-                    domain_name="Sensors",
-                    is_enabled=sensor.attr_id in enabled_sensors,
-                )
-            ],
-        )
+        elif sensor.kind == REGULAR:
+            return (
+                SENSOR,
+                [
+                    BoschSensor(
+                        hass=hass,
+                        uuid=uuid,
+                        bosch_object=sensor,
+                        gateway=data[GATEWAY],
+                        name=sensor.name,
+                        attr_uri=sensor.attr_id,
+                        is_enabled=sensor.attr_id in enabled_sensors,
+                    )
+                ],
+            )
+        return (None, None)
 
     for bosch_sensor in data[GATEWAY].sensors:
         (target, sensors) = get_sensors(bosch_sensor)

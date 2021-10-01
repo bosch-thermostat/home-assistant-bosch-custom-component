@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 
-from bosch_thermostat_client.const import UNITS, VALUE
+from bosch_thermostat_client.const import UNITS, VALUE, NAME
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
@@ -11,11 +11,14 @@ from homeassistant.components.sensor import (
 from homeassistant.const import DEVICE_CLASS_ENERGY
 
 from ..const import DOMAIN, MINS, UNITS_CONVERTER
+from ..bosch_entity import BoschEntity
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class BoschBaseSensor(SensorEntity):
+class BoschBaseSensor(BoschEntity, SensorEntity):
+    """Base class for all sensor entities."""
+
     def __init__(
         self,
         hass,
@@ -24,16 +27,19 @@ class BoschBaseSensor(SensorEntity):
         gateway,
         name,
         attr_uri,
-        domain_name,
+        domain_name=None,
         circuit_type=None,
         is_enabled=False,
     ):
         """Initialize the sensor."""
-        self.hass = hass
-        self._bosch_object = bosch_object
-        self._gateway = gateway
-        self._domain_name = domain_name
-        self._name = (domain_name + " " + name) if domain_name != "Sensors" else name
+        super().__init__(
+            hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
+        )
+        if domain_name:
+            self._domain_name = domain_name
+        self._name = (
+            (self._domain_name + " " + name) if self._domain_name != "Sensors" else name
+        )
         self._attr_uri = attr_uri
         self._state = None
         self._update_init = True
@@ -44,38 +50,9 @@ class BoschBaseSensor(SensorEntity):
         self._circuit_type = circuit_type
         self._is_enabled = is_enabled
 
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            self.signal, self.async_update
-        )
-
     @property
     def _domain_identifier(self):
         return {(DOMAIN, self._domain_name + self._uuid)}
-
-    @property
-    def _sensor_name(self):
-        raise NotImplementedError
-
-    @property
-    def signal(self):
-        raise NotImplementedError
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
-
-    @property
-    def unique_id(self):
-        """Return unique ID for this device."""
-        return self._unique_id
-
-    @property
-    def bosch_object(self):
-        """Return upstream component. Used for refreshing."""
-        return self._bosch_object
 
     @property
     def native_value(self):
@@ -97,19 +74,7 @@ class BoschBaseSensor(SensorEntity):
         """Return if the entity should be enabled when first added to the entity registry."""
         return self._is_enabled
 
-    @property
-    def device_info(self):
-        """Get attributes about the device."""
-        return {
-            "identifiers": self._domain_identifier,
-            "manufacturer": self._gateway.device_model,
-            "model": self._gateway.device_type,
-            "name": self._sensor_name,
-            "sw_version": self._gateway.firmware,
-            "via_hub": (DOMAIN, self._uuid),
-        }
-
-    async def async_update(self):
+    def update(self):
         """Update state of device."""
         _LOGGER.debug("Update of sensor %s called.", self.unique_id)
         data = self._bosch_object.get_property(self._attr_uri)
@@ -119,14 +84,22 @@ class BoschBaseSensor(SensorEntity):
                 return UNITS_CONVERTER.get(data.get(UNITS))
             return None
 
-        units = get_units()
+        def detect_device_class():
+            if self._bosch_object.device_class == DEVICE_CLASS_ENERGY:
+                self._attr_device_class = DEVICE_CLASS_ENERGY
+            if self._bosch_object.state_class == STATE_CLASS_MEASUREMENT:
+                self._attr_state_class = STATE_CLASS_MEASUREMENT
+            elif self._bosch_object.state_class == STATE_CLASS_TOTAL_INCREASING:
+                self._attr_state_class = STATE_CLASS_TOTAL_INCREASING
 
-        if self._bosch_object.device_class == DEVICE_CLASS_ENERGY:
-            self._attr_device_class = DEVICE_CLASS_ENERGY
-        if self._bosch_object.state_class == STATE_CLASS_MEASUREMENT:
-            self._attr_state_class = STATE_CLASS_MEASUREMENT
-        elif self._bosch_object.state_class == STATE_CLASS_TOTAL_INCREASING:
-            self._attr_state_class = STATE_CLASS_TOTAL_INCREASING
+        def check_name():
+            if data.get(NAME, "") != self._name:
+                self._name = data.get(NAME)
+
+        units = get_units()
+        if not hasattr(self, "_attr_device_class"):
+            detect_device_class()
+
         if units == MINS and data:
             self.time_sensor_data(data)
         else:
@@ -134,6 +107,8 @@ class BoschBaseSensor(SensorEntity):
                 self._state = INVALID
             else:
                 self._state = data.get(VALUE, INVALID)
+                check_name()
+
             self._attrs = {}
             self._attrs["stateExtra"] = self._bosch_object.state
             if not data:

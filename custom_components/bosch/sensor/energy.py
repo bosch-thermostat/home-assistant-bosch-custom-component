@@ -1,3 +1,4 @@
+"""Bosch sensor for Energy URI in Easycontrol."""
 from .bosch import BoschSensor
 from bosch_thermostat_client.const import UNITS
 from homeassistant.const import (
@@ -25,6 +26,9 @@ EnergySensors = [
 class EnergySensor(BoschSensor):
     """Representation of Energy Sensor."""
 
+    signal = SIGNAL_ENERGY_UPDATE_BOSCH
+    _domain_name = "Sensors"
+
     def __init__(
         self,
         hass,
@@ -33,7 +37,6 @@ class EnergySensor(BoschSensor):
         gateway,
         sensor_attributes,
         attr_uri,
-        domain_name,
         is_enabled=False,
     ):
         self._read_attr = sensor_attributes.get("attr")
@@ -51,12 +54,11 @@ class EnergySensor(BoschSensor):
             gateway,
             sensor_attributes.get("name"),
             attr_uri,
-            domain_name,
             circuit_type=None,
             is_enabled=is_enabled,
         )
 
-    async def async_update(self):
+    def update(self):
         """Update state of device."""
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
@@ -68,10 +70,6 @@ class EnergySensor(BoschSensor):
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
-
-    @property
-    def signal(self):
-        return SIGNAL_ENERGY_UPDATE_BOSCH
 
     @property
     def state_class(self):

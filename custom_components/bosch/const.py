@@ -26,11 +26,13 @@ DEFAULT_MAX_TEMP = 100
 
 SIGNAL_CLIMATE_UPDATE_BOSCH = "bosch_climate_update"
 SIGNAL_SENSOR_UPDATE_BOSCH = "bosch_sensor_update"
+SIGNAL_BINARY_SENSOR_UPDATE_BOSCH = "bosch_binarysensor_update"
 SIGNAL_DHW_UPDATE_BOSCH = "bosch_dhw_update"
 SIGNAL_SOLAR_UPDATE_BOSCH = "bosch_solar_update"
 SIGNAL_RECORDING_UPDATE_BOSCH = "bosch_recording_update"
 SIGNAL_ENERGY_UPDATE_BOSCH = "bosch_energy_update"
 SIGNAL_SWITCH = "bosch_switch_update"
+SIGNAL_NUMBER = "bosch_number_update"
 BOSCH_STATE = "bosch_state"
 
 START = "start"
@@ -46,6 +48,7 @@ SWITCHPOINT = "switchPoint"
 CHARGE = "charge"
 MINS = "mins"
 SWITCH = "switch"
+
 
 UNITS_CONVERTER = {
     "C": TEMP_CELSIUS,
@@ -79,3 +82,5 @@ CIRCUITS_SENSOR_NAMES = {
     SC: "Solar circuit ",
     ZN: "Zone circuit",
 }
+
+BINARY_SENSOR = "binary_sensor"

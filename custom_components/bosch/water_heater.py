@@ -14,19 +14,13 @@ from homeassistant.components.water_heater import (
     SUPPORT_TARGET_TEMPERATURE,
     WaterHeaterEntity,
 )
-from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
+from homeassistant.const import ATTR_TEMPERATURE
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.config_validation import (  # noqa: F401
-    PLATFORM_SCHEMA,
-    PLATFORM_SCHEMA_BASE,
-)
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-
+from .bosch_entity import BoschClimateWaterEntity
 from .const import (
     BOSCH_STATE,
     CHARGE,
-    DEFAULT_MAX_TEMP,
-    DEFAULT_MIN_TEMP,
     DOMAIN,
     SERVICE_CHARGE_SCHEMA,
     SERVICE_CHARGE_START,
@@ -60,84 +54,36 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     return True
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the Bosch Thermostat Platform."""
-    pass
-
-
-class BoschWaterHeater(WaterHeaterEntity):
+class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
     """Representation of an EcoNet water heater."""
 
-    def __init__(self, hass, uuid, dhw, gateway):
+    signal = SIGNAL_DHW_UPDATE_BOSCH
+
+    def __init__(self, hass, uuid, bosch_object, gateway):
         """Initialize the water heater."""
-        self.hass = hass
-        self._dhw = dhw
-        self._name = self._dhw.name
-        self._uuid = uuid
-        self._unique_id = self._name + self._uuid
-        self._gateway = gateway
+        self._name_prefix = "Water heater"
         self._mode = None
-        self._state = None
-        self._target_temperature = None
-        self._current_temperature = None
         self._current_setpoint = None
-        self._temperature_units = TEMP_CELSIUS
-        self._max_temp = DEFAULT_MAX_TEMP
-        self._low_temp = DEFAULT_MIN_TEMP
         self._target_temp_off = 0
         self._operation_list = []
 
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            SIGNAL_DHW_UPDATE_BOSCH, self.update
+        super().__init__(
+            hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
         )
 
     async def service_charge(self, value):
         """Set charge of DHW device. Upstream lib doesn't check if value is proper!"""
         _LOGGER.info("Setting %s %s with value %s", self._name, CHARGE, value)
-        await self._dhw.set_service_call(CHARGE, value)
-
-    @property
-    def name(self):
-        """Return the device name."""
-        return self._name
-
-    @property
-    def bosch_object(self):
-        """Return upstream component. Used for refreshing."""
-        return self._dhw
-
-    @property
-    def unique_id(self):
-        """Return unique ID for this device."""
-        return self._unique_id
-
-    @property
-    def device_info(self):
-        """Get attributes about the device."""
-        return {
-            "identifiers": {(DOMAIN, self._unique_id)},
-            "manufacturer": self._gateway.device_model,
-            "model": self._gateway.device_type,
-            "name": "Water heater " + self._name,
-            "sw_version": self._gateway.firmware,
-            "via_device": (DOMAIN, self._uuid),
-        }
-
-    @property
-    def temperature_unit(self):
-        """Return the unit of measurement."""
-        return self._temperature_units
+        await self._bosch_object.set_service_call(CHARGE, value)
 
     @property
     def state_attributes(self):
         data = super().state_attributes
         data.pop(ATTR_TARGET_TEMP_HIGH, None)
         data.pop(ATTR_TARGET_TEMP_LOW, None)
-        data[SETPOINT] = self._dhw.setpoint
-        if self._dhw.schedule:
-            data[SWITCHPOINT] = self._dhw.schedule.active_program
+        data[SETPOINT] = self._bosch_object.setpoint
+        if self._bosch_object.schedule:
+            data[SWITCHPOINT] = self._bosch_object.schedule.active_program
         data[BOSCH_STATE] = self._state
         return data
 
@@ -164,9 +110,9 @@ class BoschWaterHeater(WaterHeaterEntity):
     def supported_features(self):
         """Return the list of supported features."""
         if (
-            self._dhw.ha_mode == STATE_OFF
-            or self._dhw.setpoint == STATE_OFF
-            or not self._dhw.support_target_temp
+            self._bosch_object.ha_mode == STATE_OFF
+            or self._bosch_object.setpoint == STATE_OFF
+            or not self._bosch_object.support_target_temp
         ):
             return SUPPORT_OPERATION_MODE
         return SUPPORT_FLAGS_HEATER
@@ -175,7 +121,7 @@ class BoschWaterHeater(WaterHeaterEntity):
         """Set new target temperature."""
         target_temp = kwargs.get(ATTR_TEMPERATURE)
         if target_temp and target_temp != self._target_temperature:
-            await self._dhw.set_temperature(target_temp)
+            await self._bosch_object.set_temperature(target_temp)
         else:
             _LOGGER.error("A target temperature must be provided")
 
@@ -190,43 +136,19 @@ class BoschWaterHeater(WaterHeaterEntity):
     def update(self):
         """Get the latest date."""
         _LOGGER.debug("Updating Bosch water_heater.")
-        if not self._dhw or not self._dhw.update_initialized:
+        if not self._bosch_object or not self._bosch_object.update_initialized:
             return
-        self._temperature_units = UNITS_CONVERTER.get(
-            self._dhw.temp_units if self._dhw.temp_units else "C"
+        self._temperature_unit = UNITS_CONVERTER.get(
+            self._bosch_object.temp_units if self._bosch_object.temp_units else "C"
         )
         if (
-            self._state != self._dhw.state
-            or self._operation_list == self._dhw.ha_modes
-            or self._current_temperature != self._dhw.current_temp
-            or self._low_temp != self._dhw.min_temp
-            or self._max_temp != self._dhw.max_temp
+            self._state != self._bosch_object.state
+            or self._operation_list == self._bosch_object.ha_modes
+            or self._current_temperature != self._bosch_object.current_temp
         ):
-            self._state = self._dhw.state
-            self._target_temperature = self._dhw.target_temperature
-            self._current_temperature = self._dhw.current_temp
-            self._operation_list = self._dhw.ha_modes
-            self._mode = self._dhw.ha_mode
-            self._low_temp = self._dhw.min_temp
-            self._max_temp = self._dhw.max_temp
+            self._state = self._bosch_object.state
+            self._target_temperature = self._bosch_object.target_temperature
+            self._current_temperature = self._bosch_object.current_temp
+            self._operation_list = self._bosch_object.ha_modes
+            self._mode = self._bosch_object.ha_mode
             self.async_schedule_update_ha_state()
-
-    @property
-    def current_temperature(self):
-        """Return the current temperature."""
-        return self._current_temperature
-
-    @property
-    def target_temperature(self):
-        """Return the temperature we try to reach."""
-        return self._target_temperature
-
-    @property
-    def min_temp(self):
-        """Return the minimum temperature."""
-        return self._low_temp
-
-    @property
-    def max_temp(self):
-        """Return the maximum temperature."""
-        return self._max_temp

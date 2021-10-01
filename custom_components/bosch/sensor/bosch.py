@@ -1,3 +1,4 @@
+"""Bosch regular sensor."""
 from ..const import SIGNAL_SENSOR_UPDATE_BOSCH
 from .base import BoschBaseSensor
 
@@ -5,10 +6,9 @@ from .base import BoschBaseSensor
 class BoschSensor(BoschBaseSensor):
     """Representation of a Bosch sensor."""
 
-    @property
-    def _sensor_name(self):
-        return "Bosch sensors"
+    signal = SIGNAL_SENSOR_UPDATE_BOSCH
+    _domain_name = "Sensors"
 
     @property
-    def signal(self):
-        return SIGNAL_SENSOR_UPDATE_BOSCH
+    def device_name(self):
+        return "Bosch sensors"

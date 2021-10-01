@@ -1,3 +1,5 @@
+"""Bosch sensor for Recording sensor in IVT."""
+
 from ..const import SIGNAL_RECORDING_UPDATE_BOSCH
 from .base import BoschBaseSensor
 
@@ -5,13 +7,12 @@ from .base import BoschBaseSensor
 class RecordingSensor(BoschBaseSensor):
     """Representation of Recording Sensor."""
 
-    @property
-    def _sensor_name(self):
-        return "Recording sensors"
+    signal = SIGNAL_RECORDING_UPDATE_BOSCH
+    _domain_name = "Recording"
 
     @property
-    def signal(self):
-        return SIGNAL_RECORDING_UPDATE_BOSCH
+    def device_name(self):
+        return "Recording sensors"
 
     def attrs_write(self, data, **kwargs):
         self._unit_of_measurement = self._bosch_object.unit_of_measurement

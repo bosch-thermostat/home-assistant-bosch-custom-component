@@ -1,10 +1,10 @@
 # home-assistant-bosch-custom-component
 
 HA custom component for Bosch thermostats.
+If you like this component consider sponsoring my work: [https://github.com/sponsors/pszafer]
 
-**It will only work with Home Assistant 0.109 and and Python >3.7 higher.**
+**It will only work with at least Home Assistant 2021.9.x and and Python >=3.8.**
 
-It is @alpha version of Bosch thermostat component.
 Supported protocols:
 
 - XMPP -> connect to bosch cloud!
@@ -38,7 +38,7 @@ Preferred way. Go to https://hacs.xyz/ and learn more about installation of cust
 Go to integration page, add Bosch component and follow on going screens.
 By default all sensors are disabled!
 Go to integration device `Bosch sensors` and enable sensor you'd like to see.
-If you have troubles, go to wiki and read more detailed installation instructions.
+If you have troubles, go to **wiki** and read more detailed installation instructions.
 
 # Help
 
