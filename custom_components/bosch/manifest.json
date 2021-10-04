@@ -11,9 +11,9 @@
     "@pszafer"
   ],
   "requirements": [
-    "bosch-thermostat-client==0.15.3"
+    "bosch-thermostat-client==0.15.4"
   ],
-  "version": "0.15.3",
+  "version": "0.15.4",
   "zeroconf": [
     "_buderus._tcp.local."
   ],
