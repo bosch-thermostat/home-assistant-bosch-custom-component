@@ -1,15 +1,13 @@
+"""Base sensor component."""
+
 import logging
 from datetime import datetime, timedelta
 
 from bosch_thermostat_client.const import UNITS, VALUE, NAME
 from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.components.sensor import (
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    STATE_CLASS_TOTAL,
     SensorEntity,
 )
-from homeassistant.const import DEVICE_CLASS_ENERGY
 
 from ..const import DOMAIN, MINS, UNITS_CONVERTER
 from ..bosch_entity import BoschEntity
