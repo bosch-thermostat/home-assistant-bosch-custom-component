@@ -6,6 +6,7 @@ from bosch_thermostat_client.const.ivt import INVALID
 from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    STATE_CLASS_TOTAL,
     SensorEntity,
 )
 from homeassistant.const import DEVICE_CLASS_ENERGY
@@ -85,12 +86,10 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             return None
 
         def detect_device_class():
-            if self._bosch_object.device_class == DEVICE_CLASS_ENERGY:
-                self._attr_device_class = DEVICE_CLASS_ENERGY
-            if self._bosch_object.state_class == STATE_CLASS_MEASUREMENT:
-                self._attr_state_class = STATE_CLASS_MEASUREMENT
-            elif self._bosch_object.state_class == STATE_CLASS_TOTAL_INCREASING:
-                self._attr_state_class = STATE_CLASS_TOTAL_INCREASING
+            if self._bosch_object.device_class:
+                self._attr_device_class = self._bosch_object.device_class
+            if self._bosch_object.state_class:
+                self._attr_state_class = self._bosch_object.state_class
 
         def check_name():
             if data.get(NAME, "") != self._name:

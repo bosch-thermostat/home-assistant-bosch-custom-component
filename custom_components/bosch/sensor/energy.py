@@ -8,9 +8,9 @@ from homeassistant.const import (
     ENERGY_KILO_WATT_HOUR,
     TEMP_CELSIUS,
 )
-from homeassistant.components.sensor import STATE_CLASS_MEASUREMENT
+from homeassistant.components.sensor import STATE_CLASS_TOTAL
 
-from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
+from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE, LAST_RESET
 
 EnergySensors = [
     {"name": "energy temperature", "attr": "T", "unitOfMeasure": TEMP_CELSIUS},
@@ -29,33 +29,16 @@ class EnergySensor(BoschSensor):
     signal = SIGNAL_ENERGY_UPDATE_BOSCH
     _domain_name = "Sensors"
 
-    def __init__(
-        self,
-        hass,
-        uuid,
-        bosch_object,
-        gateway,
-        sensor_attributes,
-        attr_uri,
-        is_enabled=False,
-    ):
+    def __init__(self, sensor_attributes, **kwargs):
+
+        super().__init__(name=sensor_attributes.get("name"), **kwargs)
+
         self._read_attr = sensor_attributes.get("attr")
         self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = (
             DEVICE_CLASS_TEMPERATURE
             if self._unit_of_measurement == TEMP_CELSIUS
             else DEVICE_CLASS_ENERGY
-        )
-
-        super().__init__(
-            hass,
-            uuid,
-            bosch_object,
-            gateway,
-            sensor_attributes.get("name"),
-            attr_uri,
-            circuit_type=None,
-            is_enabled=is_enabled,
         )
 
     def update(self):
@@ -66,11 +49,11 @@ class EnergySensor(BoschSensor):
             self._state = STATE_UNAVAILABLE
             return
         self._state = value.get(self._read_attr)
-        self._attr_last_reset = data.get("last_reset")
+        self._attr_last_reset = data.get(LAST_RESET)
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
 
     @property
     def state_class(self):
-        return STATE_CLASS_MEASUREMENT
+        return STATE_CLASS_TOTAL

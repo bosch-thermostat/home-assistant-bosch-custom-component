@@ -10,6 +10,9 @@ from .circuit import CircuitSensor
 from .energy import EnergySensor, EnergySensors
 from .recording import RecordingSensor
 
+SensorClass = {RECORDINGS: RecordingSensor, ENERGY: EnergySensor, REGULAR: BoschSensor}
+SensorKinds = {RECORDINGS: RECORDINGS, ENERGY: RECORDINGS, REGULAR: SENSOR}
+
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
@@ -20,11 +23,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     data[RECORDINGS] = []
 
     def get_sensors(sensor):
-        if sensor.kind == RECORDINGS:
+        if sensor.kind in (RECORDINGS, REGULAR):
             return (
-                RECORDINGS,
+                SensorKinds[sensor.kind],
                 [
-                    RecordingSensor(
+                    SensorClass[sensor.kind](
                         hass=hass,
                         uuid=uuid,
                         bosch_object=sensor,
@@ -37,9 +40,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             )
         elif sensor.kind == ENERGY:
             return (
-                RECORDINGS,
+                SensorKinds[sensor.kind],
                 [
-                    EnergySensor(
+                    SensorClass[sensor.kind](
                         hass=hass,
                         uuid=uuid,
                         bosch_object=sensor,
@@ -49,21 +52,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         is_enabled=sensor.attr_id in enabled_sensors,
                     )
                     for energy in EnergySensors
-                ],
-            )
-        elif sensor.kind == REGULAR:
-            return (
-                SENSOR,
-                [
-                    BoschSensor(
-                        hass=hass,
-                        uuid=uuid,
-                        bosch_object=sensor,
-                        gateway=data[GATEWAY],
-                        name=sensor.name,
-                        attr_uri=sensor.attr_id,
-                        is_enabled=sensor.attr_id in enabled_sensors,
-                    )
                 ],
             )
         return (None, None)

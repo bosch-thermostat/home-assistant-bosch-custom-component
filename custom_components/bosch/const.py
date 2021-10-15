@@ -84,3 +84,4 @@ CIRCUITS_SENSOR_NAMES = {
 }
 
 BINARY_SENSOR = "binary_sensor"
+LAST_RESET = "last_reset"
