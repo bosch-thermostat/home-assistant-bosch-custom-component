@@ -52,7 +52,9 @@ SWITCH = "switch"
 
 UNITS_CONVERTER = {
     "C": TEMP_CELSIUS,
+    TEMP_CELSIUS: TEMP_CELSIUS,
     "F": TEMP_FAHRENHEIT,
+    TEMP_FAHRENHEIT: TEMP_FAHRENHEIT,
     "%": "%",
     "l/min": "l/min",
     "l/h": "l/h",
