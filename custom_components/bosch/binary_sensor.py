@@ -107,7 +107,7 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
     async def async_update(self):
         """Update state of device."""
         _LOGGER.debug("Update of binary sensor %s called.", self.unique_id)
-        self._attr_is_on = True if self._bosch_object.state == ON else False
+        self._attr_is_on = True if self._bosch_object.state.lower() == ON else False
 
         self._attrs["stateExtra"] = self._bosch_object.state_message
         self.attrs_write(data=self._bosch_object.get_property(self._attr_uri))

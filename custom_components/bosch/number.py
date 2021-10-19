@@ -12,6 +12,7 @@ from .const import (
     SIGNAL_BOSCH,
     SIGNAL_NUMBER,
     UUID,
+    UNITS_CONVERTER,
 )
 
 
@@ -127,7 +128,12 @@ class BoschNumber(BoschEntity, NumberEntity):
         """Return the unit of measurement of this entity, if any."""
         if self._bosch_object.unit_of_measurement is None:
             return None
-        return str(self._bosch_object.unit_of_measurement)
+        return str(
+            UNITS_CONVERTER.get(
+                self._bosch_object.unit_of_measurement,
+                self._bosch_object.unit_of_measurement,
+            )
+        )
 
     def update(self):
         """Update state of device."""
