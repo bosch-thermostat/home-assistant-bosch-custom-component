@@ -22,7 +22,8 @@ jobs:
           key: custom-component-ci
       - uses: hacs/action@main
         with:
-          CATEGORY: integration
+          category: integration
+          ignore: wheels
       - uses: KTibow/ha-blueprint@stable
         name: CI
         with:
