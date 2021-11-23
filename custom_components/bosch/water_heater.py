@@ -89,7 +89,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
         return data
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the optional device state attributes."""
         data = {"target_temp_step": 1}
         return data
