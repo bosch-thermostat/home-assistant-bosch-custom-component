@@ -3,7 +3,9 @@
 HA custom component for Bosch thermostats.
 If you like this component consider sponsoring my work: [:heart: Sponsor](https://github.com/sponsors/pszafer)
 
-**It will only work with at least Home Assistant 2021.9.x and and Python >=3.8.**
+**It will only work with at least Home Assistant 2021.11.x and and Python >=3.9.**
+
+If possible and if it's ok with you please enable Home Assistant Analytics so I can see how many people uses this integration.
 
 Supported protocols:
 
@@ -15,6 +17,9 @@ Supported types of devices:
 - IVT (HTTP/XMPP):
   - RC300
   - RC200
+  - RC35
+  - RC30
+  - RC20
 - NEFIT(XMPP only):
   - Junkers CT100
   - Bosch Remote room controller CT100
@@ -53,7 +58,7 @@ To make debugscan go to HA developer tools -> Services and choose
 ## Home Assistant debugging log
 
 In case of a working integration within Home Assistant you may find issues in the way the Bosch environment is visible within HA. To identify the root cause, a debug log is helpful. To obtain these log, please follow the guidenance in the wiki https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/wiki/Home-Assistant-Obtain-Debug-Logs.
-  
+
 Example logger config for debugging:
 
 ```
@@ -66,14 +71,14 @@ logger:
 
 ## Bosch system scan via raw scan
 
-The integration allows a raw scan of the connected Bosch devices via Home Assistant or Linux system. This is useful, if your installation fails or does not show devices or sensors you know to be existing. 
+The integration allows a raw scan of the connected Bosch devices via Home Assistant or Linux system. This is useful, if your installation fails or does not show devices or sensors you know to be existing.
 
 Detailed guidance can be found at https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/wiki/Dev-Raw-Scan-for-the-Bosch-Devices
 
 **bosch.debug_scan** .
 
 Download `json` file and attach it somewhere. The `json` file is stored under <hass-config>/www/bosch_scan.json. Please make sure the www folder exists prior to running the scan.
-  
+
 # First config help needed.
 
 Come to Discord channel https://discord.gg/WeWQGNR and let's try to figure out if you have unknown device for us or if there is issue with component.
