@@ -1,7 +1,7 @@
 """Support for Bosch Thermostat Binary Sensor."""
 import logging
 
-from bosch_thermostat_client.const import BINARY, ON
+from bosch_thermostat_client.const import BINARY, ON, USED
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -102,7 +102,18 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
     async def async_update(self):
         """Update state of device."""
         _LOGGER.debug("Update of binary sensor %s called.", self.unique_id)
-        self._attr_is_on = True if self._bosch_object.state.lower() == ON else False
+
+        def get_on_attr():
+            if self._bosch_object.state.lower() == ON:
+                return True
+            elif (
+                self._bosch_object.get_value(USED, "true").lower() == "true"
+                and self._bosch_object.state.lower() == USED
+            ):
+                return True
+            return False
+
+        self._attr_is_on = get_on_attr()
 
         self._attrs["stateExtra"] = self._bosch_object.state_message
         self.attrs_write(data=self._bosch_object.get_property(self._attr_uri))
