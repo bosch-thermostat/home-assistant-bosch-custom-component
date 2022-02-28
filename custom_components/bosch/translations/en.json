@@ -1,0 +1,43 @@
+{
+  "config": {
+      "title": "Bosch thermostat",
+      "step": {
+          "choose_type": {
+              "title": "Choose device type.",
+              "data": {
+                  "device_type": "Choose type of your device."
+              }
+          },
+          "http_config": {
+            "title": "Bosch thermostat HTTP config",
+            "data": {
+                "address": "IP address",
+                "access_token": "Access token",
+                "password": "Password"
+            }
+          },
+          "xmpp_config": {
+              "title": "Bosch thermostat XMPP config",
+              "data": {
+                  "address": "Serial number of device",
+                  "access_token": "Access token",
+                  "password": "Password"
+              }
+            },
+          "protocol": {
+            "title": "Bosch IVT Protocol. HTTP is local. XMPP is cloud!",
+            "data": {
+                "Protocol": "Either http or xmpp"
+            }
+          }
+      },
+      "error": {
+          "service_unavailable": "No service available"
+      },
+      "abort": {
+          "faulty_credentials": "Bad user credentials or wrong IP",
+          "already_configured": "Controller site is already configured",
+          "unknown": "Unknown reason. Check LOGS."
+      }
+  }
+}
