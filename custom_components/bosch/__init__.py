@@ -39,7 +39,6 @@ from homeassistant.util.json import load_json, save_json
 
 from custom_components.bosch.switch import SWITCH
 
-from .const import CLIMATE  # SENSOR,; SENSORS,
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
@@ -67,6 +66,8 @@ from .const import (
     SOLAR,
     UUID,
     WATER_HEATER,
+    CLIMATE,
+    RECORDING_SERVICE_UPDATE,
 )
 
 SIGNALS = {
@@ -111,6 +112,7 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
     _LOGGER.info(f"Setting up Bosch component version {LIBVERSION}.")
     uuid = entry.data[UUID]
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
     gateway_entry = BoschGatewayEntry(
         hass=hass,
         uuid=uuid,
@@ -142,6 +144,11 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     bosch = hass.data[DOMAIN].pop(uuid)
     await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
     return True
+
+
+async def async_update_options(hass: HomeAssistantType, entry: ConfigEntry):
+    """Reload entry if options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def create_notification_firmware(hass: HomeAssistantType, msg):
@@ -349,6 +356,12 @@ class BoschGatewayEntry:
         if update:
             self.hass.services.async_register(
                 DOMAIN, SERVICE_UPDATE, self.thermostat_refresh, SERVICE_DEBUG_SCHEMA
+            )
+            self.hass.services.async_register(
+                DOMAIN,
+                RECORDING_SERVICE_UPDATE,
+                self.recording_sensors_update,
+                SERVICE_DEBUG_SCHEMA,
             )
 
     def register_update(self):

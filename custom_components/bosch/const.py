@@ -42,6 +42,8 @@ SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In([START, STOP])}
 SERVICE_CHARGE_START = "set_dhw_charge"
 SERVICE_DEBUG = "debug_scan"
 SERVICE_UPDATE = "update_thermostat"
+RECORDING_SERVICE_UPDATE = "update_recordings_thermostat"
+SERVICE_MOVE_OLD_DATA = "move_old_statistic_data"
 
 SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"

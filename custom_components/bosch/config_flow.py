@@ -14,6 +14,8 @@ from bosch_thermostat_client.exceptions import (
     UnknownDevice,
 )
 from homeassistant import config_entries
+from homeassistant.core import callback
+
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -55,6 +57,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         return await self.async_step_choose_type(user_input)
 
     async def async_step_choose_type(self, user_input=None):
+        """Choose if setup is for IVT, NEFIT or EASYCONTROL."""
         errors = {}
         if user_input is not None:
             self._choose_type = user_input[CONF_DEVICE_TYPE]
@@ -187,3 +190,34 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     async def async_step_discovery(self, discovery_info=None):
         """Handle a flow discovery."""
         _LOGGER.debug("Discovered Bosch unit : %s", discovery_info)
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(entry: config_entries.ConfigEntry):
+        return OptionsFlowHandler(entry)
+
+
+class OptionsFlowHandler(config_entries.OptionsFlow):
+    """Options flow handler for new API."""
+
+    def __init__(self, entry: config_entries.ConfigEntry):
+        """Initialize option."""
+        self.entry = entry
+
+    async def async_step_init(self, user_input=None):
+        """Display option dialog."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        new_stats_api = self.entry.options.get("new_stats_api", False)
+        fetch_past_days = self.entry.options.get("fetch_past_days", False)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("new_stats_api", default=new_stats_api): bool,
+                    vol.Optional("fetch_past_days", default=fetch_past_days): bool,
+                }
+            ),
+        )

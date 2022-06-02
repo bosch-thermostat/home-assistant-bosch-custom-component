@@ -1,14 +1,8 @@
 """Bosch sensor for Energy URI in Easycontrol."""
-import datetime
 import logging
-
-import homeassistant.util.dt as dt_util
+import datetime
 from bosch_thermostat_client.const import UNITS
-from homeassistant.components.recorder.statistics import (
-    async_add_external_statistics,
-    get_last_statistics,
-)
-from homeassistant.components.sensor import STATE_CLASS_TOTAL
+from .statistic_helper import StatisticHelper
 from homeassistant.const import (
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_TEMPERATURE,
@@ -16,8 +10,15 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     TEMP_CELSIUS,
 )
+from homeassistant.components.recorder.statistics import (
+    get_last_statistics,
+)
+from homeassistant.components.recorder import get_instance
+from homeassistant.util import dt as dt_util
+from homeassistant.components.recorder.models import StatisticData
 
-from ..const import LAST_RESET, SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
+
+from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
 from .bosch import BoschSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,16 +34,24 @@ EnergySensors = [
 ]
 
 
-class EnergySensor(BoschSensor):
+class EnergySensor(BoschSensor, StatisticHelper):
     """Representation of Energy Sensor."""
 
     signal = SIGNAL_ENERGY_UPDATE_BOSCH
     _domain_name = "Sensors"
 
-    def __init__(self, sensor_attributes, **kwargs):
-
-        super().__init__(name=sensor_attributes.get("name"), **kwargs)
-
+    def __init__(
+        self,
+        sensor_attributes,
+        new_stats_api: bool = False,
+        fetch_past_days: bool = False,
+        **kwargs,
+    ) -> None:
+        """Initialize Energy sensor."""
+        BoschSensor.__init__(self, name=sensor_attributes.get("name"), **kwargs)
+        StatisticHelper.__init__(
+            self, new_stats_api=new_stats_api, fetch_past_days=fetch_past_days
+        )
         self._read_attr = sensor_attributes.get("attr")
         self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = (
@@ -51,7 +60,7 @@ class EnergySensor(BoschSensor):
             else DEVICE_CLASS_ENERGY
         )
 
-    async def async_update(self):
+    async def async_update(self) -> None:
         """Update state of device."""
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
@@ -59,63 +68,73 @@ class EnergySensor(BoschSensor):
             self._state = STATE_UNAVAILABLE
             return
         self._state = value.get(self._read_attr)
-        self._attr_last_reset = data.get(LAST_RESET)
         if self._unit_of_measurement == ENERGY_KILO_WATT_HOUR:
-            await self._insert_statistics(
-                value=self._state, last_reset=self._attr_last_reset
-            )
+            await self._insert_statistics()
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
 
-    async def _insert_statistics(self, value, last_reset):
-        """Insert some fake statistics."""
-        last_reset_start = last_reset.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        def _generate_easycontrol_statistics(start, end, single_value, init_value):
-            statistics = []
-            now = start
-            sum_ = init_value
-            while now < end:
-                sum_ = sum_ + single_value
-                statistics.append(
-                    {
-                        "start": now,
-                        "sum": sum_,
-                    }
-                )
-                now = now + datetime.timedelta(hours=1)
-
-            return statistics
-
-        sum_ = 0
-        statistic_id = f"{self._domain_name}:{self._read_attr}external".lower()
-        last_stats = await self.hass.async_add_executor_job(
-            get_last_statistics, self.hass, 1, statistic_id, True
-        )
-        if statistic_id in last_stats:
-            last_stats_row = last_stats[statistic_id][0]
-            end = last_stats_row["end"]
-            end_time = datetime.datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
-            if last_reset.date() == end_time.date():
-                _LOGGER.debug("Skip re-adding day which already exists in database.")
-                return
-            sum_ = last_stats_row["sum"] or 0
-        metadata = {
-            "source": self._domain_name.lower(),
-            "statistic_id": statistic_id,
-            "unit_of_measurement": ENERGY_KILO_WATT_HOUR,
-            "has_mean": False,
-            "has_sum": True,
-        }
-        statistics = _generate_easycontrol_statistics(
-            last_reset_start,
-            last_reset_start + datetime.timedelta(days=1),
-            single_value=round(value / 24, 1),
-            init_value=sum_,
-        )
-        async_add_external_statistics(self.hass, metadata, statistics)
-
     @property
-    def state_class(self):
-        return STATE_CLASS_TOTAL
+    def statistic_id(self) -> str:
+        """External API statistic ID."""
+        if not self._short_id:
+            self._short_id = self.entity_id.replace(".", "").replace("sensor", "")
+        return f"{self._domain_name}:{self._read_attr}{self._short_id}external".lower()
+
+    def _generate_easycontrol_statistics(
+        self, start: datetime, end: datetime, single_value: int, init_value: int
+    ) -> tuple[int, list[StatisticData]]:
+        statistics = []
+        now = start
+        _sum = init_value
+        while now < end:
+            _sum = _sum + single_value
+            statistics.append(
+                StatisticData(
+                    start=now,
+                    state=single_value,
+                    sum=_sum,
+                )
+            )
+            now = now + datetime.timedelta(hours=1)
+        return (_sum, statistics)
+
+    async def _insert_statistics(self) -> None:
+        """Insert statistics from the past."""
+        last_stats = await get_instance(self.hass).async_add_executor_job(
+            get_last_statistics, self.hass, 1, self.statistic_id, True
+        )
+        today = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = None
+        start_time = today if self._fetch_past_days else None
+        if not last_stats:
+            all_stats = (await self._bosch_object.fetch_all()).values()
+            if not all_stats:
+                return
+            _sum = 0
+        elif self.statistic_id in last_stats:
+            self._bosch_object.set_past_data(self._read_attr)
+            last_stats_row = last_stats[self.statistic_id][0]
+            end_time = datetime.datetime.strptime(
+                last_stats_row["end"], "%Y-%m-%dT%H:%M:%S%z"
+            )
+            _sum = last_stats_row["sum"] or 0
+            all_stats = self._bosch_object.last_entry.values()
+        statistics_to_push = []
+        for stat in all_stats:
+            day_dt = datetime.datetime.strptime(stat["d"], "%d-%m-%Y")
+            if end_time and day_dt.date() == end_time.date():
+                _LOGGER.debug("Skip re-adding day which already exists in database.")
+                continue
+            if day_dt.date() == start_time.date():
+                _LOGGER.debug("Omitting past data requested by user.")
+                continue
+            day_dt = today.replace(year=day_dt.year, month=day_dt.month, day=day_dt.day)
+            _sum, statistics = self._generate_easycontrol_statistics(
+                start=day_dt,
+                end=day_dt + datetime.timedelta(days=1),
+                single_value=round(stat[self._read_attr] / 24, 3),
+                init_value=_sum,
+            )
+            statistics_to_push += statistics
+        self.add_external_stats(stats=statistics_to_push)

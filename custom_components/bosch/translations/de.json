@@ -39,5 +39,16 @@
           "already_configured": "Steuergerät ist bereits konfiguriert",
           "unknown": "Unbekannter Grund. LOGS prüfen."
       }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bosch options",
+        "data": {
+          "new_stats_api": "Use new statistic API (IVT and Easycontrol)",
+          "fetch_past_days": "If you want to fetch last 30 days (or as much as possible for CT200) in first fetch then select this. Otherwise only same day would be fetched."
+        }
+      }
+    }
   }
 }
