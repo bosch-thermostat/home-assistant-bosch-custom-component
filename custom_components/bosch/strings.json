@@ -39,5 +39,16 @@
             "already_configured": "Controller site is already configured",
             "unknown": "Unknown reason. Check LOGS."
         }
-    }
+    },
+    "options": {
+        "step": {
+          "init": {
+            "title": "Bosch options",
+            "data": {
+              "new_stats_api": "Use new statistic API (IVT and Easycontrol)",
+              "optimistic_mode": "Use optimistic mode for some functions (currently CT200 Operation mode set)."
+            }
+          }
+        }
+      }
 }

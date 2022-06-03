@@ -44,14 +44,11 @@ class EnergySensor(BoschSensor, StatisticHelper):
         self,
         sensor_attributes,
         new_stats_api: bool = False,
-        fetch_past_days: bool = False,
         **kwargs,
     ) -> None:
         """Initialize Energy sensor."""
         BoschSensor.__init__(self, name=sensor_attributes.get("name"), **kwargs)
-        StatisticHelper.__init__(
-            self, new_stats_api=new_stats_api, fetch_past_days=fetch_past_days
-        )
+        StatisticHelper.__init__(self, new_stats_api=new_stats_api)
         self._read_attr = sensor_attributes.get("attr")
         self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = (
@@ -106,7 +103,6 @@ class EnergySensor(BoschSensor, StatisticHelper):
         )
         today = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = None
-        start_time = today if self._fetch_past_days else None
         if not last_stats:
             all_stats = (await self._bosch_object.fetch_all()).values()
             if not all_stats:
@@ -123,11 +119,8 @@ class EnergySensor(BoschSensor, StatisticHelper):
         statistics_to_push = []
         for stat in all_stats:
             day_dt = datetime.datetime.strptime(stat["d"], "%d-%m-%Y")
-            if end_time and day_dt.date() == end_time.date():
-                _LOGGER.debug("Skip re-adding day which already exists in database.")
-                continue
-            if day_dt.date() == start_time.date():
-                _LOGGER.debug("Omitting past data requested by user.")
+            if end_time and day_dt.date() <= end_time.date():
+                _LOGGER.debug("Don't add day which is probably in database already.")
                 continue
             day_dt = today.replace(year=day_dt.year, month=day_dt.month, day=day_dt.day)
             _sum, statistics = self._generate_easycontrol_statistics(

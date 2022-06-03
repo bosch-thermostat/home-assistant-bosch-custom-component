@@ -46,7 +46,7 @@
         "title": "Bosch options",
         "data": {
           "new_stats_api": "Use new statistic API (IVT and Easycontrol)",
-          "fetch_past_days": "If you want to fetch last 30 days (or as much as possible for CT200) in first fetch then select this. Otherwise only same day would be fetched."
+          "optimistic_mode": "Use optimistic mode for some functions (currently CT200 Operation mode set)."
         }
       }
     }

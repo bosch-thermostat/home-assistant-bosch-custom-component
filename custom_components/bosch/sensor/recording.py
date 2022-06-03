@@ -25,13 +25,9 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
     signal = SIGNAL_RECORDING_UPDATE_BOSCH
     _domain_name = "Recording"
 
-    def __init__(
-        self, new_stats_api: bool = False, fetch_past_days: bool = False, **kwargs
-    ) -> None:
+    def __init__(self, new_stats_api: bool = False, **kwargs) -> None:
         """Initialize Recording sensor."""
-        StatisticHelper.__init__(
-            self, new_stats_api=new_stats_api, fetch_past_days=fetch_past_days
-        )
+        StatisticHelper.__init__(self, new_stats_api=new_stats_api)
         BoschBaseSensor.__init__(self, **kwargs)
 
     @property
@@ -108,11 +104,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         end_time = None
         if not last_stats:
             _LOGGER.debug("Last stats not exist. Trying to fetch last 30 days of data.")
-            start_time = (
-                today - timedelta(days=30)
-                if self._fetch_past_days
-                else today - timedelta(days=1)
-            )
+            start_time = today - timedelta(days=30)
             all_stats = await self.fetch_past_data(
                 start_time=start_time, stop_time=today
             )
@@ -122,7 +114,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         elif self.statistic_id in last_stats:
             last_stats_row = last_stats[self.statistic_id][0]
             end = last_stats_row["end"]
-            end_time = datetime.datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z")
+            end_time = dt_util.as_local(dt_util.parse_datetime(end))
             _sum = last_stats_row["sum"] or 0
             diff = today - end_time
             if diff > timedelta(days=1):
@@ -136,11 +128,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         statistics_to_push = []
         for stat in all_stats:
             _date: datetime.datetime = stat["d"]
-            if (
-                end_time
-                and _date.date() == end_time.date()
-                and _date.hour == end_time.hour
-            ):
+            if end_time and _date <= end_time:
                 _LOGGER.debug("Skip re-adding day which already exists in database.")
                 continue
             _state = stat["value"]
@@ -154,5 +142,4 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
                     sum=_sum,
                 )
             )
-        print(statistics_to_push)
         self.add_external_stats(stats=statistics_to_push)

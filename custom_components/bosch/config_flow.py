@@ -210,14 +210,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         new_stats_api = self.entry.options.get("new_stats_api", False)
-        fetch_past_days = self.entry.options.get("fetch_past_days", False)
+        optimistic_mode = self.entry.options.get("optimistic_mode", False)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Optional("new_stats_api", default=new_stats_api): bool,
-                    vol.Optional("fetch_past_days", default=fetch_past_days): bool,
+                    vol.Optional("optimistic_mode", default=optimistic_mode): bool,
                 }
             ),
         )

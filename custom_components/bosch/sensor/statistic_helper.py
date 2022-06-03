@@ -15,11 +15,10 @@ _LOGGER = logging.getLogger(__name__)
 class StatisticHelper:
     """Statistic helper class."""
 
-    def __init__(self, new_stats_api: bool = False, fetch_past_days: bool = False):
+    def __init__(self, new_stats_api: bool = False):
         """Initialize statistic helper."""
         self._short_id = None
         self._new_stats_api = new_stats_api
-        self._fetch_past_days = fetch_past_days
 
     async def move_old_entity_data_to_new(self, event_time=None) -> None:
         """Rename old entity_id in statistic table. Not working currently."""
