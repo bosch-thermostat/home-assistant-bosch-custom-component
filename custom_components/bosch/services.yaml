@@ -16,12 +16,12 @@ update_recordings_sensor:
     entity_id:
       description: Name(s) of entity. Choose one from Bosch component.
       example: 'sensor.energy'
-# move_old_statistic_data:
-#   description:  Move old statistic data
-#   fields:
-#     entity_id:
-#       description: Name(s) of entity. Choose one from Bosch component.
-#       example: 'sensor.recording_actualdhwpower'
+move_old_statistic_data:
+  description:  Move old statistic data
+  fields:
+    entity_id:
+      description: Name(s) of entity. Choose one from Bosch component.
+      example: 'sensor.recording_actualdhwpower'
 set_dhw_charge:
   description: Charge DHW circuit.
   fields:

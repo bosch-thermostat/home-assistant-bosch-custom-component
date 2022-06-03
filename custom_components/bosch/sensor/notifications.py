@@ -1,4 +1,4 @@
-"""Bosch regular sensor."""
+"""Bosch NEFIT notification sensor."""
 from .bosch import BoschSensor
 
 
