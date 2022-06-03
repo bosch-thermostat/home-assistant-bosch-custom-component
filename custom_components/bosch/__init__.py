@@ -25,6 +25,7 @@ from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
@@ -224,9 +225,7 @@ class BoschGatewayEntry:
                         self.config_entry, component
                     )
                 )
-            device_registry = (
-                await self.hass.helpers.device_registry.async_get_registry()
-            )
+            device_registry = dr.async_get(self.hass)
             device_registry.async_get_or_create(
                 config_entry_id=self.config_entry.entry_id,
                 identifiers={(DOMAIN, self.uuid)},
