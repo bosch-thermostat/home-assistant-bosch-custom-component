@@ -3,6 +3,7 @@ import asyncio
 import logging
 import random
 from datetime import timedelta
+from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -23,6 +24,7 @@ from bosch_thermostat_client.exceptions import (
 )
 from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.const import ATTR_ENTITY_ID, CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
@@ -34,7 +36,7 @@ from homeassistant.helpers.event import (
     async_track_time_interval,
 )
 from homeassistant.helpers.network import get_url
-from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import load_json, save_json
 
@@ -54,8 +56,6 @@ from .const import (
     NOTIFICATION_ID,
     RECORDING_INTERVAL,
     SCAN_INTERVAL,
-    SERVICE_DEBUG,
-    SERVICE_UPDATE,
     SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
     SIGNAL_BOSCH,
     SIGNAL_CLIMATE_UPDATE_BOSCH,
@@ -68,7 +68,12 @@ from .const import (
     UUID,
     WATER_HEATER,
     CLIMATE,
-    RECORDING_SERVICE_UPDATE,
+    BOSCH_GATEWAY_ENTRY,
+)
+from .services import (
+    async_register_services,
+    async_register_debug_service,
+    async_remove_services,
 )
 
 SIGNALS = {
@@ -92,8 +97,9 @@ SUPPORTED_PLATFORMS = {
 }
 
 CUSTOM_DB = "custom_bosch_db.json"
-SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.string})
-BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
+SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids})
+SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(UUID): int})
+
 TASK = "task"
 
 DATA_CONFIGS = "bosch_configs"
@@ -101,15 +107,17 @@ DATA_CONFIGS = "bosch_configs"
 _LOGGER = logging.getLogger(__name__)
 
 HOUR = timedelta(hours=1)
+ATTR_NAME = "name"
+DEFAULT_NAME = "World"
 
 
-async def async_setup(hass: HomeAssistantType, config: ConfigType):
+async def async_setup(hass: HomeAssistant, config: ConfigType):
     """Initialize the Bosch platform."""
     hass.data[DOMAIN] = {}
     return True
 
 
-async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
     _LOGGER.info(f"Setting up Bosch component version {LIBVERSION}.")
     uuid = entry.data[UUID]
@@ -125,10 +133,14 @@ async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
-    return await gateway_entry.async_init()
+    _init_status: bool = await gateway_entry.async_init()
+    if not _init_status:
+        return _init_status
+    async_register_services(hass, entry)
+    return True
 
 
-async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
     _LOGGER.debug("Removing entry.")
     uuid = entry.data[UUID]
@@ -144,15 +156,16 @@ async def async_unload_entry(hass: HomeAssistantType, entry: ConfigEntry):
     remove_entry(RECORDING_INTERVAL)
     bosch = hass.data[DOMAIN].pop(uuid)
     await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
+    async_remove_services(hass, entry)
     return True
 
 
-async def async_update_options(hass: HomeAssistantType, entry: ConfigEntry):
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Reload entry if options change."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-def create_notification_firmware(hass: HomeAssistantType, msg):
+def create_notification_firmware(hass: HomeAssistant, msg):
     """Create notification about firmware to the user."""
     hass.components.persistent_notification.async_create(
         title="Bosch info",
@@ -172,7 +185,7 @@ class BoschGatewayEntry:
 
     def __init__(
         self, hass, uuid, host, protocol, device_type, access_key, access_token, entry
-    ):
+    ) -> None:
         """Init Bosch gateway entry config class."""
         self.hass = hass
         self.uuid = uuid
@@ -190,7 +203,7 @@ class BoschGatewayEntry:
         self.supported_platforms = []
         self._update_lock = None
 
-    async def async_init(self):
+    async def async_init(self) -> bool:
         """Init async items in entry."""
         import bosch_thermostat_client as bosch
 
@@ -207,7 +220,7 @@ class BoschGatewayEntry:
             access_token=self._access_token,
         )
 
-        async def close_connection(event):
+        async def close_connection(event) -> None:
             """Close connection with server."""
             _LOGGER.debug("Closing connection to Bosch")
             await self.gateway.close()
@@ -235,8 +248,8 @@ class BoschGatewayEntry:
                 sw_version=self.gateway.firmware,
             )
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
-                _LOGGER.debug("Registering services.")
-                self.register_service(True, False)
+                _LOGGER.debug("Registering debug services.")
+                async_register_debug_service(hass=self.hass, entry=self)
             _LOGGER.debug(
                 "Bosch component registered with platforms %s.",
                 self.supported_platforms,
@@ -244,14 +257,23 @@ class BoschGatewayEntry:
             return True
         return False
 
-    def get_signals(self):
+    def get_signals(self) -> None:
+        """Prepare update after all entities are loaded."""
         if not self._signal_registered and all(
             k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
         ):
-            _LOGGER.debug("Registering service debug and service update interval.")
+            _LOGGER.debug("Registering thermostat update interval.")
             self._signal_registered = True
-            self.register_update()
-            self.register_service(True, True)
+            self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(
+                self.hass, self.thermostat_refresh, SCAN_INTERVAL
+            )
+            self.hass.data[DOMAIN][self.uuid][FW_INTERVAL] = async_track_time_interval(
+                self.hass,
+                self.firmware_refresh,
+                FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
+            )
+            async_call_later(self.hass, 5, self.thermostat_refresh)
+            self.hass.async_create_task(self.recording_sensors_update())
 
     async def async_init_bosch(self):
         """Initialize Bosch gateway module."""
@@ -289,8 +311,9 @@ class BoschGatewayEntry:
         _LOGGER.info("Bosch initialized.")
         return True
 
-    async def recording_sensors_update(self, now=None):
+    async def recording_sensors_update(self, now=None) -> bool | None:
         """Update of 1-hour sensors.
+
         It suppose to be called only once an hour
         so sensor get's average data from Bosch.
         """
@@ -342,39 +365,14 @@ class BoschGatewayEntry:
                 async_dispatcher_send(self.hass, signal)
             return True
 
-    def register_service(self, debug=False, update=False):
-        """Register service to use in HA."""
-        if debug and not self._debug_service_registered:
-            self.hass.services.async_register(
-                DOMAIN,
-                SERVICE_DEBUG,
-                self.async_handle_debug_service,
-                SERVICE_DEBUG_SCHEMA,
-            )
-            self._debug_service_registered = True
-        if update:
-            self.hass.services.async_register(
-                DOMAIN, SERVICE_UPDATE, self.thermostat_refresh, SERVICE_DEBUG_SCHEMA
-            )
-            self.hass.services.async_register(
-                DOMAIN,
-                RECORDING_SERVICE_UPDATE,
-                self.recording_sensors_update,
-                SERVICE_DEBUG_SCHEMA,
-            )
+    async def custom_put(self, path: str, value: Any) -> None:
+        """Send PUT directly to gateway without parsing."""
+        await self.gateway.raw_put(path=path, value=value)
 
-    def register_update(self):
-        """Register interval auto update."""
-        self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(
-            self.hass, self.thermostat_refresh, SCAN_INTERVAL
-        )
-        self.hass.data[DOMAIN][self.uuid][FW_INTERVAL] = async_track_time_interval(
-            self.hass,
-            self.firmware_refresh,
-            FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
-        )
-        async_call_later(self.hass, 5, self.thermostat_refresh)
-        self.hass.async_create_task(self.recording_sensors_update())
+    async def custom_get(self, path) -> str:
+        """Fetch value from gateway."""
+        async with self._update_lock:
+            return await self.gateway.raw_query(path=path)
 
     async def component_update(self, component_type=None, event_time=None):
         """Update data from HC, DHW, ZN, Sensors, Switch."""
@@ -431,9 +429,8 @@ class BoschGatewayEntry:
         except FirmwareException as err:
             create_notification_firmware(hass=self.hass, msg=err)
 
-    async def async_handle_debug_service(self, service_call):
-        """Make bosch scan for debug purposes of thermostat."""
-        filename = self.hass.config.path("www/bosch_scan.json")
+    async def make_rawscan(self, filename: str):
+        """Create rawscan from service."""
         try:
             async with self._update_lock:
                 _LOGGER.info("Starting rawscan of Bosch component")
@@ -455,7 +452,7 @@ class BoschGatewayEntry:
         except OSError as err:
             _LOGGER.error("Can't write image to file: %s", err)
 
-    async def async_reset(self):
+    async def async_reset(self) -> bool:
         """Reset this device to default state."""
         unload_ok = all(
             await asyncio.gather(
@@ -470,7 +467,5 @@ class BoschGatewayEntry:
         if not unload_ok:
             _LOGGER.debug("Unload failed!")
             return False
-        self.hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
-        self.hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
 
         return True

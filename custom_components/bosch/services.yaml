@@ -31,4 +31,18 @@ set_dhw_charge:
     value:
       description: Either start or stop
       example: 'start'
-    
+send_custom_put:
+  description: Send custom PUT command to your bosch gateway
+  fields:
+    path:
+      description: URI to send put command
+      example: '"/system/holidayModes/hm1/startStop'
+    value:
+      description: Value you want to send
+      example: '2022-05-17'
+send_custom_get:
+  description: Send custom GET command to your bosch gateway
+  fields:
+    path:
+      description: URI to send get command
+      example: '"/system/holidayModes/hm1/startStop'

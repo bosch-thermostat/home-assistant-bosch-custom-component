@@ -6,6 +6,7 @@ from bosch_thermostat_client.const import DHW, HC, SC, ZN
 from homeassistant.const import ENERGY_KILO_WATT_HOUR, TEMP_CELSIUS, TEMP_FAHRENHEIT
 
 DOMAIN = "bosch"
+BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
 ACCESS_KEY = "access_key"
 ACCESS_TOKEN = "access_token"
 UUID = "uuid"
@@ -40,6 +41,8 @@ STOP = "stop"
 SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In([START, STOP])}
 
 SERVICE_CHARGE_START = "set_dhw_charge"
+SERVICE_PUT = "send_custom_put"
+SERVICE_GET = "send_custom_get"
 SERVICE_DEBUG = "debug_scan"
 SERVICE_UPDATE = "update_thermostat"
 RECORDING_SERVICE_UPDATE = "update_recordings_thermostat"
