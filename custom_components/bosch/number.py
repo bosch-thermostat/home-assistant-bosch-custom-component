@@ -97,7 +97,8 @@ class BoschNumber(BoschEntity, NumberEntity):
         self._is_enabled = is_enabled
 
     @property
-    def device_name(self):
+    def device_name(self) -> str:
+        """Return device name."""
         return "Bosch switches"
 
     @property
