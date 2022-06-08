@@ -14,6 +14,7 @@ from bosch_thermostat_client.const import (
     NUMBER,
     RECORDINGS,
     SC,
+    SELECT,
     SENSOR,
     ZN,
 )
@@ -64,6 +65,7 @@ from .const import (
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
+    SIGNAL_SELECT,
     SOLAR,
     UUID,
     WATER_HEATER,
@@ -83,6 +85,7 @@ SIGNALS = {
     BINARY_SENSOR: SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
     SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
     SWITCH: SIGNAL_SWITCH,
+    SELECT: SIGNAL_SELECT,
     NUMBER: SIGNAL_NUMBER,
 }
 
@@ -90,6 +93,7 @@ SUPPORTED_PLATFORMS = {
     HC: [CLIMATE],
     DHW: [WATER_HEATER],
     SWITCH: [SWITCH],
+    SELECT: [SELECT],
     NUMBER: [NUMBER],
     SC: [SENSOR],
     SENSOR: [SENSOR, BINARY_SENSOR],
@@ -107,8 +111,6 @@ DATA_CONFIGS = "bosch_configs"
 _LOGGER = logging.getLogger(__name__)
 
 HOUR = timedelta(hours=1)
-ATTR_NAME = "name"
-DEFAULT_NAME = "World"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType):

@@ -45,7 +45,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         self._unique_id = self._domain_name + self._name + self._uuid
         self._attrs = {}
         self._circuit_type = circuit_type
-        self._is_enabled = is_enabled
+        self._attr_entity_registry_enabled_default = is_enabled
 
     @property
     def _domain_identifier(self):
@@ -65,11 +65,6 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
     def extra_state_attributes(self):
         """Return the state attributes of the sensor."""
         return self._attrs
-
-    @property
-    def entity_registry_enabled_default(self):
-        """Return if the entity should be enabled when first added to the entity registry."""
-        return self._is_enabled
 
     async def async_update(self):
         """Update state of device."""

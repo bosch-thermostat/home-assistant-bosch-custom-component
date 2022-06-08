@@ -94,7 +94,7 @@ class BoschNumber(BoschEntity, NumberEntity):
         self._unique_id = self._domain_name + self._name + self._uuid
         self._attrs = {}
         self._circuit_type = circuit_type
-        self._is_enabled = is_enabled
+        self._attr_entity_registry_enabled_default = is_enabled
 
     @property
     def device_name(self) -> str:
@@ -145,11 +145,6 @@ class BoschNumber(BoschEntity, NumberEntity):
     async def async_set_value(self, value: float) -> None:
         """Set new value."""
         await self._bosch_object.set_value(value)
-
-    @property
-    def entity_registry_enabled_default(self):
-        """Return if the entity should be enabled when first added to the entity registry."""
-        return self._is_enabled
 
 
 class CircuitNumber(BoschNumber):

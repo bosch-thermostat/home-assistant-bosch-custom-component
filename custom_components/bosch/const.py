@@ -33,6 +33,7 @@ SIGNAL_SOLAR_UPDATE_BOSCH = "bosch_solar_update"
 SIGNAL_RECORDING_UPDATE_BOSCH = "bosch_recording_update"
 SIGNAL_ENERGY_UPDATE_BOSCH = "bosch_energy_update"
 SIGNAL_SWITCH = "bosch_switch_update"
+SIGNAL_SELECT = "bosch_select_update"
 SIGNAL_NUMBER = "bosch_number_update"
 BOSCH_STATE = "bosch_state"
 

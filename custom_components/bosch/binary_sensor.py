@@ -72,7 +72,7 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
 
         self._unique_id = self._domain_name + self._name + self._uuid
         self._attrs = {}
-        self._is_enabled = is_enabled
+        self._attr_entity_registry_enabled_default = is_enabled
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -93,11 +93,6 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
     def device_name(self):
         """Return name displayed in device_info"""
         return "Bosch sensors"
-
-    @property
-    def entity_registry_enabled_default(self):
-        """Return if the entity should be enabled when first added to the entity registry."""
-        return self._is_enabled
 
     async def async_update(self):
         """Update state of device."""

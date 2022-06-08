@@ -24,12 +24,12 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the Bosch Water heater from a config entry."""
+    """Set up the Bosch Switch from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
     enabled_switches = config_entry.data.get(SWITCH, [])
     data_switch = []
-    for switch in data[GATEWAY].switches:
+    for switch in data[GATEWAY].regular_switches:
         data_switch.append(
             BoschSwitch(
                 hass=hass,
@@ -45,7 +45,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     for circ_type in CIRCUITS:
         circuits = data[GATEWAY].get_circuits(circ_type)
         for circuit in circuits:
-            for switch in circuit.switches:
+            for switch in circuit.regular_switches:
                 data_switch.append(
                     CircuitSwitch(
                         hass=hass,
@@ -99,7 +99,7 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
         self._unique_id = self._domain_name + self._name + self._uuid
         self._attrs = {}
         self._circuit_type = circuit_type
-        self._is_enabled = is_enabled
+        self._attr_entity_registry_enabled_default = is_enabled
 
     @property
     def is_on(self):
@@ -139,11 +139,6 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
     def should_poll(self):
         """Don't poll."""
         return False
-
-    @property
-    def entity_registry_enabled_default(self):
-        """Return if the entity should be enabled when first added to the entity registry."""
-        return self._is_enabled
 
 
 class BoschSwitch(BoschBaseSwitch):

@@ -65,6 +65,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         self._hvac_modes = []
         self._hvac_mode = None
         self._optimistic_mode = optimistic_mode
+        self._is_enabled = True
 
         super().__init__(
             hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
