@@ -91,7 +91,7 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
 
     @property
     def device_name(self):
-        """Return name displayed in device_info"""
+        """Return name displayed in device_info."""
         return "Bosch sensors"
 
     async def async_update(self):
@@ -114,6 +114,7 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
         self.attrs_write(data=self._bosch_object.get_property(self._attr_uri))
 
     def attrs_write(self, data):
+        """Write entity attributes."""
         self._attrs = data
         if self._update_init:
             self._update_init = False

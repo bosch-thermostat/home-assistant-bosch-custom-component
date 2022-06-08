@@ -3,7 +3,6 @@ Support for water heaters connected to Bosch thermostat.
 
 For more details about this platform, please refer to the documentation at...
 """
-import logging
 
 from bosch_thermostat_client.const import GATEWAY, SELECT
 from homeassistant.components.select import SelectEntity
