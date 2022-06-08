@@ -1,4 +1,4 @@
-""" Bosch Thermostat Number Entities."""
+"""Bosch Thermostat Number Entities."""
 
 from __future__ import annotations
 
