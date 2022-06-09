@@ -1,4 +1,5 @@
 """Bosch sensor for Recording sensor in IVT."""
+from __future__ import annotations
 from datetime import timedelta
 import datetime
 import logging

@@ -1,4 +1,5 @@
 """Bosch statistic helper for Recording/Energy sensor."""
+from __future__ import annotations
 import logging
 from homeassistant.components.recorder.models import (
     StatisticData,

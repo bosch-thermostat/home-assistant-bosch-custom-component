@@ -3,6 +3,7 @@ Support for water heaters connected to Bosch thermostat.
 
 For more details about this platform, please refer to the documentation at...
 """
+from __future__ import annotations
 import logging
 
 from bosch_thermostat_client.const import GATEWAY, SETPOINT

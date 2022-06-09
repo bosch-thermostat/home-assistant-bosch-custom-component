@@ -1,4 +1,5 @@
 """Bosch sensor for Energy URI in Easycontrol."""
+from __future__ import annotations
 import logging
 import datetime
 from bosch_thermostat_client.const import UNITS
