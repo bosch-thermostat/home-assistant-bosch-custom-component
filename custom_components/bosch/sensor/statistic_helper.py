@@ -5,7 +5,6 @@ from homeassistant.components.recorder.models import (
     StatisticMetaData,
     StatisticsMeta,
 )
-from homeassistant.const import ENERGY_KILO_WATT_HOUR
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.components.recorder.statistics import async_add_external_statistics
 
@@ -45,13 +44,12 @@ class StatisticHelper:
             name=self._name,
             source=self._domain_name.lower(),
             statistic_id=self.statistic_id,
-            unit_of_measurement=ENERGY_KILO_WATT_HOUR,
+            unit_of_measurement=self._unit_of_measurement,
         )
 
     def add_external_stats(self, stats: list[StatisticData]) -> None:
         """Add external statistics."""
+        self._state = "external"
         if not stats:
-            self._state = None
             return
         async_add_external_statistics(self.hass, self.statistic_metadata, stats)
-        self._state = "external"

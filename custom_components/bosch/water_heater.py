@@ -38,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 SUPPORT_FLAGS_HEATER = SUPPORT_TARGET_TEMPERATURE | SUPPORT_OPERATION_MODE
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(hass, config_entry, async_add_entities) -> bool:
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -60,7 +60,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     signal = SIGNAL_DHW_UPDATE_BOSCH
 
-    def __init__(self, hass, uuid, bosch_object, gateway):
+    def __init__(self, hass, uuid, bosch_object, gateway) -> None:
         """Initialize the water heater."""
         self._name_prefix = "Water heater"
         self._mode = None
@@ -72,8 +72,11 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
             hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
         )
 
-    async def service_charge(self, value):
-        """Set charge of DHW device. Upstream lib doesn't check if value is proper!"""
+    async def service_charge(self, value) -> None:
+        """Set charge of DHW device.
+
+        Upstream lib doesn't check if value is proper!
+        """
         _LOGGER.info("Setting %s %s with value %s", self._name, CHARGE, value)
         await self._bosch_object.set_service_call(CHARGE, value)
 
@@ -96,8 +99,8 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     @property
     def current_operation(self):
-        """
-        Return current operation as one of the following.
+        """Return current operation as one of the following.
+
         ["eco", "heat_pump", "high_demand", "electric_only"]
         """
         return self._mode

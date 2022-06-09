@@ -9,6 +9,7 @@ from homeassistant.const import (
     ENERGY_KILO_WATT_HOUR,
     STATE_UNAVAILABLE,
     TEMP_CELSIUS,
+    VOLUME_CUBIC_METERS,
 )
 from homeassistant.components.recorder.statistics import (
     get_last_statistics,
@@ -33,6 +34,21 @@ EnergySensors = [
     {"name": "energy hot water", "attr": "eHW", "unitOfMeasure": ENERGY_KILO_WATT_HOUR},
 ]
 
+EcusRecordingSensors = [
+    {
+        "name": "ecus avg outdoor temperature",
+        "attr": "T",
+        "unitOfMeasure": TEMP_CELSIUS,
+        "normalize": lambda x: x / 10,
+    },
+    {
+        "name": "central heating",
+        "attr": "ch",
+        "unitOfMeasure": VOLUME_CUBIC_METERS,
+    },
+    {"name": "hot water", "attr": "hw", "unitOfMeasure": VOLUME_CUBIC_METERS},
+]
+
 
 class EnergySensor(BoschSensor, StatisticHelper):
     """Representation of Energy Sensor."""
@@ -50,6 +66,7 @@ class EnergySensor(BoschSensor, StatisticHelper):
         BoschSensor.__init__(self, name=sensor_attributes.get("name"), **kwargs)
         StatisticHelper.__init__(self, new_stats_api=new_stats_api)
         self._read_attr = sensor_attributes.get("attr")
+        self._normalize = sensor_attributes.get("normalize")
         self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = (
             DEVICE_CLASS_TEMPERATURE
@@ -62,11 +79,19 @@ class EnergySensor(BoschSensor, StatisticHelper):
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
         if not value or self._read_attr not in value:
+            _LOGGER.debug("Reading attribute not available %s", self._read_attr)
             self._state = STATE_UNAVAILABLE
             return
-        self._state = value.get(self._read_attr)
-        if self._unit_of_measurement == ENERGY_KILO_WATT_HOUR:
+        if self._new_stats_api and (
+            self._unit_of_measurement == ENERGY_KILO_WATT_HOUR
+            or self._unit_of_measurement == VOLUME_CUBIC_METERS
+        ):
             await self._insert_statistics()
+        else:
+            if self._normalize:
+                self._state = self._normalize(value.get(self._read_attr))
+            else:
+                self._state = value.get(self._read_attr)
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
@@ -98,6 +123,7 @@ class EnergySensor(BoschSensor, StatisticHelper):
 
     async def _insert_statistics(self) -> None:
         """Insert statistics from the past."""
+
         last_stats = await get_instance(self.hass).async_add_executor_job(
             get_last_statistics, self.hass, 1, self.statistic_id, True
         )
@@ -109,7 +135,7 @@ class EnergySensor(BoschSensor, StatisticHelper):
                 return
             _sum = 0
         elif self.statistic_id in last_stats:
-            self._bosch_object.set_past_data(self._read_attr)
+            self._bosch_object.clear_past_data(self._read_attr)
             last_stats_row = last_stats[self.statistic_id][0]
             end_time = datetime.datetime.strptime(
                 last_stats_row["end"], "%Y-%m-%dT%H:%M:%S%z"
@@ -130,4 +156,5 @@ class EnergySensor(BoschSensor, StatisticHelper):
                 init_value=_sum,
             )
             statistics_to_push += statistics
+        _LOGGER.debug("Inserting external stats %s.", self.statistic_id)
         self.add_external_stats(stats=statistics_to_push)

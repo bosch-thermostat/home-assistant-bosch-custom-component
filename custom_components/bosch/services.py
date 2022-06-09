@@ -1,7 +1,6 @@
 """Services used in HA."""
 
 import logging
-from typing import Any
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
@@ -19,18 +18,17 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(UUID): int})
+SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(UUID): str})
 SERVICE_GET_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend({vol.Required("path"): str})
 SERVICE_PUT_SCHEMA = SERVICE_GET_SCHEMA.extend({vol.Required(VALUE): str})
 
 
-def find_gateway_entry(hass: HomeAssistant, data: dict[str, Any]) -> ConfigEntry | None:
-    if UUID in data:
-        uuid = data.get(UUID)
-        _gateway_entry = hass.data[DOMAIN].get(uuid)
-        if _gateway_entry:
-            return _gateway_entry
-        _LOGGER.error("Could not find a Bosch device with UUID %s", uuid)
+def find_gateway_entry(hass: HomeAssistant, data: str) -> ConfigEntry | None:
+    """Find gateway in config entries."""
+    _gateway_entry = hass.data[DOMAIN].get(data)
+    if _gateway_entry:
+        return _gateway_entry
+    _LOGGER.error("Could not find a Bosch device with UUID %s", data)
 
 
 def async_register_debug_service(hass: HomeAssistant, entry: ConfigEntry) -> None:

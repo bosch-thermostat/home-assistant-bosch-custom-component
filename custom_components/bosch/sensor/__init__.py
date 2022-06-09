@@ -1,25 +1,34 @@
 """Support for Bosch Thermostat Sensor."""
 
-from bosch_thermostat_client.const import RECORDINGS, REGULAR, SENSOR, SENSORS
+from bosch_thermostat_client.const import (
+    ECUS_RECORDING,
+    RECORDING,
+    REGULAR,
+    SENSOR,
+    SENSORS,
+)
 from bosch_thermostat_client.const.easycontrol import ENERGY
-from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers import entity_platform
+from homeassistant.helpers.dispatcher import async_dispatcher_send
+
 from ..const import CIRCUITS, DOMAIN, GATEWAY, SERVICE_MOVE_OLD_DATA, SIGNAL_BOSCH, UUID
 from .bosch import BoschSensor
 from .circuit import CircuitSensor
-from .energy import EnergySensor, EnergySensors
+from .energy import EcusRecordingSensors, EnergySensor, EnergySensors
 from .notifications import NotificationSensor
 from .recording import RecordingSensor
 
 SensorClass = {
-    RECORDINGS: RecordingSensor,
+    RECORDING: RecordingSensor,
     ENERGY: EnergySensor,
+    ECUS_RECORDING: EnergySensor,
     REGULAR: BoschSensor,
     "notification": NotificationSensor,
 }
 SensorKinds = {
-    RECORDINGS: RECORDINGS,
-    ENERGY: RECORDINGS,
+    RECORDING: RECORDING,
+    ENERGY: RECORDING,
+    ECUS_RECORDING: RECORDING,
     REGULAR: SENSOR,
     "notification": SENSOR,
 }
@@ -34,15 +43,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     new_stats_api = config_entry.options.get("new_stats_api", False)
     gateway = data[GATEWAY]
     data[SENSOR] = []
-    data[RECORDINGS] = []
+    data[RECORDING] = []
 
     def get_sensors(sensor):
-        if sensor.kind in (RECORDINGS, REGULAR, "notification"):
+        if sensor.kind in (RECORDING, REGULAR, "notification"):
             kwargs = (
                 {
                     "new_stats_api": new_stats_api,
                 }
-                if sensor.kind == RECORDINGS
+                if sensor.kind == RECORDING
                 else {}
             )
             return (
@@ -77,6 +86,23 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     for energy in EnergySensors
                 ],
             )
+        elif sensor.kind == ECUS_RECORDING:
+            return (
+                SensorKinds[sensor.kind],
+                [
+                    SensorClass[sensor.kind](
+                        hass=hass,
+                        uuid=uuid,
+                        bosch_object=sensor,
+                        gateway=gateway,
+                        sensor_attributes=energy,
+                        attr_uri=sensor.attr_id,
+                        new_stats_api=new_stats_api,
+                        is_enabled=sensor.attr_id in enabled_sensors,
+                    )
+                    for energy in EcusRecordingSensors
+                ],
+            )
         return (None, None)
 
     for bosch_sensor in gateway.sensors:
@@ -104,11 +130,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     )
                 )
     async_add_entities(data[SENSOR])
-    async_add_entities(data[RECORDINGS])
-    if data[RECORDINGS]:
+    async_add_entities(data[RECORDING])
+    if data[RECORDING]:
         platform = entity_platform.async_get_current_platform()
 
-        # This will call Entity.set_sleep_timer(sleep_time=VALUE)
+        # This will register add possibility via service to move old data to new format.
         platform.async_register_entity_service(
             SERVICE_MOVE_OLD_DATA,
             {},

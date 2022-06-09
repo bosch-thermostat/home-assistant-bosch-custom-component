@@ -12,8 +12,8 @@ from bosch_thermostat_client.const import (
     HC,
     HTTP,
     NUMBER,
-    RECORDINGS,
     SC,
+    RECORDING,
     SELECT,
     SENSOR,
     ZN,
@@ -319,7 +319,7 @@ class BoschGatewayEntry:
         It suppose to be called only once an hour
         so sensor get's average data from Bosch.
         """
-        entities = self.hass.data[DOMAIN][self.uuid].get(RECORDINGS, [])
+        entities = self.hass.data[DOMAIN][self.uuid].get(RECORDING, [])
         if not entities:
             return
         recording_callback = self.hass.data[DOMAIN][self.uuid].pop(
