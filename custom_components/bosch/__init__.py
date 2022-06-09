@@ -293,11 +293,6 @@ class BoschGatewayEntry:
             create_notification_firmware(hass=self.hass, msg=err)
             _LOGGER.error(err)
         if not self.gateway.uuid:
-            _LOGGER.debug(
-                "Cannot connect to Bosch gateway, host %s with UUID: %s",
-                self._host,
-                self.uuid,
-            )
             raise ConfigEntryNotReady(
                 "Cannot connect to Bosch gateway, host %s with UUID: %s",
                 self._host,
