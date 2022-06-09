@@ -66,7 +66,7 @@ class BoschClimateWaterEntity(BoschEntity):
 
     @property
     def device_name(self):
-        """Return name displayed in device_info"""
+        """Return name displayed in device_info."""
         return f"{self._name_prefix} {self._name}"
 
     @property

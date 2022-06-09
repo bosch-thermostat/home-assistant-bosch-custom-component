@@ -34,6 +34,9 @@ set_dhw_charge:
 send_custom_put:
   description: Send custom PUT command to your bosch gateway
   fields:
+    uuid:
+      description: UUID of device you want to connect to.
+      example: '"1111111"'
     path:
       description: URI to send put command
       example: '"/system/holidayModes/hm1/startStop'
@@ -43,6 +46,9 @@ send_custom_put:
 send_custom_get:
   description: Send custom GET command to your bosch gateway
   fields:
+    uuid:
+      description: UUID of device you want to connect to.
+      example: '"1111111"'
     path:
       description: URI to send get command
       example: '"/system/holidayModes/hm1/startStop'
