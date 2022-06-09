@@ -45,9 +45,8 @@
       "init": {
         "title": "Bosch options",
         "data": {
-          "new_stats_api": "Use new statistic API (IVT and Easycontrol)",
-          "optimistic_mode": "Use optimistic mode for some functions (currently Easycontrol Operation mode set).",
-          "holiday_mode": "Which holiday mode to use in Holiday Mode entities."
+          "new_stats_api": "Use new statistic API",
+          "optimistic_mode": "Use optimistic mode for some functions (currently Easycontrol Operation mode set)."
         }
       }
     }
