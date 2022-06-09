@@ -3,6 +3,7 @@ import asyncio
 import logging
 import random
 from datetime import timedelta
+from collections.abc import Awaitable
 from typing import Any
 
 import homeassistant.helpers.config_validation as cv
@@ -26,7 +27,11 @@ from bosch_thermostat_client.exceptions import (
 from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.const import ATTR_ENTITY_ID, CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    CONF_ADDRESS,
+    EVENT_HOMEASSISTANT_STOP,
+)
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -100,6 +105,7 @@ SUPPORTED_PLATFORMS = {
     ZN: [CLIMATE],
 }
 
+
 CUSTOM_DB = "custom_bosch_db.json"
 SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids})
 SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(UUID): int})
@@ -157,13 +163,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     remove_entry(FW_INTERVAL)
     remove_entry(RECORDING_INTERVAL)
     bosch = hass.data[DOMAIN].pop(uuid)
-    await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
+    unload_ok = await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
     async_remove_services(hass, entry)
-    return True
+    return unload_ok
 
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Reload entry if options change."""
+    _LOGGER.debug("Reloading entry %s", entry.entry_id)
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -456,18 +463,14 @@ class BoschGatewayEntry:
 
     async def async_reset(self) -> bool:
         """Reset this device to default state."""
-        unload_ok = all(
-            await asyncio.gather(
-                *[
-                    self.hass.config_entries.async_forward_entry_unload(
-                        self.config_entry, component
-                    )
-                    for component in self.supported_platforms
-                ]
+        _LOGGER.warn("Unloading Bosch module.")
+        _LOGGER.debug("Closing connection to gateway.")
+        tasks: list[Awaitable] = [
+            self.hass.config_entries.async_forward_entry_unload(
+                self.config_entry, platform
             )
-        )
-        if not unload_ok:
-            _LOGGER.debug("Unload failed!")
-            return False
-
-        return True
+            for platform in self.supported_platforms
+        ]
+        unload_ok = await asyncio.gather(*tasks)
+        await self.gateway.close(force=True)
+        return all(unload_ok)

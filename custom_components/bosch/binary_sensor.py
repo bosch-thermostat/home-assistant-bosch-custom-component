@@ -74,12 +74,6 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
         self._attrs = {}
         self._attr_entity_registry_enabled_default = is_enabled
 
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            self.signal, self.async_update
-        )
-
     @property
     def _domain_identifier(self):
         return {(DOMAIN, self._domain_name + self._uuid)}

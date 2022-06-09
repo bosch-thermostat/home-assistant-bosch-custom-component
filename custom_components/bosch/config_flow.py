@@ -194,6 +194,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     @staticmethod
     @callback
     def async_get_options_flow(entry: config_entries.ConfigEntry):
+        """Get option flow."""
         return OptionsFlowHandler(entry)
 
 

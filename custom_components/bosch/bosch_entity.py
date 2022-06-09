@@ -1,6 +1,6 @@
 """Bosch base entity."""
 from homeassistant.const import TEMP_CELSIUS
-
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 
 
@@ -31,8 +31,8 @@ class BoschEntity:
 
     async def async_added_to_hass(self):
         """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            self.signal, self.async_update
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, self.signal, self.async_update)
         )
 
     @property

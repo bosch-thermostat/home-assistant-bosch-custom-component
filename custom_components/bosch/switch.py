@@ -106,12 +106,6 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
         """Return true if switch is on."""
         return self._state
 
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            SIGNAL_SWITCH, self.async_update
-        )
-
     async def async_turn_on(self, **kwargs):
         """Turn on switch."""
         _LOGGER.debug("Turning on %s switch.", self._name)

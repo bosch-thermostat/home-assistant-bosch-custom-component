@@ -81,12 +81,6 @@ class BoschSelect(BoschEntity, SelectEntity):
         """Return device name."""
         return "Bosch selects"
 
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        self.hass.helpers.dispatcher.async_dispatcher_connect(
-            SIGNAL_SELECT, self.async_update
-        )
-
     @property
     def current_option(self) -> str:
         """Return current selected option."""
