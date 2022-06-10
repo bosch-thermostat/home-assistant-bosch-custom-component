@@ -81,6 +81,9 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         """Update state of device."""
         _LOGGER.debug("Update of sensor %s called.", self.unique_id)
         if self._new_stats_api:
+            self._unit_of_measurement = UNITS_CONVERTER.get(
+                self._bosch_object.unit_of_measurement
+            )
             _LOGGER.debug("Invoking external statistic function.")
             await self._insert_statistics()
         else:
