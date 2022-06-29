@@ -1,21 +1,21 @@
 debug_scan:
   description:  Run raw scan for Bosch. It will be available as bosch_scan.json in your www dir of Home Assistant. You can check url of the file in logs after it. It doesn't matter which entity you choose. It makes scan for whole your setup. Typically it is https://ha/local/bosch_scan.json?vX . There will be notification in HA with url of the scan. It takes several minutes to finish. Be patient!
   fields:
-    entity_id:
-      description: Name(s) of entity. Choose one from Bosch component.
-      example: 'climate.hc1'
+    uuid:
+      description: UUID of device you want to connect to.
+      example: '"1111111"'
 update_thermostat:
   description:  Update thermostat data manually. Automatically it occurs every 30 seconds. Avoid to use it a lot as Bosch gateway might block requests for some time.
   fields:
-    entity_id:
-      description: Name(s) of entity. Choose one from Bosch component.
-      example: 'climate.hc1'
+    uuid:
+      description: UUID of device you want to connect to.
+      example: '"1111111"'
 update_recordings_sensor:
   description:  Update thermostat recording/energy sensor manually. Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
   fields:
-    entity_id:
-      description: Name(s) of entity. Choose one from Bosch component.
-      example: 'sensor.energy'
+    uuid:
+      description: UUID of device you want to connect to.
+      example: '"1111111"'
 move_old_statistic_data:
   description:  Move old statistic data
   fields:
