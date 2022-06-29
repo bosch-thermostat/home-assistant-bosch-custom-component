@@ -59,7 +59,6 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
     async def async_old_gather_update(self) -> None:
         """Old async update."""
         data = self._bosch_object.get_property(self._attr_uri)
-        print("data", data)
         now = dt_util.now()
         if not data and not data.get(VALUE):
             return
