@@ -11,7 +11,6 @@ except ImportError:
     from homeassistant.components.recorder.models import StatisticsMeta
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.components.recorder.statistics import async_add_external_statistics
-from homeassistant.const import __version__ as HA_VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
