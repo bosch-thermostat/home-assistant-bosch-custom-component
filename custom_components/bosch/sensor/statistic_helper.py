@@ -1,18 +1,19 @@
 """Bosch statistic helper for Recording/Energy sensor."""
 from __future__ import annotations
-from awesomeversion import AwesomeVersion
 import logging
 from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
 )
+try:
+    from homeassistant.components.recorder.db_schema import StatisticsMeta
+except ImportError:
+    from homeassistant.components.recorder.models import StatisticsMeta
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.const import __version__ as HA_VERSION
 
 _LOGGER = logging.getLogger(__name__)
-
-CURRENT_HA_VERSION = AwesomeVersion(HA_VERSION)
 
 
 class StatisticHelper:
@@ -27,12 +28,6 @@ class StatisticHelper:
         """Rename old entity_id in statistic table. Not working currently."""
         old_entity_id = self.entity_id
         _LOGGER.debug("Moving entity id statistic data to new format.")
-
-        if CURRENT_HA_VERSION >= "2022.07.0b0":
-            from homeassistant.components.recorder.db_schema import StatisticsMeta
-        else:
-            from homeassistant.components.recorder.models import StatisticsMeta
-
         with session_scope(hass=self.hass) as session:
             session.query(StatisticsMeta).filter(
                 (StatisticsMeta.statistic_id == old_entity_id)
