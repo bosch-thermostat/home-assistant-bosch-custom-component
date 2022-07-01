@@ -4,8 +4,11 @@ import logging
 from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
-    StatisticsMeta,
 )
+try:
+    from homeassistant.components.recorder.db_schema import StatisticsMeta
+except ImportError:
+    from homeassistant.components.recorder.models import StatisticsMeta
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.components.recorder.statistics import async_add_external_statistics
 
