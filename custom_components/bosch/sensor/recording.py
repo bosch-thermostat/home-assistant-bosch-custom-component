@@ -8,6 +8,7 @@ from .statistic_helper import StatisticHelper
 
 from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
 from .base import BoschBaseSensor
+from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import (
     StatisticData,
 )
@@ -101,7 +102,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
     async def _insert_statistics(self) -> None:
         """Insert external statistics."""
         _sum = 0
-        last_stats = await self.hass.async_add_executor_job(
+        last_stats = await get_instance(self.hass).async_add_executor_job(
             get_last_statistics, self.hass, 1, self.statistic_id, True
         )
         today = dt_util.now()
