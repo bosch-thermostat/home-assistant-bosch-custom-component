@@ -106,28 +106,28 @@ class BoschNumber(BoschEntity, NumberEntity):
         return {(DOMAIN, self._domain_name + self._uuid)}
 
     @property
-    def min_value(self) -> float:
+    def native_min_value(self) -> float:
         """Return the minimum value."""
         if self._bosch_object.min_value is None:
             return 0
         return float(self._bosch_object.min_value)
 
     @property
-    def max_value(self) -> float:
+    def native_max_value(self) -> float:
         """Return the maximum value."""
         if self._bosch_object.max_value is None:
             return 255
         return float(self._bosch_object.max_value)
 
     @property
-    def value(self) -> float | None:
+    def native_value(self) -> float | None:
         """Return the entity value."""
         if self._bosch_object.state is None:
             return None
         return float(self._bosch_object.state)
 
     @property
-    def unit_of_measurement(self) -> str | None:
+    def native_unit_of_measurement(self) -> str | None:
         """Return the unit of measurement of this entity, if any."""
         if self._bosch_object.unit_of_measurement is None:
             return None
@@ -142,7 +142,7 @@ class BoschNumber(BoschEntity, NumberEntity):
         """Update state of device."""
         pass
 
-    async def async_set_value(self, value: float) -> None:
+    async def async_set_native_value(self, value: float) -> None:
         """Set new value."""
         await self._bosch_object.set_value(value)
 
