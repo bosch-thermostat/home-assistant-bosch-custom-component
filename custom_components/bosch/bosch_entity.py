@@ -46,7 +46,7 @@ class BoschEntity:
             name=self.device_name,
             sw_version=self._gateway.firmware,
             hw_version=self._uuid,
-            connections={(DOMAIN, self._uuid)},
+            via_device=(DOMAIN, self._uuid),
         )
 
 
