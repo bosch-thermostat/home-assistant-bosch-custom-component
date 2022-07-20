@@ -5,6 +5,8 @@ from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
 )
+from sqlalchemy.exc import IntegrityError
+
 try:
     from homeassistant.components.recorder.db_schema import StatisticsMeta
 except ImportError:
@@ -27,17 +29,20 @@ class StatisticHelper:
         """Rename old entity_id in statistic table. Not working currently."""
         old_entity_id = self.entity_id
         _LOGGER.debug("Moving entity id statistic data to new format.")
-        with session_scope(hass=self.hass) as session:
-            session.query(StatisticsMeta).filter(
-                (StatisticsMeta.statistic_id == old_entity_id)
-                & (StatisticsMeta.source == "recorder")
-            ).update(
-                {
-                    StatisticsMeta.statistic_id: self.statistic_id,
-                    StatisticsMeta.source: self._domain_name.lower(),
-                    StatisticsMeta.name: self._name,
-                }
-            )
+        try:
+            with session_scope(hass=self.hass) as session:
+                session.query(StatisticsMeta).filter(
+                    (StatisticsMeta.statistic_id == old_entity_id)
+                    & (StatisticsMeta.source == "recorder")
+                ).update(
+                    {
+                        StatisticsMeta.statistic_id: self.statistic_id,
+                        StatisticsMeta.source: self._domain_name.lower(),
+                        StatisticsMeta.name: self._name,
+                    }
+                )
+        except IntegrityError as err:
+            _LOGGER.error("Can't move entity id. It already exists. %s", err)
 
     @property
     def statistic_metadata(self) -> StatisticMetaData:

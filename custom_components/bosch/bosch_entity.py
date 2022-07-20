@@ -2,6 +2,7 @@
 from homeassistant.const import TEMP_CELSIUS
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
+from homeassistant.helpers.entity import DeviceInfo
 
 
 class BoschEntity:
@@ -36,16 +37,17 @@ class BoschEntity:
         )
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Get attributes about the device."""
-        return {
-            "identifiers": self._domain_identifier,
-            "manufacturer": self._gateway.device_model,
-            "model": self._gateway.device_type,
-            "name": self.device_name,
-            "sw_version": self._gateway.firmware,
-            "via_hub": (DOMAIN, self._uuid),
-        }
+        return DeviceInfo(
+            identifiers=self._domain_identifier,
+            manufacturer=self._gateway.device_model,
+            model=self._gateway.device_type,
+            name=self.device_name,
+            sw_version=self._gateway.firmware,
+            hw_version=self._uuid,
+            connections={(DOMAIN, self._uuid)},
+        )
 
 
 class BoschClimateWaterEntity(BoschEntity):

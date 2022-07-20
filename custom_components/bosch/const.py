@@ -46,7 +46,7 @@ SERVICE_PUT = "send_custom_put"
 SERVICE_GET = "send_custom_get"
 SERVICE_DEBUG = "debug_scan"
 SERVICE_UPDATE = "update_thermostat"
-RECORDING_SERVICE_UPDATE = "update_recordings_thermostat"
+RECORDING_SERVICE_UPDATE = "update_recordings_sensor"
 SERVICE_MOVE_OLD_DATA = "move_old_statistic_data"
 
 SENSORS = "sensors"
