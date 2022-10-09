@@ -114,6 +114,9 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         _LOGGER.debug(f"Setting target temperature {temperature}.")
         await self._bosch_object.set_temperature(temperature)
+        if self._optimistic_mode:
+            self._target_temperature = temperature
+            self.async_write_ha_state()
 
     @property
     def hvac_mode(self):
