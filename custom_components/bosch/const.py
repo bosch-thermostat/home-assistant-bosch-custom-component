@@ -85,9 +85,9 @@ RECORDING_INTERVAL = "recording_interval"
 
 CIRCUITS = [DHW, HC, SC, ZN]
 CIRCUITS_SENSOR_NAMES = {
-    DHW: "Water heater ",
-    HC: "Heating circuit ",
-    SC: "Solar circuit ",
+    DHW: "Water heater",
+    HC: "Heating circuit",
+    SC: "Solar circuit",
     ZN: "Zone circuit",
 }
 
