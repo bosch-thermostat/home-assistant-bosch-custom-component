@@ -111,6 +111,9 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
 
     def time_sensor_data(self, data):
         value = data.get(VALUE, INVALID)
+        if value == 0:
+            self._state = value
+            return
         now = datetime.now()
         next_from_midnight = datetime.now().replace(
             hour=0, minute=0, second=0, microsecond=0
