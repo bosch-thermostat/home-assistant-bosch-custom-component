@@ -127,6 +127,11 @@ class BoschNumber(BoschEntity, NumberEntity):
         return float(self._bosch_object.state)
 
     @property
+    def native_step(self) -> float:
+        """Return the entity value."""
+        return self._bosch_object.step
+
+    @property
     def native_unit_of_measurement(self) -> str | None:
         """Return the unit of measurement of this entity, if any."""
         if self._bosch_object.unit_of_measurement is None:
