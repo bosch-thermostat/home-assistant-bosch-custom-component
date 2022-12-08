@@ -1,0 +1,54 @@
+{
+  "config": {
+      "title": "Bosch thermostaat",
+      "step": {
+          "choose_type": {
+              "title": "Kies apparaattype.",
+              "data": {
+                  "device_type": "Kies het type van uw apparaat."
+              }
+          },
+          "http_config": {
+            "title": "Bosch thermostaat HTTP configuratie",
+            "data": {
+                "address": "IP adres",
+                "access_token": "Toegangstoken",
+                "password": "Wachtwoord"
+            }
+          },
+          "xmpp_config": {
+              "title": "Bosch thermostaat XMPP configuratie",
+              "data": {
+                  "address": "Serienummer van het apparaat",
+                  "access_token": "Toegangstoken",
+                  "password": "Wachtwoord"
+              }
+            },
+          "protocol": {
+            "title": "Bosch IVT Protocol. HTTP is lokaal. XMPP is cloud!",
+            "data": {
+                "Protocol": "Een van beide http of xmpp"
+            }
+          }
+      },
+      "error": {
+          "service_unavailable": "Geen dienst beschikbaar"
+      },
+      "abort": {
+          "faulty_credentials": "Ongeldige logingegevens of verkeerd IP-adres",
+          "already_configured": "Controllersite is al geconfigureerd",
+          "unknown": "Onbekende reden. Controleer LOGS."
+      }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bosch opties",
+        "data": {
+          "new_stats_api": "Gebruik nieuwe statistische API",
+          "optimistic_mode": "Optimistische modus gebruiken voor sommige functies (momenteel ingestelde Easycontrol-bedrijfsmodus)."
+        }
+      }
+    }
+  }
+}
