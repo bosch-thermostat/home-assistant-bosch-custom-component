@@ -103,7 +103,12 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         """Insert external statistics."""
         _sum = 0
         last_stats = await get_instance(self.hass).async_add_executor_job(
-            get_last_statistics, self.hass, 1, self.statistic_id, True
+            get_last_statistics,
+            self.hass,
+            1,
+            self.statistic_id,
+            True,
+            {"last_reset", "max", "mean", "min", "state", "sum"},
         )
         today = dt_util.now()
         end_time = None
