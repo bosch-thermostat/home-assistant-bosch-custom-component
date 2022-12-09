@@ -123,8 +123,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
             _sum = 0
         elif self.statistic_id in last_stats:
             last_stats_row = last_stats[self.statistic_id][0]
-            end = last_stats_row["end"]
-            end_time = dt_util.as_local(dt_util.parse_datetime(end))
+            end_time = last_stats_row["end"]
             _sum = last_stats_row["sum"] or 0
             diff = today - end_time
             if diff > timedelta(days=1):
