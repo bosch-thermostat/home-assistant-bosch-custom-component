@@ -126,7 +126,12 @@ class EnergySensor(BoschSensor, StatisticHelper):
         """Insert statistics from the past."""
 
         last_stats = await get_instance(self.hass).async_add_executor_job(
-            get_last_statistics, self.hass, 1, self.statistic_id, True
+            get_last_statistics,
+            self.hass,
+            1,
+            self.statistic_id,
+            True,
+            {"last_reset", "max", "mean", "min", "state", "sum"},
         )
         today = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = None
@@ -138,9 +143,7 @@ class EnergySensor(BoschSensor, StatisticHelper):
         elif self.statistic_id in last_stats:
             self._bosch_object.clear_past_data(self._read_attr)
             last_stats_row = last_stats[self.statistic_id][0]
-            end_time = datetime.datetime.strptime(
-                last_stats_row["end"], "%Y-%m-%dT%H:%M:%S%z"
-            )
+            end_time = last_stats_row["end"]
             _sum = last_stats_row["sum"] or 0
             all_stats = self._bosch_object.last_entry.values()
         statistics_to_push = []
