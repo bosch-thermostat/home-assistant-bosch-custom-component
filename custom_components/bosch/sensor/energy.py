@@ -4,9 +4,8 @@ import logging
 import datetime
 from bosch_thermostat_client.const import UNITS
 from .statistic_helper import StatisticHelper
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import (
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_TEMPERATURE,
     ENERGY_KILO_WATT_HOUR,
     STATE_UNAVAILABLE,
     TEMP_CELSIUS,
@@ -70,9 +69,9 @@ class EnergySensor(BoschSensor, StatisticHelper):
         self._normalize = sensor_attributes.get("normalize")
         self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = (
-            DEVICE_CLASS_TEMPERATURE
+            SensorDeviceClass.TEMPERATURE
             if self._unit_of_measurement == TEMP_CELSIUS
-            else DEVICE_CLASS_ENERGY
+            else SensorDeviceClass.ENERGY
         )
 
     async def async_update(self) -> None:
