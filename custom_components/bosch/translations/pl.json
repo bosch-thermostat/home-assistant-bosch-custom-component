@@ -27,7 +27,7 @@
           "protocol": {
             "title": "Protokół Bosch IVT. HTTP jest lokalny. XMPP to chmura!",
             "data": {
-                "Protocol": "Http albo xmpp"
+                "Protocol": "HTTP albo XMPP"
             }
           }
       },
