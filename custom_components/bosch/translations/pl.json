@@ -1,0 +1,54 @@
+{
+  "config": {
+      "title": "Bosch thermostat",
+      "step": {
+          "choose_type": {
+              "title": "Wybór trybu urządzenia.",
+              "data": {
+                  "device_type": "Wybierz typ urządzenia."
+              }
+          },
+          "http_config": {
+            "title": "Konfiguracja Bosch thermostat HTTP",
+            "data": {
+                "address": "adres IP",
+                "access_token": "Token dostępowy",
+                "password": "Hasło"
+            }
+          },
+          "xmpp_config": {
+              "title": "Konfiguracja Bosch thermostat XMPP",
+              "data": {
+                  "address": "Numer seryjny urządzenia",
+                  "access_token": "Token dostępowy",
+                  "password": "Hasło"
+              }
+            },
+          "protocol": {
+            "title": "Protokół Bosch IVT. HTTP jest lokalny. XMPP to chmura!",
+            "data": {
+                "Protocol": "HTTP albo XMPP"
+            }
+          }
+      },
+      "error": {
+          "service_unavailable": "Brak dostępnej usługi"
+      },
+      "abort": {
+          "faulty_credentials": "Złe dane uwierzytelniające użytkownika lub nieprawidłowy adres IP",
+          "already_configured": "Kontroler jest już skonfigurowany",
+          "unknown": "Nieznany powód. Sprawdź LOGI."
+      }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje Bosch",
+        "data": {
+          "new_stats_api": "Użyj nowego interfejsu API statystyk",
+          "optimistic_mode": "Użyj trybu optymistycznego dla niektórych funkcji (aktualnie ustawiony tryb pracy Easycontrol)."
+        }
+      }
+    }
+  }
+}
