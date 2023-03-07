@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.util import dt as dt_util
 from homeassistant.config_entries import ConfigEntry
+import homeassistant.helpers.config_validation as cv
+from bosch_thermostat_client.const import RECORDING
 from .const import (
     DOMAIN,
     SERVICE_DEBUG,
@@ -16,10 +19,15 @@ from .const import (
     VALUE,
 )
 
+from .sensor.recording import RecordingSensor
+
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(UUID): str})
 SERVICE_GET_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend({vol.Required("path"): str})
+SERVICE_FETCH_RANGE_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend(
+    {vol.Required("day"): cv.date, vol.Required("statistic_id"): str}
+)
 SERVICE_PUT_SCHEMA = SERVICE_GET_SCHEMA.extend({vol.Required(VALUE): str})
 
 
@@ -62,9 +70,31 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     async def async_handle_recording_sensor_refresh(service_call: ServiceCall):
         """Request update of recording sensor manually."""
-        _gateway_entry = find_gateway_entry(hass=hass, data=service_call.data.get(UUID))
+        uuid = service_call.data.get(UUID)
+        _gateway_entry = find_gateway_entry(hass=hass, data=uuid)
         if not _gateway_entry:
             return
+        _LOGGER.debug("Performing sensor update on service request. UUID: %s", uuid)
+        await _gateway_entry[BOSCH_GATEWAY_ENTRY].recording_sensors_update()
+
+    async def async_handle_recording_sensor_fetch_past(service_call: ServiceCall):
+        """Request update of recording sensor manually."""
+        print("start!")
+        uuid = service_call.data.get(UUID)
+        statistic_id = service_call.data.get("statistic_id")
+        day = dt_util.start_of_local_day(service_call.data.get("day"))
+        _gateway_entry = find_gateway_entry(hass=hass, data=uuid)
+        print("gateway entry", _gateway_entry)
+        if not _gateway_entry:
+            return
+        print("recording entityes")
+        recording_entities: list[RecordingSensor] = _gateway_entry.get(RECORDING, [])
+        print(recording_entities)
+        for entity in recording_entities:
+            if entity.enabled and entity.statistic_id == statistic_id:
+                print("lets insert")
+                await entity.insert_statistics_range(start_time=day)
+        _LOGGER.debug("Performing sensor update on service request. UUID: %s", uuid)
         await _gateway_entry[BOSCH_GATEWAY_ENTRY].recording_sensors_update()
 
     async def async_handle_get(service_call: ServiceCall):
@@ -113,6 +143,12 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
         SERVICE_PUT,
         async_handle_put,
         SERVICE_PUT_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "fetch_recordings_sensor_range",
+        async_handle_recording_sensor_fetch_past,
+        SERVICE_FETCH_RANGE_SCHEMA,
     )
 
 

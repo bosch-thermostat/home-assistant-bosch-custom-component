@@ -16,6 +16,22 @@ update_recordings_sensor:
     uuid:
       description: UUID of device you want to connect to. Go to device info page and check hardware version row.
       example: '"1111111"'
+fetch_recordings_sensor_range:
+  description:  Update thermostat recording/energy sensor manually. Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
+  fields:
+    uuid:
+      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
+      example: '"1111111"'
+    day:
+      name: Date
+      description: Date to fetch
+      example: "2022-03-22"
+      selector:
+        date:
+    statistic_id:
+      name: Statistic ID
+      description: Statistic ID, you can find proper id in Developer tools -> Statistics in column Statistic id.
+      example: "recording:recording"
 move_old_statistic_data:
   description:  Move old statistic data
   fields:
