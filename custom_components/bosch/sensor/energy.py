@@ -1,7 +1,7 @@
 """Bosch sensor for Energy URI in Easycontrol."""
 from __future__ import annotations
 import logging
-import datetime
+from datetime import timedelta, datetime
 from bosch_thermostat_client.const import UNITS
 from .statistic_helper import StatisticHelper
 from homeassistant.components.sensor import SensorDeviceClass
@@ -118,7 +118,7 @@ class EnergySensor(BoschSensor, StatisticHelper):
                     sum=_sum,
                 )
             )
-            now = now + datetime.timedelta(hours=1)
+            now = now + timedelta(hours=1)
         return (_sum, statistics)
 
     async def _insert_statistics(self) -> None:
@@ -142,19 +142,19 @@ class EnergySensor(BoschSensor, StatisticHelper):
         elif self.statistic_id in last_stats:
             self._bosch_object.clear_past_data(self._read_attr)
             last_stats_row = last_stats[self.statistic_id][0]
-            end_time = last_stats_row["end"]
+            end_time = dt_util.utc_from_timestamp(last_stats_row["end"])
             _sum = last_stats_row["sum"] or 0
             all_stats = self._bosch_object.last_entry.values()
         statistics_to_push = []
         for stat in all_stats:
-            day_dt = datetime.datetime.strptime(stat["d"], "%d-%m-%Y")
+            day_dt = datetime.strptime(stat["d"], "%d-%m-%Y")
             if end_time and day_dt.date() <= end_time.date():
                 _LOGGER.debug("Don't add day which is probably in database already.")
                 continue
             day_dt = today.replace(year=day_dt.year, month=day_dt.month, day=day_dt.day)
             _sum, statistics = self._generate_easycontrol_statistics(
                 start=day_dt,
-                end=day_dt + datetime.timedelta(days=1),
+                end=day_dt + timedelta(days=1),
                 single_value=round(stat[self._read_attr] / 24, 3),
                 init_value=_sum,
             )
