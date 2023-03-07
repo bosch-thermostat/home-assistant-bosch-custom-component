@@ -58,7 +58,7 @@ class StatisticHelper:
 
     def add_external_stats(self, stats: list[StatisticData]) -> None:
         """Add external statistics."""
-        self._state = "external"
+        self._state = -17
         if not stats:
             return
         async_add_external_statistics(self.hass, self.statistic_metadata, stats)
