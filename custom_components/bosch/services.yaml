@@ -25,7 +25,7 @@ fetch_recordings_sensor_range:
     day:
       name: Date
       description: Date to fetch
-      example: "2022-03-22"
+      example: '"2022-03-22"'
       selector:
         date:
     statistic_id:
