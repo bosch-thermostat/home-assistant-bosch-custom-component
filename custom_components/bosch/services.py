@@ -14,7 +14,8 @@ from .const import (
     UUID,
     BOSCH_GATEWAY_ENTRY,
     RECORDING_SERVICE_UPDATE,
-    SERVICE_PUT,
+    SERVICE_PUT_STRING,
+    SERVICE_PUT_FLOAT,
     SERVICE_GET,
     VALUE,
 )
@@ -28,7 +29,10 @@ SERVICE_GET_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend({vol.Required("path"): st
 SERVICE_FETCH_RANGE_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend(
     {vol.Required("day"): cv.date, vol.Required("statistic_id"): str}
 )
-SERVICE_PUT_SCHEMA = SERVICE_GET_SCHEMA.extend({vol.Required(VALUE): str})
+SERVICE_PUT_STRING_SCHEMA = SERVICE_GET_SCHEMA.extend({vol.Required(VALUE): str})
+SERVICE_PUT_FLOAT_SCHEMA = SERVICE_GET_SCHEMA.extend(
+    {vol.Required(VALUE): vol.Or(int, float)}
+)
 
 
 def find_gateway_entry(hass: HomeAssistant, data: str) -> ConfigEntry | None:
@@ -135,9 +139,15 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
     )
     hass.services.async_register(
         DOMAIN,
-        SERVICE_PUT,
+        SERVICE_PUT_STRING,
         async_handle_put,
-        SERVICE_PUT_SCHEMA,
+        SERVICE_PUT_STRING_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PUT_FLOAT,
+        async_handle_put,
+        SERVICE_PUT_FLOAT_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,

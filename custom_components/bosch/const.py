@@ -42,7 +42,8 @@ STOP = "stop"
 SERVICE_CHARGE_SCHEMA = {vol.Optional(VALUE): vol.In([START, STOP])}
 
 SERVICE_CHARGE_START = "set_dhw_charge"
-SERVICE_PUT = "send_custom_put"
+SERVICE_PUT_STRING = "send_custom_put_string"
+SERVICE_PUT_FLOAT = "send_custom_put_float"
 SERVICE_GET = "send_custom_get"
 SERVICE_DEBUG = "debug_scan"
 SERVICE_UPDATE = "update_thermostat"

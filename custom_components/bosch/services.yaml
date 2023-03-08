@@ -47,8 +47,20 @@ set_dhw_charge:
     value:
       description: Either start or stop
       example: 'start'
-send_custom_put:
-  description: Send custom PUT command to your bosch gateway
+send_custom_put_float:
+  description: Send custom PUT command to your bosch gateway with Float value
+  fields:
+    uuid:
+      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
+      example: '"1111111"'
+    path:
+      description: URI to send put command
+      example: '"/dhwCircuits/dhw1/temperatureLevels/high"'
+    value:
+      description: Value you want to send
+      example: 50.0
+send_custom_put_string:
+  description: Send custom PUT command to your bosch gateway with String value
   fields:
     uuid:
       description: UUID of device you want to connect to. Go to device info page and check hardware version row.
