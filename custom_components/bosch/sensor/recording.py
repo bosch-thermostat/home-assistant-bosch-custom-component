@@ -2,7 +2,6 @@
 from __future__ import annotations
 from datetime import timedelta, datetime
 import logging
-import json
 import asyncio
 from .statistic_helper import StatisticHelper
 
@@ -16,7 +15,6 @@ from homeassistant.components.recorder.models import (
 from homeassistant.components.recorder.statistics import (
     get_last_statistics,
     statistics_during_period,
-    adjust_statistics,
 )
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.util import dt as dt_util
@@ -230,7 +228,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
             24,
             self.statistic_id,
             True,
-            {"last_reset", "max", "mean", "min", "state", "sum"},
+            {"state", "sum"},
         )
         now = dt_util.now()
         start_of_day = dt_util.start_of_local_day()
@@ -240,7 +238,7 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         def get_last_stats_row():
             for stat in last_stats[self.statistic_id]:
                 tstmp = timestamp_to_datetime_or_none(stat["start"])
-                if tstmp and tstmp < start_of_day:
+                if tstmp and tstmp <= start_of_day:
                     return stat
             return last_stats[self.statistic_id][0]
 
@@ -257,10 +255,11 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
             else:
                 diff = now - end_time
                 _LOGGER.debug(
-                    "Last row of statistic %s found %s, missing %s",
+                    "Last row of statistic %s found %s, missing %s with current sum %s",
                     self.statistic_id,
                     end_time,
                     diff,
+                    _sum,
                 )
                 if diff > timedelta(days=1):
                     if diff > timedelta(days=29):
