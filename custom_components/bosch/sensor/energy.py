@@ -16,7 +16,10 @@ from homeassistant.components.recorder.statistics import (
 )
 from homeassistant.components.recorder import get_instance
 from homeassistant.util import dt as dt_util
-from homeassistant.components.recorder.models import StatisticData
+from homeassistant.components.recorder.models import (
+    StatisticData,
+    timestamp_to_datetime_or_none,
+)
 
 
 from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
@@ -127,11 +130,21 @@ class EnergySensor(BoschSensor, StatisticHelper):
         last_stats = await get_instance(self.hass).async_add_executor_job(
             get_last_statistics,
             self.hass,
-            1,
+            24,
             self.statistic_id,
             True,
-            {"last_reset", "max", "mean", "min", "state", "sum"},
+            {"state", "sum"},
         )
+
+        start_of_day = dt_util.start_of_local_day()
+
+        def get_last_stats_row():
+            for stat in last_stats[self.statistic_id]:
+                tstmp = timestamp_to_datetime_or_none(stat["start"])
+                if tstmp and tstmp <= start_of_day:
+                    return stat
+            return last_stats[self.statistic_id][0]
+
         today = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = None
         if not last_stats:
@@ -141,7 +154,7 @@ class EnergySensor(BoschSensor, StatisticHelper):
             _sum = 0
         elif self.statistic_id in last_stats:
             self._bosch_object.clear_past_data(self._read_attr)
-            last_stats_row = last_stats[self.statistic_id][0]
+            last_stats_row = get_last_stats_row()
             end_time = dt_util.utc_from_timestamp(last_stats_row["end"])
             _sum = last_stats_row["sum"] or 0
             all_stats = self._bosch_object.last_entry.values()
