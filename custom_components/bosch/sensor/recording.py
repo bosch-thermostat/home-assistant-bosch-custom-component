@@ -6,15 +6,9 @@ import asyncio
 from .statistic_helper import StatisticHelper
 
 from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
-from .base import BoschBaseSensor
-from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import (
     StatisticData,
     timestamp_to_datetime_or_none,
-)
-from homeassistant.components.recorder.statistics import (
-    get_last_statistics,
-    statistics_during_period,
 )
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.util import dt as dt_util
@@ -22,22 +16,26 @@ from homeassistant.util import dt as dt_util
 _LOGGER = logging.getLogger(__name__)
 
 
-class RecordingSensor(BoschBaseSensor, StatisticHelper):
+class RecordingSensor(StatisticHelper):
     """Representation of Recording Sensor."""
 
     signal = SIGNAL_RECORDING_UPDATE_BOSCH
     _domain_name = "Recording"
 
-    def __init__(self, new_stats_api: bool = False, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         """Initialize Recording sensor."""
         self._statistic_import_lock = asyncio.Lock()
-        StatisticHelper.__init__(self, new_stats_api=new_stats_api)
-        BoschBaseSensor.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
     @property
     def device_name(self) -> str:
         """Device name."""
         return "Recording sensors"
+
+    @property
+    def should_poll(self):
+        """Don't poll."""
+        return False
 
     @property
     def statistic_id(self) -> str:
@@ -94,17 +92,19 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
             _LOGGER.debug("Old gather data algorithm.")
             await self.async_old_gather_update()
 
-    async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> list:
+    async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict:
         """Rename old entity_id in statistic table."""
+        start_time = dt_util.start_of_local_day(start_time)
         _LOGGER.debug(
             "Attempt to fetch range %s - %s for %s",
             start_time,
             stop_time,
             self.statistic_id,
         )
-        return await self._bosch_object.fetch_range(
+        rangi = await self._bosch_object.fetch_range(
             start_time=start_time, stop_time=stop_time
         )
+        return rangi
 
     async def _upsert_past_statistics(self, start: datetime, stop: datetime) -> None:
         now = dt_util.now()
@@ -122,17 +122,10 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         if not stats:
             _LOGGER.debug("No stats found. Exiting.")
             return
-        stats_dict = {dt_util.as_timestamp(stat["d"]): stat for stat in stats}
+        stats_dict = {dt_util.as_timestamp(stat["d"]): stat for stat in stats.values()}
         # get stats from database
-        last_stats = await get_instance(self.hass).async_add_executor_job(
-            statistics_during_period,
-            self.hass,
-            start - timedelta(hours=1),
-            now,
-            [self.statistic_id],
-            "hour",
-            None,
-            ["state", "sum"],
+        last_stats = await self.get_stats(
+            start_time=start - timedelta(hours=1), end_time=now
         )
         last_stat = last_stats.get(self.statistic_id)
         _sum = last_stat[0].get("sum", 0) if last_stat else 0
@@ -187,17 +180,10 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
         async with self._statistic_import_lock:
             await self._upsert_past_statistics(start=start, stop=stop)
 
-    def append_statistics(self, stats, sum, end_time) -> float:
+    def append_statistics(self, stats: list, sum: float, now: datetime) -> float:
         statistics_to_push = []
         for stat in stats:
             _date: datetime = stat["d"]
-            if end_time and _date <= end_time:
-                _LOGGER.debug(
-                    "Skip re-adding %s day which already exists in database. Last day is %s.",
-                    _date,
-                    end_time,
-                )
-                continue
             _state = stat["value"]
             if _state == 0:
                 continue
@@ -217,71 +203,79 @@ class RecordingSensor(BoschBaseSensor, StatisticHelper):
                 )
             )
         self.add_external_stats(stats=statistics_to_push)
+        self._last_reset = now
         return sum
 
     async def _insert_statistics(self) -> None:
         """Insert external statistics."""
         _sum = 0
-        last_stats = await get_instance(self.hass).async_add_executor_job(
-            get_last_statistics,
-            self.hass,
-            24,
-            self.statistic_id,
-            True,
-            {"state", "sum"},
-        )
         now = dt_util.now()
+        last_stat = await self.get_last_stat()
+        if len(last_stat) == 0 or len(last_stat[self.statistic_id]) == 0:
+            _LOGGER.debug("Last stats not exist. Trying to fetch last 30 days of data.")
+            start_time = now - timedelta(days=30)
+            all_stats = await self.fetch_past_data(start_time=start_time, stop_time=now)
+            if not all_stats:
+                _LOGGER.warn("Stats not found.")
+                return
+            all_stats = list(all_stats.values())
+            self.append_statistics(stats=all_stats, sum=_sum, now=now)
+            return
+
         start_of_day = dt_util.start_of_local_day()
-        end_time = None
+        last_stat_row = last_stat[self.statistic_id][0]
+        last_stat_start = timestamp_to_datetime_or_none(last_stat_row["start"])
+
+        last_stats = (
+            await self.get_stats(
+                start_time=dt_util.start_of_local_day(last_stat_start)
+                - timedelta(hours=1),
+                end_time=now,
+            )
+            if last_stat_start and last_stat_start <= start_of_day
+            else await self.get_stats(
+                start_time=start_of_day - timedelta(hours=1),
+                end_time=now - timedelta(hours=1),
+            )
+        )
+
         all_stats = []
 
-        def get_last_stats_row():
-            for stat in last_stats[self.statistic_id]:
-                tstmp = timestamp_to_datetime_or_none(stat["start"])
-                if tstmp and tstmp <= start_of_day:
-                    return stat
-            return last_stats[self.statistic_id][0]
-
-        async def get_last_stats_from_bosch_api(last_stats_row):
-            last_stats_row = get_last_stats_row()
-            end_time = last_stats_row["end"]
+        async def get_last_stats_from_bosch_api():
+            last_stats_row = self.get_last_stats_before_date(
+                last_stats=last_stats, day=start_of_day
+            )
+            start_time = last_stats_row["start"]
             _sum = last_stats_row["sum"] or 0
-            if isinstance(end_time, float):
-                end_time = timestamp_to_datetime_or_none(end_time)
-            if not end_time:
+            if isinstance(start_time, float):
+                start_time = timestamp_to_datetime_or_none(start_time)
+            if not start_time:
                 _LOGGER.debug(
-                    "End time not found. %s found %s", self.statistic_id, end_time
+                    "Start time not found. %s found %s", self.statistic_id, start_time
                 )
-            else:
-                diff = now - end_time
+            elif start_time.date() < now.date() - timedelta(days=1):
+                diff = now - start_time
                 _LOGGER.debug(
                     "Last row of statistic %s found %s, missing %s with current sum %s",
                     self.statistic_id,
-                    end_time,
+                    start_time,
                     diff,
                     _sum,
                 )
-                if diff > timedelta(days=1):
-                    if diff > timedelta(days=29):
-                        end_time = now - timedelta(days=30)
-                    return (
-                        await self.fetch_past_data(start_time=end_time, stop_time=now),
-                        _sum,
-                    )
+                if diff > timedelta(days=29):
+                    start_time = now - timedelta(days=30)
+                bosch_data = await self.fetch_past_data(
+                    start_time=start_time, stop_time=now
+                )
+                return (
+                    [row for row in bosch_data.values() if row["d"] > start_time],
+                    _sum,
+                )
             _LOGGER.debug(
                 "Returning state to put to statistic table %s", self._bosch_object.state
             )
             return self._bosch_object.state, _sum
 
-        if not last_stats:
-            _LOGGER.debug("Last stats not exist. Trying to fetch last 30 days of data.")
-            start_time = now - timedelta(days=30)
-            all_stats = await self.fetch_past_data(start_time=start_time, stop_time=now)
-            if not all_stats:
-                return
-            _sum = 0
-        elif self.statistic_id in last_stats:
-            last_stats_row = last_stats[self.statistic_id][0]
-            all_stats, _sum = await get_last_stats_from_bosch_api(last_stats_row)
-
-        self.append_statistics(stats=all_stats, sum=_sum, end_time=end_time)
+        if self.statistic_id in last_stats:
+            all_stats, _sum = await get_last_stats_from_bosch_api()
+            self.append_statistics(stats=all_stats, sum=_sum, now=now)

@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 
 from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
+from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
+
 from homeassistant.components.sensor import SensorEntity
 
 from ..bosch_entity import BoschEntity
@@ -20,7 +22,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         self,
         hass,
         uuid,
-        bosch_object,
+        bosch_object: BoschSensor,
         gateway,
         name,
         attr_uri,
