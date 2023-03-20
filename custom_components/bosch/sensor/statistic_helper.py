@@ -1,8 +1,9 @@
 """Bosch statistic helper for Recording/Energy sensor."""
 from __future__ import annotations
 import logging
+import asyncio
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
@@ -34,6 +35,7 @@ class StatisticHelper(BoschBaseSensor):
         """Initialize statistic helper."""
         self._short_id = None
         self._new_stats_api = new_stats_api
+        self._statistic_import_lock = asyncio.Lock()
         super().__init__(**kwargs)
 
     async def move_old_entity_data_to_new(self, event_time=None) -> None:
@@ -59,6 +61,11 @@ class StatisticHelper(BoschBaseSensor):
     def statistic_id(self) -> str:
         """External API statistic ID."""
         raise NotImplementedError()
+
+    @property
+    def should_poll(self):
+        """Don't poll."""
+        return False
 
     @property
     def statistic_metadata(self) -> StatisticMetaData:
@@ -107,18 +114,33 @@ class StatisticHelper(BoschBaseSensor):
     def get_last_stats_before_date(
         self, last_stats: dict[str, list[dict[str, Any]]], day: datetime
     ):
-        print("przeszukaj", last_stats)
         for stat in last_stats[self.statistic_id]:
             tstmp = timestamp_to_datetime_or_none(stat["start"])
-            print(
-                "tstsm",
-                tstmp,
-                day,
-                tstmp < day,
-                stat["start"],
-                dt_util.as_timestamp(day),
-            )
             if tstmp and tstmp < day:
                 _LOGGER.debug("Last stat found %s", stat)
                 return stat
+        _LOGGER.debug("Last stat not found, returning first one available.")
         return last_stats[self.statistic_id][0]
+
+    async def insert_statistics_range(self, start_time: datetime) -> None:
+        """Attempt to put past data into database."""
+        start = dt_util.start_of_local_day(start_time)
+        stop = start + timedelta(hours=24)  # fetch one day only from API
+        async with self._statistic_import_lock:
+            await self._upsert_past_statistics(start=start, stop=stop)
+
+    async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict:
+        """Rename old entity_id in statistic table."""
+        start_time = dt_util.start_of_local_day(start_time)
+        _LOGGER.debug(
+            "Attempt to fetch range %s - %s for %s",
+            start_time,
+            stop_time,
+            self.statistic_id,
+        )
+        return await self._bosch_object.fetch_range(
+            start_time=start_time, stop_time=stop_time
+        )
+
+    async def _upsert_past_statistics(self, start: datetime, stop: datetime) -> None:
+        raise NotImplementedError

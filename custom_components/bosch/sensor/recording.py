@@ -2,7 +2,6 @@
 from __future__ import annotations
 from datetime import timedelta, datetime
 import logging
-import asyncio
 from .statistic_helper import StatisticHelper
 
 from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
@@ -22,20 +21,10 @@ class RecordingSensor(StatisticHelper):
     signal = SIGNAL_RECORDING_UPDATE_BOSCH
     _domain_name = "Recording"
 
-    def __init__(self, **kwargs) -> None:
-        """Initialize Recording sensor."""
-        self._statistic_import_lock = asyncio.Lock()
-        super().__init__(**kwargs)
-
     @property
     def device_name(self) -> str:
         """Device name."""
         return "Recording sensors"
-
-    @property
-    def should_poll(self):
-        """Don't poll."""
-        return False
 
     @property
     def statistic_id(self) -> str:
@@ -91,20 +80,6 @@ class RecordingSensor(StatisticHelper):
         else:
             _LOGGER.debug("Old gather data algorithm.")
             await self.async_old_gather_update()
-
-    async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict:
-        """Rename old entity_id in statistic table."""
-        start_time = dt_util.start_of_local_day(start_time)
-        _LOGGER.debug(
-            "Attempt to fetch range %s - %s for %s",
-            start_time,
-            stop_time,
-            self.statistic_id,
-        )
-        rangi = await self._bosch_object.fetch_range(
-            start_time=start_time, stop_time=stop_time
-        )
-        return rangi
 
     async def _upsert_past_statistics(self, start: datetime, stop: datetime) -> None:
         now = dt_util.now()
@@ -172,13 +147,6 @@ class RecordingSensor(StatisticHelper):
                     sum=_sum,
                 )
         self.add_external_stats(stats=list(out.values()))
-
-    async def insert_statistics_range(self, start_time: datetime) -> None:
-        """Attempt to put past data into database."""
-        start = dt_util.start_of_local_day(start_time)
-        stop = start + timedelta(hours=24)  # fetch one day only from API
-        async with self._statistic_import_lock:
-            await self._upsert_past_statistics(start=start, stop=stop)
 
     def append_statistics(self, stats: list, sum: float, now: datetime) -> float:
         statistics_to_push = []

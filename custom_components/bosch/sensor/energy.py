@@ -127,6 +127,51 @@ class EnergySensor(StatisticHelper):
             now = now + timedelta(hours=1)
         return (_sum, statistics)
 
+    async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict:
+        """Rename old entity_id in statistic table."""
+        _LOGGER.debug(
+            "Attempt to fetch range %s - %s for %s",
+            start_time,
+            stop_time,
+            self.statistic_id,
+        )
+        return await self._bosch_object.fetch_range(
+            start_time=start_time, stop_time=stop_time
+        )
+
+    async def _upsert_past_statistics(self, start: datetime, stop: datetime) -> None:
+        now = dt_util.now()
+        diff = now - start
+        if now.day == start.day:
+            _LOGGER.warn("Can't upsert today date. Try again tomorrow.")
+            return
+        if diff > timedelta(days=60):
+            _LOGGER.warn(
+                "Update more than 60 days in past might take some time! Component will try to do that anyway!"
+            )
+        start_time = dt_util.start_of_local_day(start)
+        stats = await self.fetch_past_data(
+            start_time=start_time, stop_time=start + timedelta(hours=26)
+        )  # return list of objects {'d': datetime with timezone, 'value': 'used kWh in last hour'}
+        _day_dt = start_time.strftime("%d-%m-%Y")
+        if not stats or _day_dt not in stats:
+            _LOGGER.debug("No stats found. Exiting.")
+            return
+        day_data = stats[_day_dt]
+        _value = round(day_data[self._read_attr] / 24, 2)
+        last_stats = await self.get_stats(
+            start_time=start - timedelta(hours=1), end_time=now
+        )
+        last_stat = last_stats.get(self.statistic_id)
+        _sum = last_stat[0].get("sum", 0) if last_stat else 0
+        _sum, statistics = self._generate_easycontrol_statistics(
+            start=start_time,
+            end=start_time + timedelta(days=1),
+            single_value=_value,
+            init_value=_sum,
+        )
+        self.add_external_stats(stats=statistics)
+
     def append_statistics(self, stats, sum) -> float:
         statistics_to_push = []
         start_of_day = dt_util.start_of_local_day()
@@ -156,7 +201,6 @@ class EnergySensor(StatisticHelper):
     async def _insert_statistics(self) -> None:
         """Insert statistics from the past."""
         _sum = 0
-        now = dt_util.now()
         last_stat = await self.get_last_stat()
         if len(last_stat) == 0 or len(last_stat[self.statistic_id]) == 0:
             _LOGGER.debug("Last stats not exist. Trying to fetch ALL data.")
@@ -167,18 +211,21 @@ class EnergySensor(StatisticHelper):
             self.append_statistics(stats=all_stats, sum=_sum)
             return
 
-        start_of_day = dt_util.start_of_local_day()
+        now = dt_util.now() - timedelta(days=1)
+        start_of_day = dt_util.start_of_local_day() - timedelta(days=1)
+
         last_stat_row = last_stat[self.statistic_id][0]
         last_stat_start = timestamp_to_datetime_or_none(last_stat_row["start"])
 
         last_stats = (
             await self.get_stats(
-                start_time=dt_util.start_of_local_day(last_stat_start),
+                start_time=dt_util.start_of_local_day(last_stat_start)
+                - timedelta(hours=1),
                 end_time=now,
             )
             if last_stat_start and last_stat_start <= start_of_day
             else await self.get_stats(
-                start_time=start_of_day,
+                start_time=start_of_day - timedelta(hours=1),
                 end_time=now - timedelta(hours=1),
             )
         )
@@ -195,16 +242,25 @@ class EnergySensor(StatisticHelper):
                 _LOGGER.debug(
                     "Start time not found. %s found %s", self.statistic_id, start_time
                 )
-            elif start_time.date() < now.date() - timedelta(days=1):
+            elif start_time.date() < now.date() - timedelta(days=2):
                 _LOGGER.debug(
                     "Last row of statistic %s found %s, missing more than 1 day with current sum %s",
                     self.statistic_id,
                     start_time,
                     _sum,
                 )
-                bosch_data = await self._bosch_object.fetch_all()
+                bosch_data = await self.fetch_past_data(
+                    start_time=start_time, stop_time=now
+                )
                 return (
-                    [row for row in bosch_data.values() if row["d"] > start_time],
+                    [
+                        row
+                        for row in bosch_data.values()
+                        if dt_util.start_of_local_day(
+                            datetime.strptime(row["d"], "%d-%m-%Y")
+                        )
+                        > start_time
+                    ],
                     _sum,
                 )
 
