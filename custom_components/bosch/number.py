@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from bosch_thermostat_client.const import GATEWAY, NUMBER
 from homeassistant.components.number import NumberEntity
+from homeassistant.components.number.const import NumberMode
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .bosch_entity import BoschEntity
@@ -69,6 +70,7 @@ class BoschNumber(BoschEntity, NumberEntity):
     """Bosch number class represents HA Number entity."""
 
     signal = SIGNAL_NUMBER
+    _attr_mode: NumberMode = NumberMode.BOX
 
     def __init__(
         self,

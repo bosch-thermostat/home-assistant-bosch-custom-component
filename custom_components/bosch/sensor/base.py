@@ -6,13 +6,15 @@ from datetime import datetime, timedelta
 from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
-
+from homeassistant.const import EntityCategory
 from homeassistant.components.sensor import SensorEntity
 
 from ..bosch_entity import BoschEntity
 from ..const import DOMAIN, MINS, UNITS_CONVERTER
 
 _LOGGER = logging.getLogger(__name__)
+
+entity_categories = {"diagnostic": EntityCategory.DIAGNOSTIC}
 
 
 class BoschBaseSensor(BoschEntity, SensorEntity):
@@ -40,6 +42,16 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             (self._domain_name + " " + name) if self._domain_name != "Sensors" else name
         )
         self._attr_uri = attr_uri
+
+        if self._bosch_object.device_class:
+            self._attr_device_class = self._bosch_object.device_class
+        if self._bosch_object.state_class:
+            self._attr_state_class = self._bosch_object.state_class
+        if self.bosch_object.entity_category:
+            print("co ????", self.bosch_object.entity_category)
+        self._attr_entity_category = entity_categories.get(
+            self._bosch_object.entity_category, EntityCategory.CONFIG
+        )
         self._state = None
         self._update_init = True
         self._unit_of_measurement = None
@@ -78,19 +90,11 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
                 return UNITS_CONVERTER.get(data.get(UNITS))
             return None
 
-        def detect_device_class():
-            if self._bosch_object.device_class:
-                self._attr_device_class = self._bosch_object.device_class
-            if self._bosch_object.state_class:
-                self._attr_state_class = self._bosch_object.state_class
-
         def check_name():
             if data.get(NAME, "") != self._name:
                 self._name = data.get(NAME)
 
         units = get_units()
-        if not hasattr(self, "_attr_device_class"):
-            detect_device_class()
 
         if units == MINS and data:
             self.time_sensor_data(data)

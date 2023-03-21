@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import voluptuous as vol
 from bosch_thermostat_client.const import DHW, HC, SC, ZN
+from bosch_thermostat_client.const.easycontrol import DV
 from homeassistant.const import ENERGY_KILO_WATT_HOUR, TEMP_CELSIUS, TEMP_FAHRENHEIT
 
 DOMAIN = "bosch"
@@ -84,12 +85,13 @@ INTERVAL = "interval"
 FW_INTERVAL = "fw_interval"
 RECORDING_INTERVAL = "recording_interval"
 
-CIRCUITS = [DHW, HC, SC, ZN]
+CIRCUITS = [DHW, HC, SC, ZN, DV]
 CIRCUITS_SENSOR_NAMES = {
     DHW: "Water heater",
     HC: "Heating circuit",
     SC: "Solar circuit",
     ZN: "Zone circuit",
+    DV: "Device",
 }
 
 BINARY_SENSOR = "binary_sensor"

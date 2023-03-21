@@ -20,6 +20,7 @@ from bosch_thermostat_client.const import (
     SENSOR,
     ZN,
 )
+from bosch_thermostat_client.const.easycontrol import DV
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
@@ -104,6 +105,7 @@ SUPPORTED_PLATFORMS = {
     SC: [SENSOR],
     SENSOR: [SENSOR, BINARY_SENSOR],
     ZN: [CLIMATE],
+    DV: [SENSOR],
 }
 
 

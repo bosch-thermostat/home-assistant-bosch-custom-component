@@ -11,10 +11,6 @@ from homeassistant.const import (
     TEMP_CELSIUS,
     VOLUME_CUBIC_METERS,
 )
-from homeassistant.components.recorder.statistics import (
-    get_last_statistics,
-)
-from homeassistant.components.recorder import get_instance
 from homeassistant.util import dt as dt_util
 from homeassistant.components.recorder.models import (
     StatisticData,
@@ -23,7 +19,6 @@ from homeassistant.components.recorder.models import (
 
 
 from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
-from .bosch import BoschSensor
 
 _LOGGER = logging.getLogger(__name__)
 
