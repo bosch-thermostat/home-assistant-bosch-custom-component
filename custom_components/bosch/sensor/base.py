@@ -47,8 +47,6 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             self._attr_device_class = self._bosch_object.device_class
         if self._bosch_object.state_class:
             self._attr_state_class = self._bosch_object.state_class
-        if self.bosch_object.entity_category:
-            print("co ????", self.bosch_object.entity_category)
         self._attr_entity_category = entity_categories.get(
             self._bosch_object.entity_category, EntityCategory.CONFIG
         )
