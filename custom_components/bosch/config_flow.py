@@ -5,7 +5,7 @@ import voluptuous as vol
 from bosch_thermostat_client import gateway_chooser
 from bosch_thermostat_client.const import HTTP, XMPP
 from bosch_thermostat_client.const.easycontrol import EASYCONTROL
-from bosch_thermostat_client.const.ivt import IVT
+from bosch_thermostat_client.const.ivt import IVT, IVT_MBLAN
 from bosch_thermostat_client.const.nefit import NEFIT
 from bosch_thermostat_client.exceptions import (
     DeviceException,
@@ -29,7 +29,7 @@ from .const import (
     UUID,
 )
 
-DEVICE_TYPE = [NEFIT, IVT, EASYCONTROL]
+DEVICE_TYPE = [NEFIT, IVT, EASYCONTROL, IVT_MBLAN]
 PROTOCOLS = [HTTP, XMPP]
 
 
@@ -57,7 +57,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         return await self.async_step_choose_type(user_input)
 
     async def async_step_choose_type(self, user_input=None):
-        """Choose if setup is for IVT, NEFIT or EASYCONTROL."""
+        """Choose if setup is for IVT, IVT/MBLAN, NEFIT or EASYCONTROL."""
         errors = {}
         if user_input is not None:
             self._choose_type = user_input[CONF_DEVICE_TYPE]
@@ -73,7 +73,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                     ),
                     errors=errors,
                 )
-            elif self._choose_type in (NEFIT, EASYCONTROL):
+            elif self._choose_type in (NEFIT, EASYCONTROL, IVT_MBLAN):
                 return await self.async_step_protocol({CONF_PROTOCOL: XMPP})
         return self.async_show_form(
             step_id="choose_type",
@@ -210,8 +210,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        new_stats_api = self.entry.options.get("new_stats_api", False)
-        optimistic_mode = self.entry.options.get("optimistic_mode", False)
+        new_stats_api = self.entry.options.get("new_stats_api", True)
+        optimistic_mode = self.entry.options.get("optimistic_mode", True)
 
         return self.async_show_form(
             step_id="init",
