@@ -470,5 +470,5 @@ class BoschGatewayEntry:
             for platform in self.supported_platforms
         ]
         unload_ok = await asyncio.gather(*tasks)
-        await self.gateway.close(force=True)
+        await self.gateway.close(force=False)
         return all(unload_ok)
