@@ -93,7 +93,7 @@ class BoschNumber(BoschEntity, NumberEntity):
         self._attr_uri = attr_uri
         self._state = bosch_object.state
         self._update_init = True
-        self._unique_id = self._domain_name + self._name + self._uuid
+        self._attr_unique_id = f"{self._domain_name}{self._name}{self._uuid}"
         self._attrs = {}
         self._circuit_type = circuit_type
         self._attr_entity_registry_enabled_default = is_enabled
@@ -102,10 +102,6 @@ class BoschNumber(BoschEntity, NumberEntity):
     def device_name(self) -> str:
         """Return device name."""
         return "Bosch switches"
-
-    @property
-    def _domain_identifier(self):
-        return {(DOMAIN, self._domain_name + self._uuid)}
 
     @property
     def native_min_value(self) -> float:

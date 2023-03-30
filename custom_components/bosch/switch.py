@@ -89,14 +89,17 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
     ):
         """Set up device and add update callback to get data from websocket."""
         super().__init__(
-            hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
+            hass=hass,
+            uuid=uuid,
+            bosch_object=bosch_object,
+            gateway=gateway,
+            domain_name=domain_name,
         )
-        self._domain_name = domain_name
         self._name = name
         self._attr_uri = attr_uri
         self._state = bosch_object.state
         self._update_init = True
-        self._unique_id = self._domain_name + self._name + self._uuid
+        self._attr_unique_id = self._domain_name + self._name + self._uuid
         self._attrs = {}
         self._circuit_type = circuit_type
         self._attr_entity_registry_enabled_default = is_enabled
@@ -124,10 +127,6 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
         await self._bosch_object.turn_off()
         self._state = False
         self.async_write_ha_state()
-
-    @property
-    def _domain_identifier(self):
-        return {(DOMAIN, self._domain_name + self._uuid)}
 
     @property
     def should_poll(self):

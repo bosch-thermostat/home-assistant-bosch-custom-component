@@ -72,7 +72,7 @@ class BoschSelect(BoschEntity, SelectEntity):
         self._attr_uri = attr_uri
         self._state = bosch_object.state
         self._update_init = True
-        self._unique_id = self._domain_name + self._name + self._uuid
+        self._attr_unique_id = f"{self._domain_name}{self._name}{self._uuid}"
         self._attrs = {}
         self._attr_entity_registry_enabled_default = is_enabled
 
@@ -105,7 +105,3 @@ class BoschSelect(BoschEntity, SelectEntity):
     def should_poll(self):
         """Don't poll."""
         return False
-
-    @property
-    def _domain_identifier(self):
-        return {(DOMAIN, self._domain_name + self._uuid)}

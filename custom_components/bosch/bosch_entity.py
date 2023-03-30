@@ -10,6 +10,8 @@ class BoschEntity:
 
     def __init__(self, **kwargs):
         """Initialize the entity."""
+        if not hasattr(self, "_domain_name"):
+            self._domain_name = kwargs.get("domain_name")
         self.hass = kwargs.get("hass")
         self._bosch_object = kwargs.get("bosch_object")
         self._gateway = kwargs.get("gateway")
@@ -19,11 +21,6 @@ class BoschEntity:
     def name(self):
         """Return the name of the entity."""
         return self._name
-
-    @property
-    def unique_id(self):
-        """Return unique ID for this device."""
-        return self._unique_id
 
     @property
     def bosch_object(self):
@@ -37,9 +34,20 @@ class BoschEntity:
         )
 
     @property
+    def _domain_identifier(self):
+        try_print = True if "Device Alex Bedroom" in self.device_name else False
+        if try_print:
+            print(
+                "D", DOMAIN, self._bosch_object.parent_id, self._uuid, self._domain_name
+            )
+        if self._bosch_object.parent_id:
+            return {(DOMAIN, self._bosch_object.parent_id, self._uuid)}
+        return {(DOMAIN, self._domain_name, self._uuid)}
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Get attributes about the device."""
-        return DeviceInfo(
+        _dv = DeviceInfo(
             identifiers=self._domain_identifier,
             manufacturer=self._gateway.device_model,
             model=self._gateway.device_type,
@@ -48,6 +56,16 @@ class BoschEntity:
             hw_version=self._uuid,
             via_device=(DOMAIN, self._uuid),
         )
+        if "Device Alex Bedroom" in self.device_name:
+            print("AAA", _dv, self._unique_id, self.name, self._bosch_object.id)
+            print(
+                "IS THERE PARENT",
+                self._bosch_object.parent_id,
+                DOMAIN,
+                self._uuid,
+                self._domain_name,
+            )
+        return _dv
 
 
 class BoschClimateWaterEntity(BoschEntity):
@@ -57,14 +75,14 @@ class BoschClimateWaterEntity(BoschEntity):
         super().__init__(**kwargs)
         self._name = self._bosch_object.name
         self._temperature_unit = TEMP_CELSIUS
-        self._unique_id = self._name + self._uuid
+        self._attr_unique_id = f"{self._uuid}{self._bosch_object.id}"
         self._current_temperature = None
         self._state = None
         self._target_temperature = None
 
     @property
     def _domain_identifier(self):
-        return {(DOMAIN, self._unique_id)}
+        return {(DOMAIN, self._bosch_object.id, self._uuid)}
 
     @property
     def device_name(self):

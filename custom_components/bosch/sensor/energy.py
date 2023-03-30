@@ -57,12 +57,15 @@ class EnergySensor(StatisticHelper):
     def __init__(
         self,
         sensor_attributes,
+        uuid,
         **kwargs,
     ) -> None:
         """Initialize Energy sensor."""
-        super().__init__(name=sensor_attributes.get("name"), **kwargs)
         self._read_attr = sensor_attributes.get("attr")
         self._normalize = sensor_attributes.get("normalize")
+        self._attr_unique_id = f"{self._domain_name}{self._read_attr}{uuid}"
+
+        super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
         self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = (
             SensorDeviceClass.TEMPERATURE
