@@ -10,7 +10,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.components.sensor import SensorEntity
 
 from ..bosch_entity import BoschEntity
-from ..const import DOMAIN, MINS, UNITS_CONVERTER
+from ..const import MINS, UNITS_CONVERTER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,34 +34,42 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
     ):
         """Initialize the sensor."""
         super().__init__(
-            hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
+            hass=hass,
+            uuid=uuid,
+            bosch_object=bosch_object,
+            gateway=gateway,
+            domain_name=domain_name,
         )
-        if domain_name:
-            self._domain_name = domain_name
-        self._name = (
-            (self._domain_name + " " + name) if self._domain_name != "Sensors" else name
-        )
+        if not circuit_type:
+            self._name = (
+                f"{domain_name} {name}"
+                if domain_name != "Sensors" and domain_name
+                else name
+            )
+        else:
+            self._name = f"{self._bosch_object.parent_id} {name}"
         self._attr_uri = attr_uri
-
         if self._bosch_object.device_class:
             self._attr_device_class = self._bosch_object.device_class
         if self._bosch_object.state_class:
             self._attr_state_class = self._bosch_object.state_class
         self._attr_entity_category = entity_categories.get(
-            self._bosch_object.entity_category, EntityCategory.CONFIG
+            self._bosch_object.entity_category, None
         )
         self._state = None
         self._update_init = True
         self._unit_of_measurement = None
         self._uuid = uuid
-        self._unique_id = self._domain_name + self._name + self._uuid
+        if not hasattr(self, "_attr_unique_id") or not self._attr_unique_id:
+            self._attr_unique_id = (
+                f"{self._domain_name}{self._bosch_object.parent_id}{self._bosch_object.id}{self._uuid}"
+                if self._bosch_object.parent_id
+                else f"{self._domain_name}{self._bosch_object.id}{self._uuid}"
+            )
+
         self._attrs = {}
         self._circuit_type = circuit_type
         self._attr_entity_registry_enabled_default = is_enabled
-
-    @property
-    def _domain_identifier(self):
-        return {(DOMAIN, self._domain_name + self._uuid)}
 
     @property
     def native_value(self):

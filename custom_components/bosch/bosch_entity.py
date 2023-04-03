@@ -35,11 +35,6 @@ class BoschEntity:
 
     @property
     def _domain_identifier(self):
-        try_print = True if "Device Alex Bedroom" in self.device_name else False
-        if try_print:
-            print(
-                "D", DOMAIN, self._bosch_object.parent_id, self._uuid, self._domain_name
-            )
         if self._bosch_object.parent_id:
             return {(DOMAIN, self._bosch_object.parent_id, self._uuid)}
         return {(DOMAIN, self._domain_name, self._uuid)}
@@ -47,7 +42,7 @@ class BoschEntity:
     @property
     def device_info(self) -> DeviceInfo:
         """Get attributes about the device."""
-        _dv = DeviceInfo(
+        return DeviceInfo(
             identifiers=self._domain_identifier,
             manufacturer=self._gateway.device_model,
             model=self._gateway.device_type,
@@ -56,16 +51,6 @@ class BoschEntity:
             hw_version=self._uuid,
             via_device=(DOMAIN, self._uuid),
         )
-        if "Device Alex Bedroom" in self.device_name:
-            print("AAA", _dv, self._unique_id, self.name, self._bosch_object.id)
-            print(
-                "IS THERE PARENT",
-                self._bosch_object.parent_id,
-                DOMAIN,
-                self._uuid,
-                self._domain_name,
-            )
-        return _dv
 
 
 class BoschClimateWaterEntity(BoschEntity):
