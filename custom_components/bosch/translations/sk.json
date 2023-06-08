@@ -1,0 +1,54 @@
+{
+  "config": {
+      "title": "Bosch thermostat",
+      "step": {
+          "choose_type": {
+              "title": "Zvoľte typ zariadenia.",
+              "data": {
+                  "device_type": "Zvoľte typ vášho zariadenia."
+              }
+          },
+          "http_config": {
+            "title": "Bosch thermostat HTTP config",
+            "data": {
+                "address": "IP adresa",
+                "access_token": "Prístupový token",
+                "password": "Heslo"
+            }
+          },
+          "xmpp_config": {
+              "title": "Bosch thermostat XMPP config",
+              "data": {
+                  "address": "Sériové číslo zariadenia",
+                  "access_token": "Prístupový token",
+                  "password": "Heslo"
+              }
+            },
+          "protocol": {
+            "title": "Bosch IVT Protokol. HTTP je lokálne. XMPP je cloud!",
+            "data": {
+                "Protocol": "Buď http alebo xmpp"
+            }
+          }
+      },
+      "error": {
+          "service_unavailable": "Služba nedostupná"
+      },
+      "abort": {
+          "faulty_credentials": "Zlé poverenia používateľa alebo nesprávna adresa IP",
+          "already_configured": "Stránka ovládača je už nakonfigurovaná",
+          "unknown": "Neznámy dôvod. Skontrolujte LOGS."
+      }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bosch možnosti",
+        "data": {
+          "new_stats_api": "Použite novú štatistiku API",
+          "optimistic_mode": "Pre niektoré funkcie použite optimistický režim (momentálne je nastavený prevádzkový režim Easycontrol)."
+        }
+      }
+    }
+  }
+}
