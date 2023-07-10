@@ -210,8 +210,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        new_stats_api = self.entry.options.get("new_stats_api", True)
-        optimistic_mode = self.entry.options.get("optimistic_mode", True)
+        new_stats_api = self.entry.options.get("new_stats_api", False)
+        optimistic_mode = self.entry.options.get("optimistic_mode", False)
 
         return self.async_show_form(
             step_id="init",

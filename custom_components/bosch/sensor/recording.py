@@ -230,8 +230,6 @@ class RecordingSensor(StatisticHelper):
                     diff,
                     _sum,
                 )
-                if diff > timedelta(days=29):
-                    start_time = now - timedelta(days=30)
                 bosch_data = await self.fetch_past_data(
                     start_time=start_time, stop_time=now
                 )
