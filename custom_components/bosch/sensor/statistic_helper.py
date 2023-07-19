@@ -8,6 +8,7 @@ from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
     timestamp_to_datetime_or_none,
+    datetime_to_timestamp_or_none,
 )
 from sqlalchemy.exc import IntegrityError
 from homeassistant.util import dt as dt_util
@@ -21,6 +22,7 @@ from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
     get_last_statistics,
     statistics_during_period,
+    StatisticsRow,
 )
 from homeassistant.components.recorder import get_instance
 from .base import BoschBaseSensor
@@ -79,7 +81,7 @@ class StatisticHelper(BoschBaseSensor):
             unit_of_measurement=self._unit_of_measurement,
         )
 
-    async def get_last_stat(self) -> dict[str, list[dict[str, Any]]]:
+    async def get_last_stat(self) -> dict[str, list[StatisticsRow]]:
         return await get_instance(self.hass).async_add_executor_job(
             get_last_statistics,
             self.hass,
@@ -91,7 +93,7 @@ class StatisticHelper(BoschBaseSensor):
 
     async def get_stats(
         self, start_time: datetime, end_time: datetime
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> dict[str, list[StatisticsRow]]:
         """Get stats during period."""
         return await get_instance(self.hass).async_add_executor_job(
             statistics_during_period,
@@ -112,15 +114,22 @@ class StatisticHelper(BoschBaseSensor):
         async_add_external_statistics(self.hass, self.statistic_metadata, stats)
 
     def get_last_stats_before_date(
-        self, last_stats: dict[str, list[dict[str, Any]]], day: datetime
+        self, last_stats: dict[str, list[StatisticsRow]], day: datetime
     ):
+        day_stamp = datetime_to_timestamp_or_none(day)
+        found_stat = last_stats[self.statistic_id][-1]
         for stat in last_stats[self.statistic_id]:
-            tstmp = timestamp_to_datetime_or_none(stat["start"])
-            if tstmp and tstmp < day:
-                _LOGGER.debug("Last stat found %s", stat)
-                return stat
-        _LOGGER.debug("Last stat not found, returning first one available.")
-        return last_stats[self.statistic_id][0]
+            tstmp = stat.get("start")
+            if (
+                tstmp
+                and day_stamp
+                and tstmp < day_stamp
+                and found_stat.get("start")
+                and found_stat.get("start") < tstmp
+            ):
+                found_stat = stat
+        _LOGGER.debug("Last stat for %s found %s", self.statistic_id, found_stat)
+        return found_stat
 
     async def insert_statistics_range(self, start_time: datetime) -> None:
         """Attempt to put past data into database."""

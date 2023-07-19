@@ -74,7 +74,9 @@ class RecordingSensor(StatisticHelper):
             self._unit_of_measurement = UNITS_CONVERTER.get(
                 self._bosch_object.unit_of_measurement
             )
-            _LOGGER.debug("Invoking external statistic function.")
+            _LOGGER.debug(
+                "Invoking external statistic function for %s.", self.statistic_id
+            )
             async with self._statistic_import_lock:
                 await self._insert_statistics()
         else:
@@ -192,20 +194,16 @@ class RecordingSensor(StatisticHelper):
 
         start_of_day = dt_util.start_of_local_day()
         last_stat_row = last_stat[self.statistic_id][0]
-        last_stat_start = timestamp_to_datetime_or_none(last_stat_row["start"])
+        last_stat_start = timestamp_to_datetime_or_none(last_stat_row.get("start"))
 
-        last_stats = (
-            await self.get_stats(
+        async def get_last_stats():
+            return await self.get_stats(
                 start_time=dt_util.start_of_local_day(last_stat_start)
-                - timedelta(hours=1),
+                - timedelta(hours=24),
                 end_time=now,
             )
-            if last_stat_start and last_stat_start <= start_of_day
-            else await self.get_stats(
-                start_time=start_of_day - timedelta(hours=1),
-                end_time=now - timedelta(hours=1),
-            )
-        )
+
+        last_stats = await get_last_stats()
 
         all_stats = []
 
@@ -213,8 +211,8 @@ class RecordingSensor(StatisticHelper):
             last_stats_row = self.get_last_stats_before_date(
                 last_stats=last_stats, day=start_of_day
             )
-            start_time = last_stats_row["start"]
-            _sum = last_stats_row["sum"] or 0
+            start_time = last_stats_row.get("start")
+            _sum = last_stats_row.get("sum", 0)
             if isinstance(start_time, float):
                 start_time = timestamp_to_datetime_or_none(start_time)
             if not start_time:
