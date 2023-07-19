@@ -3,7 +3,7 @@
 HA custom component for Bosch thermostats.
 If you like this component consider sponsoring my work: [:heart: Sponsor](https://github.com/sponsors/pszafer)
 
-**It will only work with at least Home Assistant 2023.0 and and Python >=3.10.**
+**It will only work with at least Home Assistant 2023.7 and and Python >=3.11.**
 
 If possible and if it's ok with you please enable Home Assistant Analytics so I can see how many people uses this integration.
 
