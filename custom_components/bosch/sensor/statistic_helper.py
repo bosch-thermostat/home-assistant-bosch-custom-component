@@ -117,19 +117,17 @@ class StatisticHelper(BoschBaseSensor):
         self, last_stats: dict[str, list[StatisticsRow]], day: datetime
     ):
         day_stamp = datetime_to_timestamp_or_none(day)
-        found_stat = last_stats[self.statistic_id][-1]
+        closest_stat = None
         for stat in last_stats[self.statistic_id]:
             tstmp = stat.get("start")
-            if (
-                tstmp
-                and day_stamp
-                and tstmp < day_stamp
-                and found_stat.get("start")
-                and found_stat.get("start") < tstmp
-            ):
-                found_stat = stat
-        _LOGGER.debug("Last stat for %s found %s", self.statistic_id, found_stat)
-        return found_stat
+            if tstmp < day_stamp:
+                if closest_stat is None or tstmp > closest_stat.get("start"):
+                    closest_stat = stat
+        if not closest_stat:
+            closest_stat = last_stats[self.statistic_id][-1]
+            _LOGGER.debug("Closest stat not found, use last one from array!")
+        _LOGGER.debug("Last stat for %s found %s", self.statistic_id, closest_stat)
+        return closest_stat
 
     async def insert_statistics_range(self, start_time: datetime) -> None:
         """Attempt to put past data into database."""

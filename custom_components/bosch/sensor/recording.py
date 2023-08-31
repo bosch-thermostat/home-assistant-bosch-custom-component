@@ -197,9 +197,9 @@ class RecordingSensor(StatisticHelper):
         last_stat_start = timestamp_to_datetime_or_none(last_stat_row.get("start"))
 
         async def get_last_stats():
+            start_time = dt_util.start_of_local_day(last_stat_start) - timedelta(hours=24)
             return await self.get_stats(
-                start_time=dt_util.start_of_local_day(last_stat_start)
-                - timedelta(hours=24),
+                start_time=start_time,
                 end_time=now,
             )
 

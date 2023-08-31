@@ -26,10 +26,10 @@ EnergySensors = [
     {"name": "energy temperature", "attr": "T", "unitOfMeasure": TEMP_CELSIUS},
     {
         "name": "energy central heating",
-        "attr": "eCH",
+        "attr": "CH",
         "unitOfMeasure": ENERGY_KILO_WATT_HOUR,
     },
-    {"name": "energy hot water", "attr": "eHW", "unitOfMeasure": ENERGY_KILO_WATT_HOUR},
+    {"name": "energy hot water", "attr": "HW", "unitOfMeasure": ENERGY_KILO_WATT_HOUR},
 ]
 
 EcusRecordingSensors = [
@@ -41,10 +41,10 @@ EcusRecordingSensors = [
     },
     {
         "name": "central heating",
-        "attr": "ch",
+        "attr": "CH",
         "unitOfMeasure": VOLUME_CUBIC_METERS,
     },
-    {"name": "hot water", "attr": "hw", "unitOfMeasure": VOLUME_CUBIC_METERS},
+    {"name": "hot water", "attr": "HW", "unitOfMeasure": VOLUME_CUBIC_METERS},
 ]
 
 
@@ -61,9 +61,10 @@ class EnergySensor(StatisticHelper):
         **kwargs,
     ) -> None:
         """Initialize Energy sensor."""
-        self._read_attr = sensor_attributes.get("attr")
+        self._attr_read_key = None
+        self._read_attr_to_search = sensor_attributes.get("attr")
         self._normalize = sensor_attributes.get("normalize")
-        self._attr_unique_id = f"{self._domain_name}{self._read_attr}{uuid}"
+        self._attr_unique_id = f"{self._domain_name}{self._read_attr_to_search}{uuid}"
 
         super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
         self._unit_of_measurement = sensor_attributes.get(UNITS)
@@ -82,10 +83,24 @@ class EnergySensor(StatisticHelper):
         """Update state of device."""
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
-        if not value or self._read_attr not in value:
-            _LOGGER.debug("Reading attribute not available %s", self._read_attr)
+        if not value:
+            _LOGGER.debug("Energy sensor data not available %s", self._name)
+        
+        def search_read_attr():
+            if not self._attr_read_key:
+                for attr in value:
+                    if self._read_attr_to_search in attr.upper():
+                        self._attr_read_key = attr
+                        return True
+            else:
+                return True
+            _LOGGER.debug("Reading attribute not available %s", self._attr_read_key)
             self._state = STATE_UNAVAILABLE
+            return False
+        
+        if not search_read_attr():
             return
+        
         if self._new_stats_api and (
             self._unit_of_measurement == ENERGY_KILO_WATT_HOUR
             or self._unit_of_measurement == VOLUME_CUBIC_METERS
@@ -93,9 +108,9 @@ class EnergySensor(StatisticHelper):
             await self._insert_statistics()
         else:
             if self._normalize:
-                self._state = self._normalize(value.get(self._read_attr))
+                self._state = self._normalize(value.get(self._attr_read_key))
             else:
-                self._state = value.get(self._read_attr)
+                self._state = value.get(self._attr_read_key)
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
@@ -105,7 +120,7 @@ class EnergySensor(StatisticHelper):
         """External API statistic ID."""
         if not self._short_id:
             self._short_id = self.entity_id.replace(".", "").replace("sensor", "")
-        return f"{self._domain_name}:{self._read_attr}{self._short_id}external".lower()
+        return f"{self._domain_name}:{self._attr_read_key}{self._short_id}external".lower()
 
     def _generate_easycontrol_statistics(
         self, start: datetime, end: datetime, single_value: int, init_value: int
@@ -156,7 +171,7 @@ class EnergySensor(StatisticHelper):
             _LOGGER.debug("No stats found. Exiting.")
             return
         day_data = stats[_day_dt]
-        _value = round(day_data[self._read_attr] / 24, 2)
+        _value = round(day_data[self._attr_read_key] / 24, 2)
         last_stats = await self.get_stats(
             start_time=start - timedelta(hours=1), end_time=now
         )
@@ -178,7 +193,7 @@ class EnergySensor(StatisticHelper):
             _date = start_of_day.replace(
                 year=day_dt.year, month=day_dt.month, day=day_dt.day
             )
-            _value = round(stat[self._read_attr] / 24, 2)
+            _value = round(stat[self._attr_read_key] / 24, 2)
             sum, statistics = self._generate_easycontrol_statistics(
                 start=_date,
                 end=_date + timedelta(days=1),
@@ -209,8 +224,10 @@ class EnergySensor(StatisticHelper):
             self.append_statistics(stats=all_stats, sum=_sum)
             return
 
-        now = dt_util.now() - timedelta(days=1)
-        start_of_day = dt_util.start_of_local_day() - timedelta(days=1)
+        now = dt_util.now()
+        start_of_yesterday = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        start_of_yesterday_utc = dt_util.as_utc(start_of_yesterday)
+        yesterday = now - timedelta(days=1)
 
         last_stat_row = last_stat[self.statistic_id][0]
         last_stat_start = timestamp_to_datetime_or_none(last_stat_row["start"])
@@ -218,19 +235,19 @@ class EnergySensor(StatisticHelper):
         last_stats = (
             await self.get_stats(
                 start_time=dt_util.start_of_local_day(last_stat_start)
-                - timedelta(hours=1),
-                end_time=now,
+                - timedelta(hours=3),
+                end_time=yesterday,
             )
-            if last_stat_start and last_stat_start <= start_of_day
+            if last_stat_start and last_stat_start <= start_of_yesterday_utc
             else await self.get_stats(
-                start_time=start_of_day - timedelta(hours=1),
-                end_time=now - timedelta(hours=1),
+                start_time=start_of_yesterday_utc - timedelta(hours=1),
+                end_time=yesterday - timedelta(hours=1),
             )
         )
 
         async def get_last_stats_from_bosch_api():
             last_stats_row = self.get_last_stats_before_date(
-                last_stats=last_stats, day=start_of_day
+                last_stats=last_stats, day=start_of_yesterday_utc
             )
             start_time = last_stats_row["start"]
             _sum = last_stats_row["sum"] or 0
@@ -240,7 +257,7 @@ class EnergySensor(StatisticHelper):
                 _LOGGER.debug(
                     "Start time not found. %s found %s", self.statistic_id, start_time
                 )
-            elif start_time.date() < now.date() - timedelta(days=2):
+            elif start_time.date() < yesterday.date() - timedelta(days=2):
                 _LOGGER.debug(
                     "Last row of statistic %s found %s, missing more than 1 day with current sum %s",
                     self.statistic_id,
@@ -248,7 +265,7 @@ class EnergySensor(StatisticHelper):
                     _sum,
                 )
                 bosch_data = await self.fetch_past_data(
-                    start_time=start_time, stop_time=now
+                    start_time=start_time, stop_time=yesterday
                 )
                 return (
                     [
