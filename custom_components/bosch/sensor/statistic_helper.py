@@ -53,7 +53,7 @@ class StatisticHelper(BoschBaseSensor):
                     {
                         StatisticsMeta.statistic_id: self.statistic_id,
                         StatisticsMeta.source: self._domain_name.lower(),
-                        StatisticsMeta.name: self._name,
+                        StatisticsMeta.name: f"Stats {self._name}",
                     }
                 )
         except IntegrityError as err:
@@ -75,7 +75,7 @@ class StatisticHelper(BoschBaseSensor):
         return StatisticMetaData(
             has_mean=False,
             has_sum=True,
-            name=self._name,
+            name=f"Stats {self._name}",
             source=self._domain_name.lower(),
             statistic_id=self.statistic_id,
             unit_of_measurement=self._unit_of_measurement,
