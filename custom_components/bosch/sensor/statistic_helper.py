@@ -112,6 +112,7 @@ class StatisticHelper(BoschBaseSensor):
         if not stats:
             return
         async_add_external_statistics(self.hass, self.statistic_metadata, stats)
+        self.async_schedule_update_ha_state()
 
     def get_last_stats_before_date(
         self, last_stats: dict[str, list[StatisticsRow]], day: datetime
