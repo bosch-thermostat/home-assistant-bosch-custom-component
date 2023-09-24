@@ -1,27 +1,31 @@
 debug_scan:
-  description:  Run raw scan for Bosch. It will be available as bosch_scan.json in your www dir of Home Assistant. You can check url of the file in logs after it. It doesn't matter which entity you choose. It makes scan for whole your setup. Typically it is https://ha/local/bosch_scan.json?vX . There will be notification in HA with url of the scan. It takes several minutes to finish. Be patient!
-  fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
+  description: >-
+    Run raw scan for Bosch. It will be available as bosch_scan.json in your www dir of Home Assistant. You can check url of the file in logs after it. It doesn't matter which entity you choose. It makes scan for whole your setup. Typically it is https://ha/local/bosch_scan.json?vX . 
+    There will be notification in HA with url of the scan. It takes several minutes to finish. Be patient!
+    Choose any entity or device of your bosch inegration, it will find UUID and make scan for your whole Bosch setup. You don't need to choose water heater and climate separately!
+  target:
+    device:
+      integration: bosch
 update_thermostat:
-  description:  Update thermostat data manually. Automatically it occurs every 30 seconds. Avoid to use it a lot as Bosch gateway might block requests for some time.
-  fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
+  description: >-
+    Update thermostat data manually. Automatically it occurs every 30 seconds. Avoid to use it a lot as Bosch gateway might block requests for some time.
+  target:
+    device:
+      integration: bosch
 update_recordings_sensor:
-  description:  Update thermostat recording/energy sensor manually. Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
-  fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
+  description: >-
+    Update thermostat recording/energy sensor manually. Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
+  target:
+    device:
+      integration: bosch
 fetch_recordings_sensor_range:
-  description:  Update thermostat recording/energy sensor manually. Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
+  description: >-
+    Update thermostat recording/energy sensor manually.
+    Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
+  target:
+    device:
+      integration: bosch
   fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
     day:
       name: Date
       description: Date to fetch
@@ -31,52 +35,71 @@ fetch_recordings_sensor_range:
     statistic_id:
       name: Statistic ID
       description: Statistic ID, you can find proper id in Developer tools -> Statistics in column Statistic id.
-      example: "recording:recording"
+      example: 'recording:recording'
+      selector:
+        text:
 move_old_statistic_data:
-  description:  Move old statistic data
-  fields:
-    entity_id:
-      description: Name(s) of entity. Choose one from Bosch component.
-      example: 'sensor.recording_actualdhwpower'
+  description: >-
+    Move old statistic data. Choose one **recording/energy** sensor from Bosch component.
+  target:
+    entity:
+      integration: bosch
+      domain: sensor
+      # description:
 set_dhw_charge:
   description: Charge DHW circuit.
+  target:
+    entity:
+      integration: bosch
+      domain: water_heater
   fields:
-    entity_id:
-      description: Name(s) of entities to change.
-      example: 'water_heater.dhw1'
     value:
       description: Either start or stop
-      example: 'start'
+      select:
+        options:
+          - 'start'
+          - 'stop'
 send_custom_put_float:
   description: Send custom PUT command to your bosch gateway with Float value
+  target:
+    device:
+      integration: bosch
   fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
     path:
       description: URI to send put command
       example: '"/dhwCircuits/dhw1/temperatureLevels/high"'
     value:
       description: Value you want to send
       example: 50.0
+      selector:
+        number:
+          min: 0
+          max: 70
 send_custom_put_string:
   description: Send custom PUT command to your bosch gateway with String value
+  target:
+    device:
+      integration: bosch
   fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
     path:
       description: URI to send put command
       example: '"/system/holidayModes/hm1/startStop"'
+      selector:
+        text:
     value:
       description: Value you want to send
       example: '2022-05-17'
+      selector:
+        text:
 send_custom_get:
   description: Send custom GET command to your bosch gateway
+  target:
+    device:
+      integration: bosch
   fields:
-    uuid:
-      description: UUID of device you want to connect to. Go to device info page and check hardware version row.
-      example: '"1111111"'
     path:
+      required: true
       description: URI to send get command
       example: '"/system/holidayModes/hm1/startStop"'
+      selector:
+        text:

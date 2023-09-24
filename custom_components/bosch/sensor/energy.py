@@ -83,8 +83,6 @@ class EnergySensor(StatisticHelper):
         """Update state of device."""
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
-        if not value:
-            _LOGGER.debug("Energy sensor data not available %s", self._name)
         
         def search_read_attr():
             if not self._attr_read_key:
@@ -98,8 +96,9 @@ class EnergySensor(StatisticHelper):
             self._state = STATE_UNAVAILABLE
             return False
         
-        if not search_read_attr():
-            return
+        if not value or not search_read_attr():
+            _LOGGER.debug("Energy sensor data not available %s", self._name)
+            self._state = STATE_UNAVAILABLE
         
         if self._new_stats_api and (
             self._unit_of_measurement == ENERGY_KILO_WATT_HOUR

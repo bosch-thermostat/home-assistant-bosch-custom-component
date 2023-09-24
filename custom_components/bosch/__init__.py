@@ -215,6 +215,10 @@ class BoschGatewayEntry:
         self.supported_platforms = []
         self._update_lock = None
 
+    @property
+    def device_id(self) -> str:
+        return self.config_entry.entry_id
+
     async def async_init(self) -> bool:
         """Init async items in entry."""
         import bosch_thermostat_client as bosch
@@ -436,28 +440,35 @@ class BoschGatewayEntry:
         except FirmwareException as err:
             create_notification_firmware(hass=self.hass, msg=err)
 
-    async def make_rawscan(self, filename: str):
+    async def make_rawscan(self, filename: str) -> dict:
         """Create rawscan from service."""
-        try:
-            async with self._update_lock:
-                _LOGGER.info("Starting rawscan of Bosch component")
-                rawscan = await self.gateway.rawscan()
+        rawscan = {}
+        async with self._update_lock:
+            _LOGGER.info("Starting rawscan of Bosch component")
+            self.hass.components.persistent_notification.async_create(
+                title="Bosch scan",
+                message=(f"Starting rawscan"),
+                notification_id=NOTIFICATION_ID,
+            )
+            rawscan = await self.gateway.rawscan()
+            try:
                 save_json(filename, rawscan)
-                url = "{}{}{}".format(
-                    get_url(self.hass),
-                    "/local/bosch_scan.json?v",
-                    random.randint(0, 5000),
-                )
-                _LOGGER.info(f"Rawscan success. Your URL: {url}")
-                self.hass.components.persistent_notification.async_create(
-                    title="Bosch scan",
-                    message=(f"[{url}]({url})"),
-                    notification_id=NOTIFICATION_ID,
-                )
-        except FileNotFoundError as err:
-            _LOGGER.error("Can't create file. %s", err)
-        except OSError as err:
-            _LOGGER.error("Can't write image to file: %s", err)
+            except (FileNotFoundError, OSError) as err:
+                _LOGGER.error("Can't create file. %s", err)
+                if rawscan:
+                    return rawscan
+            url = "{}{}{}".format(
+                get_url(self.hass),
+                "/local/bosch_scan.json?v",
+                random.randint(0, 5000),
+            )
+            _LOGGER.info(f"Rawscan success. Your URL: {url}")
+            self.hass.components.persistent_notification.async_create(
+                title="Bosch scan",
+                message=(f"[{url}]({url})"),
+                notification_id=NOTIFICATION_ID,
+            )
+        return rawscan
 
     async def async_reset(self) -> bool:
         """Reset this device to default state."""
