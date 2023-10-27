@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, STATE_UNAVAILABLE
 from homeassistant.components.sensor import SensorEntity
 
 from ..bosch_entity import BoschEntity
@@ -106,15 +106,18 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             self.time_sensor_data(data)
         else:
             if data.get(INVALID, False):
-                self._state = INVALID
+                self._state = None
             else:
-                self._state = data.get(VALUE, INVALID)
+                if _state := data.get(VALUE, INVALID) in (INVALID, "unavailable"):
+                    self._state = None
+                else:
+                    self._state = _state
                 check_name()
 
             self._attrs = {}
             if not data:
                 if not self._bosch_object.update_initialized:
-                    self._state = self._bosch_object.state
+                    self._state = None if self._attr_state_class == "measurement" else self._bosch_object.state
                     self._attrs["stateExtra"] = self._bosch_object.state_message
                 return
             self.attrs_write(
