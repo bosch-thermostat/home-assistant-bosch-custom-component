@@ -23,13 +23,24 @@ from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
 _LOGGER = logging.getLogger(__name__)
 
 EnergySensors = [
-    {"name": "energy temperature", "attr": "T", "unitOfMeasure": TEMP_CELSIUS},
+    {
+        "name": "energy temperature",
+        "attr": "T",
+        "unitOfMeasure": TEMP_CELSIUS,
+        "deviceClass": SensorDeviceClass.TEMPERATURE,
+    },
     {
         "name": "energy central heating",
         "attr": "CH",
         "unitOfMeasure": ENERGY_KILO_WATT_HOUR,
+        "deviceClass": SensorDeviceClass.ENERGY,
     },
-    {"name": "energy hot water", "attr": "HW", "unitOfMeasure": ENERGY_KILO_WATT_HOUR},
+    {
+        "name": "energy hot water",
+        "attr": "HW",
+        "unitOfMeasure": ENERGY_KILO_WATT_HOUR,
+        "deviceClass": SensorDeviceClass.ENERGY,
+    },
 ]
 
 EcusRecordingSensors = [
@@ -38,13 +49,20 @@ EcusRecordingSensors = [
         "attr": "T",
         "unitOfMeasure": TEMP_CELSIUS,
         "normalize": lambda x: x / 10,
+        "deviceClass": SensorDeviceClass.TEMPERATURE,
     },
     {
         "name": "central heating",
         "attr": "CH",
         "unitOfMeasure": VOLUME_CUBIC_METERS,
+        "deviceClass": SensorDeviceClass.GAS,
     },
-    {"name": "hot water", "attr": "HW", "unitOfMeasure": VOLUME_CUBIC_METERS},
+    {
+        "name": "hot water",
+        "attr": "HW",
+        "unitOfMeasure": VOLUME_CUBIC_METERS,
+        "deviceClass": SensorDeviceClass.GAS,
+    },
 ]
 
 
@@ -68,11 +86,7 @@ class EnergySensor(StatisticHelper):
 
         super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
         self._unit_of_measurement = sensor_attributes.get(UNITS)
-        self._attr_device_class = (
-            SensorDeviceClass.TEMPERATURE
-            if self._unit_of_measurement == TEMP_CELSIUS
-            else SensorDeviceClass.ENERGY
-        )
+        self._attr_device_class = sensor_attributes.get("deviceClass", SensorDeviceClass.ENERGY)
 
     @property
     def device_name(self) -> str:
@@ -83,7 +97,7 @@ class EnergySensor(StatisticHelper):
         """Update state of device."""
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
-        
+
         def search_read_attr():
             if not self._attr_read_key:
                 for attr in value:
@@ -95,11 +109,11 @@ class EnergySensor(StatisticHelper):
             _LOGGER.debug("Reading attribute not available %s", self._attr_read_key)
             self._state = STATE_UNAVAILABLE
             return False
-        
+
         if not value or not search_read_attr():
             _LOGGER.debug("Energy sensor data not available %s", self._name)
             self._state = STATE_UNAVAILABLE
-        
+
         if self._new_stats_api and (
             self._unit_of_measurement == ENERGY_KILO_WATT_HOUR
             or self._unit_of_measurement == VOLUME_CUBIC_METERS
@@ -119,7 +133,9 @@ class EnergySensor(StatisticHelper):
         """External API statistic ID."""
         if not self._short_id:
             self._short_id = self.entity_id.replace(".", "").replace("sensor", "")
-        return f"{self._domain_name}:{self._attr_read_key}{self._short_id}external".lower()
+        return (
+            f"{self._domain_name}:{self._attr_read_key}{self._short_id}external".lower()
+        )
 
     def _generate_easycontrol_statistics(
         self, start: datetime, end: datetime, single_value: int, init_value: int
@@ -224,7 +240,9 @@ class EnergySensor(StatisticHelper):
             return
 
         now = dt_util.now()
-        start_of_yesterday = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        start_of_yesterday = now.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) - timedelta(days=1)
         start_of_yesterday_utc = dt_util.as_utc(start_of_yesterday)
         yesterday = now - timedelta(days=1)
 
