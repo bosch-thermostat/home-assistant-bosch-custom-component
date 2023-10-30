@@ -2,12 +2,10 @@
 from __future__ import annotations
 import logging
 import asyncio
-from typing import Any
 from datetime import datetime, timedelta
 from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
-    timestamp_to_datetime_or_none,
     datetime_to_timestamp_or_none,
 )
 from sqlalchemy.exc import IntegrityError
