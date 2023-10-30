@@ -103,7 +103,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         units = get_units()
 
         if units == MINS and data:
-            self.time_sensor_data(data)
+            self.time_sensor_data(data={**data, "path": self._bosch_object.path})
         else:
             if data.get(INVALID, False):
                 self._state = None
@@ -121,7 +121,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
                     self._attrs["stateExtra"] = self._bosch_object.state_message
                 return
             self.attrs_write(
-                data={**data, "stateExtra": self._bosch_object.state}, units=units
+                data={**data, "stateExtra": self._bosch_object.state, "path": self._bosch_object.path}, units=units
             )
 
     def time_sensor_data(self, data):
