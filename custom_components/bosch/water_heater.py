@@ -35,12 +35,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_FLAGS_HEATER = (
-    WaterHeaterEntityFeature.TARGET_TEMPERATURE
-    | WaterHeaterEntityFeature.OPERATION_MODE
-)
-
-
 async def async_setup_entry(hass, config_entry, async_add_entities) -> bool:
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.data[UUID]
@@ -122,7 +116,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
             or not self._bosch_object.support_target_temp
         ):
             return [WaterHeaterEntityFeature.OPERATION_MODE]
-        return [SUPPORT_FLAGS_HEATER]
+        return [WaterHeaterEntityFeature.TARGET_TEMPERATURE, WaterHeaterEntityFeature.OPERATION_MODE]
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
