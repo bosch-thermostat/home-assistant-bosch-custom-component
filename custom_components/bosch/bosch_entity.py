@@ -1,5 +1,5 @@
 """Bosch base entity."""
-from homeassistant.const import TEMP_CELSIUS
+from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from homeassistant.helpers.entity import DeviceInfo
@@ -59,7 +59,7 @@ class BoschClimateWaterEntity(BoschEntity):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._name = self._bosch_object.name
-        self._temperature_unit = TEMP_CELSIUS
+        self._temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_unique_id = f"{self._uuid}{self._bosch_object.id}"
         self._current_temperature = None
         self._state = None
