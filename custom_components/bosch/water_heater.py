@@ -11,9 +11,8 @@ from homeassistant.components.water_heater import (
     ATTR_TARGET_TEMP_HIGH,
     ATTR_TARGET_TEMP_LOW,
     STATE_OFF,
-    SUPPORT_OPERATION_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
     WaterHeaterEntity,
+    WaterHeaterEntityFeature,
 )
 from homeassistant.const import ATTR_TEMPERATURE
 from homeassistant.helpers import entity_platform
@@ -36,7 +35,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_FLAGS_HEATER = SUPPORT_TARGET_TEMPERATURE | SUPPORT_OPERATION_MODE
+SUPPORT_FLAGS_HEATER = (
+    WaterHeaterEntityFeature.TARGET_TEMPERATURE
+    | WaterHeaterEntityFeature.OPERATION_MODE
+)
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities) -> bool:
@@ -119,7 +121,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
             or self._bosch_object.setpoint == STATE_OFF
             or not self._bosch_object.support_target_temp
         ):
-            return SUPPORT_OPERATION_MODE
+            return WaterHeaterEntityFeature.OPERATION_MODE
         return SUPPORT_FLAGS_HEATER
 
     async def async_set_temperature(self, **kwargs):

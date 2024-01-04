@@ -24,6 +24,7 @@ from bosch_thermostat_client.const.easycontrol import DV
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     FirmwareException,
+    EncryptionException,
     UnknownDevice,
 )
 from bosch_thermostat_client.version import __version__ as LIBVERSION
@@ -291,14 +292,23 @@ class BoschGatewayEntry:
             async_call_later(self.hass, 5, self.thermostat_refresh)
             self.hass.async_create_task(self.recording_sensors_update())
 
-    async def async_init_bosch(self):
+    async def async_init_bosch(self) -> bool:
         """Initialize Bosch gateway module."""
         _LOGGER.debug("Checking connection to Bosch gateway as %s.", self._host)
         try:
             await self.gateway.check_connection()
-        except (FirmwareException, UnknownDevice) as err:
+        except (FirmwareException) as err:
             create_notification_firmware(hass=self.hass, msg=err)
             _LOGGER.error(err)
+            return False
+        except (UnknownDevice, EncryptionException) as err:
+            _LOGGER.error(err)
+            _LOGGER.error("You might need to check your password.")
+            raise ConfigEntryNotReady(
+                "Cannot connect to Bosch gateway, host %s with UUID: %s",
+                self._host,
+                self.uuid,
+            )
         if not self.gateway.uuid:
             raise ConfigEntryNotReady(
                 "Cannot connect to Bosch gateway, host %s with UUID: %s",

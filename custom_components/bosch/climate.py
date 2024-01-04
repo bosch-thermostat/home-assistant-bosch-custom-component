@@ -6,10 +6,8 @@ from typing import Any
 from bosch_thermostat_client.const import HVAC_HEAT, HVAC_OFF, SETPOINT
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_IDLE,
-    SUPPORT_PRESET_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
+    HVACAction,
+    ClimateEntityFeature,
 )
 from homeassistant.const import ATTR_TEMPERATURE
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -81,6 +79,11 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
             if self._bosch_object.schedule:
                 data[SWITCHPOINT] = self._bosch_object.schedule.active_program
             data[BOSCH_STATE] = self._state
+            if self._bosch_object.extra_state_attributes:
+                data = {
+                    **data,
+                    **self._bosch_object.extra_state_attributes
+                }
         except NotImplementedError:
             pass
         return data
@@ -88,8 +91,8 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
     @property
     def supported_features(self):
         """Return the list of supported features."""
-        return SUPPORT_TARGET_TEMPERATURE | (
-            SUPPORT_PRESET_MODE if self._bosch_object.support_presets else 0
+        return ClimateEntityFeature.TARGET_TEMPERATURE | (
+            ClimateEntityFeature.PRESET_MODE if self._bosch_object.support_presets else 0
         )
 
     async def async_set_hvac_mode(self, hvac_mode):
@@ -128,9 +131,9 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         """Hvac action."""
         hvac_action = self._bosch_object.hvac_action
         if hvac_action == HVAC_HEAT:
-            return CURRENT_HVAC_HEAT
+            return HVACAction.HEATING
         if hvac_action == HVAC_OFF:
-            return CURRENT_HVAC_IDLE
+            return HVACAction.IDLE
 
     @property
     def hvac_modes(self) -> list:
