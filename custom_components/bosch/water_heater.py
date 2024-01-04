@@ -121,8 +121,8 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
             or self._bosch_object.setpoint == STATE_OFF
             or not self._bosch_object.support_target_temp
         ):
-            return WaterHeaterEntityFeature.OPERATION_MODE
-        return SUPPORT_FLAGS_HEATER
+            return [WaterHeaterEntityFeature.OPERATION_MODE]
+        return [SUPPORT_FLAGS_HEATER]
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
