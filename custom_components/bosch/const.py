@@ -4,7 +4,7 @@ from datetime import timedelta
 import voluptuous as vol
 from bosch_thermostat_client.const import DHW, HC, SC, ZN
 from bosch_thermostat_client.const.easycontrol import DV
-from homeassistant.const import ENERGY_KILO_WATT_HOUR, TEMP_CELSIUS, TEMP_FAHRENHEIT
+from homeassistant.const import UnitOfEnergy, UnitOfTemperature
 
 DOMAIN = "bosch"
 BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
@@ -59,17 +59,17 @@ SWITCH = "switch"
 
 
 UNITS_CONVERTER = {
-    "C": TEMP_CELSIUS,
-    TEMP_CELSIUS: TEMP_CELSIUS,
-    "F": TEMP_FAHRENHEIT,
-    TEMP_FAHRENHEIT: TEMP_FAHRENHEIT,
+    "C": UnitOfTemperature.CELSIUS,
+    UnitOfTemperature.CELSIUS: UnitOfTemperature.CELSIUS,
+    "F": UnitOfTemperature.FAHRENHEIT,
+    UnitOfTemperature.FAHRENHEIT: UnitOfTemperature.FAHRENHEIT,
     "%": "%",
     "l/min": "l/min",
     "l/h": "l/h",
     "kg/l": "kg/l",
     "mins": MINS,
     "kW": "kW",
-    "kWh": ENERGY_KILO_WATT_HOUR,
+    "kWh": UnitOfEnergy.KILO_WATT_HOUR,
     "Wh": "Wh",
     "Pascal": "Pascal",
     "bar": "bar",
