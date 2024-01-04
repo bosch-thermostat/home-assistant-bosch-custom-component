@@ -6,10 +6,10 @@ from bosch_thermostat_client.const import UNITS
 from .statistic_helper import StatisticHelper
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import (
-    ENERGY_KILO_WATT_HOUR,
+    UnitOfEnergy,
+    UnitOfTemperature,
+    UnitOfVolume,
     STATE_UNAVAILABLE,
-    TEMP_CELSIUS,
-    VOLUME_CUBIC_METERS,
 )
 from homeassistant.util import dt as dt_util
 from homeassistant.components.recorder.models import (
@@ -26,19 +26,19 @@ EnergySensors = [
     {
         "name": "energy temperature",
         "attr": "T",
-        "unitOfMeasure": TEMP_CELSIUS,
+        "unitOfMeasure": UnitOfTemperature.CELSIUS,
         "deviceClass": SensorDeviceClass.TEMPERATURE,
     },
     {
         "name": "energy central heating",
         "attr": "CH",
-        "unitOfMeasure": ENERGY_KILO_WATT_HOUR,
+        "unitOfMeasure": UnitOfEnergy.KILO_WATT_HOUR,
         "deviceClass": SensorDeviceClass.ENERGY,
     },
     {
         "name": "energy hot water",
         "attr": "HW",
-        "unitOfMeasure": ENERGY_KILO_WATT_HOUR,
+        "unitOfMeasure": UnitOfEnergy.KILO_WATT_HOUR,
         "deviceClass": SensorDeviceClass.ENERGY,
     },
 ]
@@ -47,20 +47,20 @@ EcusRecordingSensors = [
     {
         "name": "ecus avg outdoor temperature",
         "attr": "T",
-        "unitOfMeasure": TEMP_CELSIUS,
+        "unitOfMeasure": UnitOfTemperature.CELSIUS,
         "normalize": lambda x: x / 10,
         "deviceClass": SensorDeviceClass.TEMPERATURE,
     },
     {
         "name": "central heating",
         "attr": "CH",
-        "unitOfMeasure": VOLUME_CUBIC_METERS,
+        "unitOfMeasure": UnitOfVolume.CUBIC_METERS,
         "deviceClass": SensorDeviceClass.GAS,
     },
     {
         "name": "hot water",
         "attr": "HW",
-        "unitOfMeasure": VOLUME_CUBIC_METERS,
+        "unitOfMeasure": UnitOfVolume.CUBIC_METERS,
         "deviceClass": SensorDeviceClass.GAS,
     },
 ]
@@ -86,8 +86,13 @@ class EnergySensor(StatisticHelper):
 
         super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
         self._unit_of_measurement = sensor_attributes.get(UNITS)
-        self._attr_device_class = sensor_attributes.get("deviceClass", SensorDeviceClass.ENERGY)
-        if self._attr_state_class and self._attr_device_class == SensorDeviceClass.TEMPERATURE:
+        self._attr_device_class = sensor_attributes.get(
+            "deviceClass", SensorDeviceClass.ENERGY
+        )
+        if (
+            self._attr_state_class
+            and self._attr_device_class == SensorDeviceClass.TEMPERATURE
+        ):
             self._attr_device_class = SensorStateClass.MEASUREMENT
 
     @property
