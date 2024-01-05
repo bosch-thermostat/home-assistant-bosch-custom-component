@@ -80,10 +80,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
                 data[SWITCHPOINT] = self._bosch_object.schedule.active_program
             data[BOSCH_STATE] = self._state
             if self._bosch_object.extra_state_attributes:
-                data = {
-                    **data,
-                    **self._bosch_object.extra_state_attributes
-                }
+                data = {**data, **self._bosch_object.extra_state_attributes}
         except NotImplementedError:
             pass
         return data
@@ -92,7 +89,9 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
     def supported_features(self):
         """Return the list of supported features."""
         return ClimateEntityFeature.TARGET_TEMPERATURE | (
-            ClimateEntityFeature.PRESET_MODE if self._bosch_object.support_presets else 0
+            ClimateEntityFeature.PRESET_MODE
+            if self._bosch_object.support_presets
+            else 0
         )
 
     async def async_set_hvac_mode(self, hvac_mode):
