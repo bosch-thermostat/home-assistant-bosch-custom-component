@@ -117,12 +117,11 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
         if not _gateway_entries:
             return
         for _gateway_entry in _gateway_entries:
-            recording_entities: list[RecordingSensor] = _gateway_entry.get(RECORDING, [])
+            recording_entities: list[RecordingSensor] = _gateway_entry.hass.data[DOMAIN][_gateway_entry.uuid].get(RECORDING, [])
             for entity in recording_entities:
                 if entity.enabled and entity.statistic_id == statistic_id:
+                    _LOGGER.debug("Fetching single day by service request. UUID: %s, statistic_id: %s, day: %s", _gateway_entry.uuid, statistic_id, day)
                     await entity.insert_statistics_range(start_time=day)
-            _LOGGER.debug("Performing sensor update on service request. UUID: %s", _gateway_entry.uuid)
-            await _gateway_entry.recording_sensors_update()
 
     async def async_handle_get(service_call: ServiceCall) -> ServiceResponse:
         """Request update of recording sensor manually."""
