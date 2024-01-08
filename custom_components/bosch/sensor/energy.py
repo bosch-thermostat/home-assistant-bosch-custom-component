@@ -122,8 +122,8 @@ class EnergySensor(StatisticHelper):
             self._state = STATE_UNAVAILABLE
 
         if self._new_stats_api and (
-            self._unit_of_measurement == ENERGY_KILO_WATT_HOUR
-            or self._unit_of_measurement == VOLUME_CUBIC_METERS
+            self._unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
+            or self._unit_of_measurement == UnitOfVolume.CUBIC_METERS
         ):
             await self._insert_statistics()
         else:
