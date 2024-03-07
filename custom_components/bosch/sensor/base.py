@@ -102,43 +102,24 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
 
         units = get_units()
 
-        if units == MINS and data:
-            self.time_sensor_data(data={**data, "path": self._bosch_object.path})
+        if data.get(INVALID, False):
+            self._state = None
         else:
-            if data.get(INVALID, False):
+            if (_state := data.get(VALUE, INVALID)) in (INVALID, "unavailable"):
                 self._state = None
             else:
-                if (_state := data.get(VALUE, INVALID)) in (INVALID, "unavailable"):
-                    self._state = None
-                else:
-                    self._state = _state
-                check_name()
+                self._state = _state
+            check_name()
 
-            self._attrs = {}
-            if not data:
-                if not self._bosch_object.update_initialized:
-                    self._state = None if self._attr_state_class == "measurement" else self._bosch_object.state
-                    self._attrs["stateExtra"] = self._bosch_object.state_message
-                return
-            self.attrs_write(
-                data={**data, "stateExtra": self._bosch_object.state, "path": self._bosch_object.path}, units=units
-            )
-
-    def time_sensor_data(self, data):
-        value = data.get(VALUE, INVALID)
-        if value == 0:
-            self._state = value
+        self._attrs = {}
+        if not data:
+            if not self._bosch_object.update_initialized:
+                self._state = None if self._attr_state_class == "measurement" else self._bosch_object.state
+                self._attrs["stateExtra"] = self._bosch_object.state_message
             return
-        now = datetime.now()
-        next_from_midnight = datetime.now().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ) + timedelta(minutes=value)
-        if now >= next_from_midnight:
-            self._state = next_from_midnight + timedelta(days=1)
-        else:
-            self._state = next_from_midnight
-        data["device_class"] = "timestamp"
-        self.attrs_write(data=data, units=None)
+        self.attrs_write(
+            data={**data, "stateExtra": self._bosch_object.state, "path": self._bosch_object.path}, units=units
+        )
 
     def attrs_write(self, data, units):
         self._attrs = data
