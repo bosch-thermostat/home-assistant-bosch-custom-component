@@ -114,11 +114,21 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         self._attrs = {}
         if not data:
             if not self._bosch_object.update_initialized:
-                self._state = None if self._attr_state_class == "measurement" else self._bosch_object.state
+                self._state = (
+                    None
+                    if self._attr_state_class
+                    and self._attr_state_class == "measurement"
+                    else self._bosch_object.state
+                )
                 self._attrs["stateExtra"] = self._bosch_object.state_message
             return
         self.attrs_write(
-            data={**data, "stateExtra": self._bosch_object.state, "path": self._bosch_object.path}, units=units
+            data={
+                **data,
+                "stateExtra": self._bosch_object.state,
+                "path": self._bosch_object.path,
+            },
+            units=units,
         )
 
     def attrs_write(self, data, units):
