@@ -1,6 +1,6 @@
 """Platform to control a Bosch IP thermostats units."""
 from __future__ import annotations
-import aiohttp
+import aioxmpp
 import asyncio
 import logging
 import random
