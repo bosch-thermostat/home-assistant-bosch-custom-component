@@ -1,8 +1,10 @@
 """Platform to control a Bosch IP thermostats units."""
 from __future__ import annotations
+import aiohttp
 import asyncio
 import logging
 import random
+import ssl
 from datetime import timedelta
 from collections.abc import Awaitable
 from typing import Any
@@ -225,6 +227,15 @@ class BoschGatewayEntry:
         import bosch_thermostat_client as bosch
 
         _LOGGER.debug("Initializing Bosch integration.")
+
+        # python 3.12+ does not have check_hostname
+        # this check is now outsourced to openssl when the connection is made
+        # so we can safely set the return value to true
+        # this is a workaround for aioxmpp not being updated
+        if not hasattr(ssl, "check_hostname") and hasattr(aioxmpp.security_layer, "check_x509_hostname"):
+            _LOGGER.info("Patching aioxmpp.")
+            aioxmpp.security_layer.check_x509_hostname = lambda x, y: True
+
         self._update_lock = asyncio.Lock()
         BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
         self.gateway = BoschGateway(
