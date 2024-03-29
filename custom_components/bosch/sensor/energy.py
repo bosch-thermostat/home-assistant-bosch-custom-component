@@ -194,7 +194,7 @@ class EnergySensor(StatisticHelper):
             return
         day_data = stats[_day_dt]
         _value = round(day_data[self._attr_read_key] / 24, 2)
-        last_stats = await self.get_stats(
+        last_stats = await self.get_stats_from_ha_db(
             start_time=start - timedelta(hours=1), end_time=now
         )
         last_stat = last_stats.get(self.statistic_id)
@@ -257,13 +257,13 @@ class EnergySensor(StatisticHelper):
         last_stat_start = timestamp_to_datetime_or_none(last_stat_row["start"])
 
         last_stats = (
-            await self.get_stats(
+            await self.get_stats_from_ha_db(
                 start_time=dt_util.start_of_local_day(last_stat_start)
                 - timedelta(hours=3),
                 end_time=yesterday,
             )
             if last_stat_start and last_stat_start <= start_of_yesterday_utc
-            else await self.get_stats(
+            else await self.get_stats_from_ha_db(
                 start_time=start_of_yesterday_utc - timedelta(hours=1),
                 end_time=yesterday - timedelta(hours=1),
             )

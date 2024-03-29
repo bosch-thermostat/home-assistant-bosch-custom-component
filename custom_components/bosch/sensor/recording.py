@@ -101,7 +101,7 @@ class RecordingSensor(StatisticHelper):
             return
         stats_dict = {dt_util.as_timestamp(stat["d"]): stat for stat in stats.values()}
         # get stats from HA database
-        last_stats = await self.get_stats(
+        last_stats = await self.get_stats_from_ha_db(
             start_time=start - timedelta(hours=1), end_time=now
         )
         last_stat = last_stats.get(self.statistic_id)
@@ -196,14 +196,14 @@ class RecordingSensor(StatisticHelper):
         last_stat_row = last_stat[self.statistic_id][0]
         last_stat_start = timestamp_to_datetime_or_none(last_stat_row.get("start"))
 
-        async def get_last_stats():
+        async def get_last_stats_in_ha():
             start_time = dt_util.start_of_local_day(last_stat_start) - timedelta(hours=24)
-            return await self.get_stats(
+            return await self.get_stats_from_ha_db(
                 start_time=start_time,
                 end_time=now,
             )
 
-        last_stats = await get_last_stats()
+        last_stats = await get_last_stats_in_ha()
 
         all_stats = []
 

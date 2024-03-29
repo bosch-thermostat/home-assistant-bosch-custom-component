@@ -89,7 +89,7 @@ class StatisticHelper(BoschBaseSensor):
             {"state", "sum"},
         )
 
-    async def get_stats(
+    async def get_stats_from_ha_db(
         self, start_time: datetime, end_time: datetime
     ) -> dict[str, list[StatisticsRow]]:
         """Get stats during period."""
