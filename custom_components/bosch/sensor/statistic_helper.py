@@ -1,4 +1,5 @@
 """Bosch statistic helper for Recording/Energy sensor."""
+
 from __future__ import annotations
 import logging
 import asyncio
@@ -6,7 +7,7 @@ from datetime import datetime, timedelta
 from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
-    process_datetime_to_timestamp
+    process_datetime_to_timestamp,
 )
 from sqlalchemy.exc import IntegrityError
 from homeassistant.util import dt as dt_util
@@ -125,7 +126,9 @@ class StatisticHelper(BoschBaseSensor):
         if not closest_stat:
             closest_stat = last_stats[self.statistic_id][-1]
             _LOGGER.debug("Closest stat not found, use last one from array!")
-        _LOGGER.debug("Last stat for %s found %s", self.statistic_id, closest_stat)
+        _LOGGER.debug(
+            "Last stat for %s found %s", self.statistic_id, closest_stat
+        )
         return closest_stat
 
     async def insert_statistics_range(self, start_time: datetime) -> None:
@@ -135,7 +138,9 @@ class StatisticHelper(BoschBaseSensor):
         async with self._statistic_import_lock:
             await self._upsert_past_statistics(start=start, stop=stop)
 
-    async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict:
+    async def fetch_past_data(
+        self, start_time: datetime, stop_time: datetime
+    ) -> dict:
         """Rename old entity_id in statistic table."""
         start_time = dt_util.start_of_local_day(start_time)
         _LOGGER.debug(
@@ -144,9 +149,12 @@ class StatisticHelper(BoschBaseSensor):
             stop_time,
             self.statistic_id,
         )
-        return await self._bosch_object.fetch_range(
+        my_range = await self._bosch_object.fetch_range(
             start_time=start_time, stop_time=stop_time
         )
+        return my_range
 
-    async def _upsert_past_statistics(self, start: datetime, stop: datetime) -> None:
+    async def _upsert_past_statistics(
+        self, start: datetime, stop: datetime
+    ) -> None:
         raise NotImplementedError
