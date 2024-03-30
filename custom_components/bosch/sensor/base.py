@@ -1,16 +1,15 @@
 """Base sensor component."""
 
 import logging
-from datetime import datetime, timedelta
 
 from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
-from homeassistant.const import EntityCategory, STATE_UNAVAILABLE
+from homeassistant.const import EntityCategory
 from homeassistant.components.sensor import SensorEntity
 
 from ..bosch_entity import BoschEntity
-from ..const import MINS, UNITS_CONVERTER
+from ..const import UNITS_CONVERTER
 
 _LOGGER = logging.getLogger(__name__)
 
