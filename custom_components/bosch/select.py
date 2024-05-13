@@ -99,7 +99,7 @@ class BoschSelect(BoschEntity, SelectEntity):
         """Update entity state."""
         if self._state != self._bosch_object.state:
             self._state = self._bosch_object.state
-            self.async_write_ha_state()
+            self.schedule_update_ha_state()
 
     @property
     def should_poll(self):
