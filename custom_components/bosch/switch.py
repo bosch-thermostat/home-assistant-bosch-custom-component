@@ -114,19 +114,19 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
         _LOGGER.debug("Turning on %s switch.", self._name)
         await self._bosch_object.turn_on()
         self._state = True
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     async def async_update(self):
         if self._state != self._bosch_object.state:
             self._state = self._bosch_object.state
-            self.async_write_ha_state()
+            self.schedule_update_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn off switch."""
         _LOGGER.debug("Turning off %s switch.", self._name)
         await self._bosch_object.turn_off()
         self._state = False
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     @property
     def should_poll(self):

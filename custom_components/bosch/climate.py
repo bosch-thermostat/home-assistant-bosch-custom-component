@@ -101,14 +101,14 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         if self._optimistic_mode:
             _old_hvac_mode = self._bosch_object.ha_mode
             self._hvac_mode = hvac_mode
-            self.async_write_ha_state()
+            self.schedule_update_ha_state()
         status = await self._bosch_object.set_ha_mode(hvac_mode)
         if status > 0:
             return True
         if self._optimistic_mode:
             """If fail revert back to mode it was back then."""
             self._hvac_mode = _old_hvac_mode
-            self.async_write_ha_state()
+            self.schedule_update_ha_state()
         return False
 
     async def async_set_temperature(self, **kwargs):
@@ -118,7 +118,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         await self._bosch_object.set_temperature(temperature)
         if self._optimistic_mode:
             self._target_temperature = temperature
-            self.async_write_ha_state()
+            self.schedule_update_ha_state()
 
     @property
     def hvac_mode(self):
