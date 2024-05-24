@@ -250,10 +250,11 @@ class BoschGatewayEntry:
             for component in self.supported_platforms:
                 if component == SOLAR:
                     continue
-                self.hass.async_create_task(
+                asyncio.run_coroutine_threadsafe(
                     self.hass.config_entries.async_forward_entry_setup(
                         self.config_entry, component
-                    )
+                    ),
+                    self.hass.loop
                 )
             device_registry = dr.async_get(self.hass)
             device_registry.async_get_or_create(
@@ -290,7 +291,9 @@ class BoschGatewayEntry:
                 FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
             )
             async_call_later(self.hass, 5, self.thermostat_refresh)
-            self.hass.async_create_task(self.recording_sensors_update())
+            asyncio.run_coroutine_threadsafe(self.recording_sensors_update(),
+                self.hass.loop
+            )
 
     async def async_init_bosch(self) -> bool:
         """Initialize Bosch gateway module."""
