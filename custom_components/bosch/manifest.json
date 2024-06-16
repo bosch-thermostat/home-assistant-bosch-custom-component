@@ -3,7 +3,7 @@
   "name": "Bosch thermostat",
   "documentation": "https://github.com/bosch-thermostat/home-assistant-bosch-custom-component",
   "issue_tracker": "https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/issues",
-  "dependencies": ["network"],
+  "dependencies": ["network", "persistent_notification"],
   "after_dependencies": ["http", "recorder"],
   "codeowners": ["@pszafer"],
   "requirements": ["bosch-thermostat-client==v0.25.1"],

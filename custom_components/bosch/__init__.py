@@ -7,6 +7,7 @@ from datetime import timedelta
 from collections.abc import Awaitable
 from typing import Any
 
+from homeassistant.components.persistent_notification import async_create as async_create_persistent_notification
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from bosch_thermostat_client.const import (
@@ -180,7 +181,8 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
 
 def create_notification_firmware(hass: HomeAssistant, msg):
     """Create notification about firmware to the user."""
-    hass.components.persistent_notification.async_create(
+    async_create_persistent_notification(
+        hass,
         title="Bosch info",
         message=(
             "There are problems with config of your thermostat.\n"
