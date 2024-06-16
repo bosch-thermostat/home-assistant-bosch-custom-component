@@ -9,6 +9,7 @@ from typing import Any
 
 from homeassistant.components.persistent_notification import async_create as async_create_persistent_notification
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 import voluptuous as vol
 from bosch_thermostat_client.const import (
     DHW,
@@ -246,8 +247,8 @@ class BoschGatewayEntry:
 
         if await self.async_init_bosch():
             self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, close_connection)
-            self.hass.helpers.dispatcher.async_dispatcher_connect(
-                SIGNAL_BOSCH, self.get_signals
+            async_dispatcher_connect(
+                self.hass, SIGNAL_BOSCH, self.get_signals
             )
             for component in self.supported_platforms:
                 if component == SOLAR:
