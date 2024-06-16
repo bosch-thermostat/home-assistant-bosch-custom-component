@@ -250,15 +250,10 @@ class BoschGatewayEntry:
             async_dispatcher_connect(
                 self.hass, SIGNAL_BOSCH, self.get_signals
             )
-            for component in self.supported_platforms:
-                if component == SOLAR:
-                    continue
-                asyncio.run_coroutine_threadsafe(
-                    self.hass.config_entries.async_forward_entry_setup(
-                        self.config_entry, component
-                    ),
-                    self.hass.loop
-                )
+            await self.hass.config_entries.async_forward_entry_setups(
+                self.config_entry,
+                [component for component in self.supported_platforms if component != SOLAR]
+            )
             device_registry = dr.async_get(self.hass)
             device_registry.async_get_or_create(
                 config_entry_id=self.config_entry.entry_id,
