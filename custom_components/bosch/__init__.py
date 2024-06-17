@@ -31,7 +31,7 @@ from bosch_thermostat_client.exceptions import (
 )
 from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import callback, HomeAssistant
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     CONF_ADDRESS,
@@ -248,7 +248,7 @@ class BoschGatewayEntry:
         if await self.async_init_bosch():
             self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, close_connection)
             async_dispatcher_connect(
-                self.hass, SIGNAL_BOSCH, self.get_signals
+                self.hass, SIGNAL_BOSCH, self.async_get_signals
             )
             for component in self.supported_platforms:
                 if component == SOLAR:
@@ -278,7 +278,8 @@ class BoschGatewayEntry:
             return True
         return False
 
-    def get_signals(self) -> None:
+    @callback
+    def async_get_signals(self) -> None:
         """Prepare update after all entities are loaded."""
         if not self._signal_registered and all(
             k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
