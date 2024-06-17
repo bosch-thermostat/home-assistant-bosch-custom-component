@@ -322,7 +322,7 @@ class BoschGatewayEntry:
             custom_db = load_json(self.hass.config.path(CUSTOM_DB), default=None)
             if custom_db:
                 _LOGGER.info("Loading custom db file.")
-                self.gateway.custom_initialize(custom_db)
+                await self.gateway.custom_initialize(custom_db)
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
             for supported in supported_bosch:
