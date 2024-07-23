@@ -46,10 +46,11 @@ from homeassistant.helpers.event import (
     async_track_point_in_utc_time,
     async_track_time_interval,
 )
+from homeassistant.helpers.json import save_json
 from homeassistant.helpers.network import get_url
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
-from homeassistant.util.json import load_json, save_json
+from homeassistant.util.json import load_json
 
 from custom_components.bosch.switch import SWITCH
 
