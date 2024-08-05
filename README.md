@@ -8,7 +8,7 @@ If you like this component consider sponsoring my work: [:heart: Sponsor](https:
 **Hi, I'm looking for help to make this component better**
 https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/issues/414
 
-**Latest version will only work with Home Assistant 2024.4 and Python >=3.12.**
+**Latest version will only work with Home Assistant 2024.7 and Python >=3.12.**
 For older HA look into release notes.
 
 If possible and if it's ok with you please enable Home Assistant Analytics so I can see how many people uses this integration.
