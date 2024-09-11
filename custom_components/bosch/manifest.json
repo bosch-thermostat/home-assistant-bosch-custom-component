@@ -6,8 +6,8 @@
   "dependencies": ["network", "persistent_notification"],
   "after_dependencies": ["http", "recorder"],
   "codeowners": ["@pszafer"],
-  "requirements": ["bosch-thermostat-client==v0.26.0"],
-  "version": "0.26.1",
+  "requirements": ["bosch-thermostat-client==v0.26.2"],
+  "version": "0.26.2",
   "zeroconf": ["_buderus._tcp.local."],
   "config_flow": true,
   "iot_class": "cloud_polling"
