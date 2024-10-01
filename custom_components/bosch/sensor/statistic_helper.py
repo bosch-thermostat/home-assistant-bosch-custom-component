@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from homeassistant.components.recorder.models import (
     StatisticData,
     StatisticMetaData,
-    process_datetime_to_timestamp,
+    datetime_to_timestamp_or_none,
 )
 from sqlalchemy.exc import IntegrityError
 from homeassistant.util import dt as dt_util
@@ -116,7 +116,7 @@ class StatisticHelper(BoschBaseSensor):
     def get_last_stats_before_date(
         self, last_stats: dict[str, list[StatisticsRow]], day: datetime
     ):
-        day_stamp = process_datetime_to_timestamp(day)
+        day_stamp = datetime_to_timestamp_or_none(day)
         closest_stat = None
         for stat in last_stats[self.statistic_id]:
             tstmp = stat.get("start")
