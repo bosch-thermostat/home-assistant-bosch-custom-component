@@ -31,6 +31,7 @@ Supported types of devices:
   - Bosch Remote room controller CT100
 - EASYCONTROL(XMPP only):
   - Bosch CT200
+  - Buderus Logamatic TC100.2
 
 ## Installation
 
