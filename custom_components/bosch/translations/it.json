@@ -46,7 +46,7 @@
             "title": "Bosch options",
             "data": {
               "new_stats_api": "Utilizza la nuova API statistica (New statistic API)",
-              "optimistic_mode": "Utilizza modalità \"ottimistica\" per alcune funzioni (impostazione di default per EasyControl)."
+              "optimistic_mode": "Utilizza modalità \"ottimista\" per alcune funzioni (impostazione di default per EasyControl)."
             }
           }
         }
