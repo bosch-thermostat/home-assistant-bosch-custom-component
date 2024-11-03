@@ -1,0 +1,55 @@
+{
+    "config": {
+        "title": "Termostato Bosch",
+        "step": {
+            "choose_type": {
+                "title": "Selezione dispositivo.",
+                "data": {
+                    "device_type": "Seleziona il tipo di dispositivo."
+                }
+            },
+            "http_config": {
+              "title": "Configurazione HTTP",
+              "data": {
+                  "address": "Indirizzo IP",
+                  "access_token": "Token di accesso",
+                  "password": "Password"
+              }
+            },
+            "xmpp_config": {
+                "title": "Configurazione XMPP",
+                "data": {
+                    "address": "Numero seriale del dispositivo",
+                    "access_token": "Token di accesso",
+                    "password": "Password"
+                }
+              },
+            "protocol": {
+              "title": "Protocollo IVT Bosch. HTTP utilizza comunicazioni nella rete locale. XMPP invece utilizza il cloud!",
+              "data": {
+                  "Protocol": "HTTP oppure XMPP"
+              }
+            }
+        },
+        "error": {
+            "service_unavailable": "Nessun servizio disponibile"
+        },
+        "abort": {
+            "faulty_credentials": "Credenziali utente errate oppure IP errato",
+            "already_configured": "La zona del controller è gia configurata",
+            "unknown": "Causa sconosciuta. Controllare i log."
+        }
+    },
+    "options": {
+        "step": {
+          "init": {
+            "title": "Bosch options",
+            "data": {
+              "new_stats_api": "Utilizza la nuova API statistica (New statistic API)",
+              "optimistic_mode": "Utilizza modalità \"ottimista\" per alcune funzioni (impostazione di default per EasyControl)."
+            }
+          }
+        }
+      }
+  }
+  
