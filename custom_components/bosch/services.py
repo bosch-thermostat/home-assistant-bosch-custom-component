@@ -182,8 +182,7 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
         DOMAIN,
         SERVICE_PUT_STRING,
         async_handle_put,
-        SERVICE_PUT_STRING_SCHEMA,
-        supports_response=SupportsResponse.ONLY
+        SERVICE_PUT_STRING_SCHEMA
     )
     hass.services.async_register(
         DOMAIN,
