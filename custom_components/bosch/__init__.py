@@ -1,23 +1,22 @@
 """Platform to control a Bosch IP thermostats units."""
 from __future__ import annotations
+
 import asyncio
 import logging
 import random
-from datetime import timedelta
 from collections.abc import Awaitable
+from datetime import timedelta
 from typing import Any
 
-from homeassistant.components.persistent_notification import async_create as async_create_persistent_notification
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 import voluptuous as vol
 from bosch_thermostat_client.const import (
     DHW,
     HC,
     HTTP,
     NUMBER,
-    SC,
     RECORDING,
+    SC,
     SELECT,
     SENSOR,
     ZN,
@@ -25,22 +24,28 @@ from bosch_thermostat_client.const import (
 from bosch_thermostat_client.const.easycontrol import DV
 from bosch_thermostat_client.exceptions import (
     DeviceException,
-    FirmwareException,
     EncryptionException,
+    FirmwareException,
     UnknownDevice,
 )
 from bosch_thermostat_client.version import __version__ as LIBVERSION
+from homeassistant.components.persistent_notification import (
+    async_create as async_create_persistent_notification,
+)
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import callback, HomeAssistant
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     CONF_ADDRESS,
     EVENT_HOMEASSISTANT_STOP,
 )
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_utc_time,
@@ -58,6 +63,8 @@ from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
     BINARY_SENSOR,
+    BOSCH_GATEWAY_ENTRY,
+    CLIMATE,
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
     DOMAIN,
@@ -73,19 +80,17 @@ from .const import (
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
     SIGNAL_NUMBER,
+    SIGNAL_SELECT,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
-    SIGNAL_SELECT,
     SOLAR,
     UUID,
     WATER_HEATER,
-    CLIMATE,
-    BOSCH_GATEWAY_ENTRY,
 )
 from .services import (
-    async_register_services,
     async_register_debug_service,
+    async_register_services,
     async_remove_services,
 )
 
@@ -458,9 +463,10 @@ class BoschGatewayEntry:
         rawscan = {}
         async with self._update_lock:
             _LOGGER.info("Starting rawscan of Bosch component")
-            self.hass.components.persistent_notification.async_create(
+            async_create_persistent_notification(
+                self.hass,
                 title="Bosch scan",
-                message=(f"Starting rawscan"),
+                message=("Starting rawscan"),
                 notification_id=NOTIFICATION_ID,
             )
             rawscan = await self.gateway.rawscan()
@@ -476,7 +482,8 @@ class BoschGatewayEntry:
                 random.randint(0, 5000),
             )
             _LOGGER.info(f"Rawscan success. Your URL: {url}")
-            self.hass.components.persistent_notification.async_create(
+            async_create_persistent_notification(
+                self.hass,
                 title="Bosch scan",
                 message=(f"[{url}]({url})"),
                 notification_id=NOTIFICATION_ID,
