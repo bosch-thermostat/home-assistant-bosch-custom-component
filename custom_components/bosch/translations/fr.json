@@ -1,0 +1,54 @@
+{
+  "config": {
+      "title": "Bosch thermostat",
+      "step": {
+          "choose_type": {
+              "title": "Choisir le type d'appareil.",
+              "data": {
+                  "device_type": "Choisissez votre type d'appareil."
+              }
+          },
+          "http_config": {
+            "title": "Thermostat Bosch configuration HTTP",
+            "data": {
+                "address": "Adresse IP",
+                "access_token": "Jeton d'accès",
+                "password": "Mot de passe"
+            }
+          },
+          "xmpp_config": {
+              "title": "Thermostat Bosch configuration XMPP",
+              "data": {
+                  "address": "Numéro de série de l'appareil",
+                  "access_token": "Jeton d'accès",
+                  "password": "Mot de passe"
+              }
+            },
+          "protocol": {
+            "title": "Protocole Bosch IVT. HTTP pour une connexion locale. XMPP via le cloud!",
+            "data": {
+                "Protocol": "Soit HTTP soit XMPP"
+            }
+          }
+      },
+      "error": {
+          "service_unavailable": "Service indisponible"
+      },
+      "abort": {
+          "faulty_credentials": "Informations d'authentification incorrectes ou mauvaise adresse IP",
+          "already_configured": "Le controleur est déjà configuré",
+          "unknown": "Erreur inconnue. Veuillez vérifier les LOGS."
+      }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "new_stats_api": "Utiliser la nouvelle API pour les statistiques",
+          "optimistic_mode": "Utiliser le mode optimiste pour certaines fonctions (actuellement, le mode de fonctionnement Easycontrol est défini)."
+        }
+      }
+    }
+  }
+}
