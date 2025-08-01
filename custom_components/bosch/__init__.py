@@ -331,6 +331,7 @@ class BoschGatewayEntry:
                 await self.gateway.custom_initialize(custom_db)
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
+            _LOGGER.debug(f"Bosch supported capabilities: {supported_bosch}")
             for supported in supported_bosch:
                 elements = SUPPORTED_PLATFORMS[supported]
                 for element in elements:
@@ -492,7 +493,7 @@ class BoschGatewayEntry:
 
     async def async_reset(self) -> bool:
         """Reset this device to default state."""
-        _LOGGER.warn("Unloading Bosch module.")
+        _LOGGER.warning("Unloading Bosch module.")
         _LOGGER.debug("Closing connection to gateway.")
         tasks: list[Awaitable] = [
             self.hass.config_entries.async_forward_entry_unload(
