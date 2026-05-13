@@ -74,6 +74,7 @@ from .const import (
     INTERVAL,
     NOTIFICATION_ID,
     RECORDING_INTERVAL,
+    REFRESH_TOKEN,
     SCAN_INTERVAL,
     SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
     SIGNAL_BOSCH,
@@ -85,6 +86,7 @@ from .const import (
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
     SOLAR,
+    TOKEN_EXPIRES_AT,
     UUID,
     WATER_HEATER,
 )
@@ -148,8 +150,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         host=entry.data[CONF_ADDRESS],
         protocol=entry.data[CONF_PROTOCOL],
         device_type=entry.data[CONF_DEVICE_TYPE],
-        access_key=entry.data[ACCESS_KEY],
-        access_token=entry.data[ACCESS_TOKEN],
+        access_key=entry.data.get(ACCESS_KEY, ""),
+        access_token=entry.data.get(ACCESS_TOKEN, ""),
+        refresh_token=entry.data.get(REFRESH_TOKEN),
+        token_expires_at=entry.data.get(TOKEN_EXPIRES_AT),
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
@@ -206,7 +210,8 @@ class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
     def __init__(
-        self, hass, uuid, host, protocol, device_type, access_key, access_token, entry
+        self, hass, uuid, host, protocol, device_type, access_key, access_token, entry,
+        refresh_token=None, token_expires_at=None,
     ) -> None:
         """Init Bosch gateway entry config class."""
         self.hass = hass
@@ -214,6 +219,8 @@ class BoschGatewayEntry:
         self._host = host
         self._access_key = access_key
         self._access_token = access_token
+        self._refresh_token = refresh_token
+        self._token_expires_at = token_expires_at
         self._device_type = device_type
         self._protocol = protocol
         self.config_entry = entry
@@ -232,19 +239,31 @@ class BoschGatewayEntry:
     async def async_init(self) -> bool:
         """Init async items in entry."""
         import bosch_thermostat_client as bosch
+        from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 
         _LOGGER.debug("Initializing Bosch integration.")
         self._update_lock = asyncio.Lock()
-        BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
-        self.gateway = BoschGateway(
-            session=async_get_clientsession(self.hass, verify_ssl=False)
-            if self._protocol == HTTP
-            else None,
-            session_type=self._protocol,
-            host=self._host,
-            access_key=self._access_key,
-            access_token=self._access_token,
-        )
+        if self._device_type == EASYCONTROL:
+            from bosch_thermostat_client.gateway.oauth2 import Oauth2Gateway
+            self.gateway = Oauth2Gateway(
+                session=async_get_clientsession(self.hass),
+                device_type=self._device_type,
+                host=self._host,
+                access_token=self._access_token,
+                refresh_token=self._refresh_token,
+                token_expires_at=self._token_expires_at,
+            )
+        else:
+            BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
+            self.gateway = BoschGateway(
+                session=async_get_clientsession(self.hass, verify_ssl=False)
+                if self._protocol == HTTP
+                else None,
+                session_type=self._protocol,
+                host=self._host,
+                access_key=self._access_key,
+                access_token=self._access_token,
+            )
 
         async def close_connection(event) -> None:
             """Close connection with server."""

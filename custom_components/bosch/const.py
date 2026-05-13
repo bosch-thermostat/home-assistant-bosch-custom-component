@@ -14,6 +14,8 @@ UUID = "uuid"
 
 CONF_PROTOCOL = "http_xmpp"
 CONF_DEVICE_TYPE = "device_type"
+REFRESH_TOKEN = "refresh_token"
+TOKEN_EXPIRES_AT = "token_expires_at"
 
 GATEWAY = "gateway"
 CLIMATE = "climate"

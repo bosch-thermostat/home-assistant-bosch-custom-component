@@ -29,10 +29,34 @@
                     "access_token": "Access token",
                     "password": "Password"
                 }
-              }
+              },
+            "easycontrol_serial": {
+                "title": "Bosch EasyControl — POINTT API setup (step 1/3)",
+                "description": "Enter the serial number of your EasyControl device (e.g. 101714742). You can find it on the device label or in the Bosch EasyControl app.",
+                "data": {
+                    "address": "Device serial number"
+                }
+            },
+            "easycontrol_oauth": {
+                "title": "Bosch EasyControl — POINTT API setup (step 2/3)",
+                "description": "1. Open this URL in your browser and log in with your Bosch SingleKey ID account:\n\n{auth_url}\n\n2. After login you will be redirected to a URL starting with `com.bosch.tt.dashtt.pointt://app/login?code=...`. Copy the full URL and paste it below.",
+                "data": {
+                    "redirect_url": "Redirect URL (from browser after login)"
+                }
+            },
+            "easycontrol_claim": {
+                "title": "Bosch EasyControl — POINTT API setup (step 3/3)",
+                "description": "Your device needs to be registered with your Bosch account. Enter the credentials from your device label and the EasyControl app.",
+                "data": {
+                    "access_code": "Access code (from device label)",
+                    "user_password": "Password (set in EasyControl app)"
+                }
+            }
         },
         "error": {
-            "service_unavailable": "No service available"
+            "service_unavailable": "No service available",
+            "invalid_redirect_url": "Could not extract OAuth code from URL. Make sure you paste the full redirect URL.",
+            "cannot_connect": "Token exchange failed. Please try again from step 1."
         },
         "abort": {
             "faulty_credentials": "Bad user credentials or wrong IP",

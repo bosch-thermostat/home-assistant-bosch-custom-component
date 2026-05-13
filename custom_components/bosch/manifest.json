@@ -6,7 +6,7 @@
   "dependencies": ["network", "persistent_notification"],
   "after_dependencies": ["http", "recorder"],
   "codeowners": ["@pszafer"],
-  "requirements": ["bosch-thermostat-client==v0.28.2"],
+  "requirements": ["bosch-thermostat-client @ git+https://github.com/Cerbrus/bosch-thermostat-client-python.git@fix/easycontrol-model-detection"],
   "version": "0.28.2",
   "zeroconf": ["_buderus._tcp.local."],
   "config_flow": true,
