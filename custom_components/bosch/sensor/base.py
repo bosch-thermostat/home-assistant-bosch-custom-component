@@ -48,6 +48,12 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         else:
             self._name = f"{self._bosch_object.parent_id} {name}"
         self._attr_uri = attr_uri
+        # Always define these: async_update() (no-data path) and the
+        # state_class/device_class checks below read them unconditionally.
+        # When a device endpoint is unreachable the read raised
+        # AttributeError every update cycle (see #560, #376).
+        self._attr_device_class = None
+        self._attr_state_class = None
         if self._bosch_object.device_class:
             self._attr_device_class = self._bosch_object.device_class
         if self._bosch_object.state_class:
