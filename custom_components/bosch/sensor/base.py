@@ -47,11 +47,9 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             )
         else:
             self._name = f"{self._bosch_object.parent_id} {name}"
-        self._attr_uri = attr_uri
-        if self._bosch_object.device_class:
-            self._attr_device_class = self._bosch_object.device_class
-        if self._bosch_object.state_class:
-            self._attr_state_class = self._bosch_object.state_class
+            self._attr_uri = attr_uri
+            self._attr_device_class = getattr(self._bosch_object, "device_class", None)
+            self._attr_state_class = getattr(self._bosch_object, "state_class", None)
             # Fix: temperature device class is incompatible with state_class total
             if (self._attr_device_class == SensorDeviceClass.TEMPERATURE
                     and self._attr_state_class == SensorStateClass.TOTAL):
