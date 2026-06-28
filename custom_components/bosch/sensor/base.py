@@ -6,7 +6,11 @@ from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
 from homeassistant.const import EntityCategory
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 
 from ..bosch_entity import BoschEntity
 from ..const import UNITS_CONVERTER
@@ -39,6 +43,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             gateway=gateway,
             domain_name=domain_name,
         )
+
         if not circuit_type:
             self._name = (
                 f"{domain_name} {name}"
@@ -47,13 +52,18 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             )
         else:
             self._name = f"{self._bosch_object.parent_id} {name}"
-            self._attr_uri = attr_uri
-            self._attr_device_class = getattr(self._bosch_object, "device_class", None)
-            self._attr_state_class = getattr(self._bosch_object, "state_class", None)
-            # Fix: temperature device class is incompatible with state_class total
-            if (self._attr_device_class == SensorDeviceClass.TEMPERATURE
-                    and self._attr_state_class == SensorStateClass.TOTAL):
-                self._attr_state_class = SensorStateClass.MEASUREMENT
+
+        self._attr_uri = attr_uri
+        self._attr_device_class = getattr(self._bosch_object, "device_class", None)
+        self._attr_state_class = getattr(self._bosch_object, "state_class", None)
+
+        # Fix: temperature device class is incompatible with state_class total
+        if (
+            self._attr_device_class == SensorDeviceClass.TEMPERATURE
+            and self._attr_state_class == SensorStateClass.TOTAL
+        ):
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
         self._attr_entity_category = entity_categories.get(
             self._bosch_object.entity_category, None
         )
@@ -61,6 +71,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         self._update_init = True
         self._unit_of_measurement = None
         self._uuid = uuid
+
         if not hasattr(self, "_attr_unique_id") or not self._attr_unique_id:
             self._attr_unique_id = (
                 f"{self._domain_name}{self._bosch_object.parent_id}{self._bosch_object.id}{self._uuid}"
@@ -123,6 +134,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
                 )
                 self._attrs["stateExtra"] = self._bosch_object.state_message
             return
+
         self.attrs_write(
             data={
                 **data,
@@ -139,3 +151,4 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
+            
