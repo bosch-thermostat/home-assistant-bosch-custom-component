@@ -125,10 +125,11 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         target_temp = kwargs.get(ATTR_TEMPERATURE)
-        if target_temp and target_temp != self._target_temperature:
-            await self._bosch_object.set_temperature(target_temp)
-        else:
+        if target_temp is None:
             _LOGGER.error("A target temperature must be provided")
+            return
+        if target_temp != self._target_temperature:
+            await self._bosch_object.set_temperature(target_temp)
 
     async def async_set_operation_mode(self, operation_mode):
         """Set operation mode."""

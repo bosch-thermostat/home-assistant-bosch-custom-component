@@ -6,7 +6,7 @@ from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
 from homeassistant.const import EntityCategory
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 
 from ..bosch_entity import BoschEntity
 from ..const import UNITS_CONVERTER
@@ -52,6 +52,10 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             self._attr_device_class = self._bosch_object.device_class
         if self._bosch_object.state_class:
             self._attr_state_class = self._bosch_object.state_class
+            # Fix: temperature device class is incompatible with state_class total
+            if (self._attr_device_class == SensorDeviceClass.TEMPERATURE
+                    and self._attr_state_class == SensorStateClass.TOTAL):
+                self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_entity_category = entity_categories.get(
             self._bosch_object.entity_category, None
         )

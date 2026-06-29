@@ -41,7 +41,34 @@ class StatisticHelper(BoschBaseSensor):
         self._statistic_import_lock = asyncio.Lock()
         super().__init__(**kwargs)
 
-    # ... existing code ...
+    async def move_old_entity_data_to_new(self, event_time=None) -> None:
+        """Rename old entity_id in statistic table. Not working currently."""
+        old_entity_id = self.entity_id
+        _LOGGER.debug("Moving entity id statistic data to new format.")
+        try:
+            with session_scope(hass=self.hass) as session:
+                session.query(StatisticsMeta).filter(
+                    (StatisticsMeta.statistic_id == old_entity_id)
+                    & (StatisticsMeta.source == "recorder")
+                ).update(
+                    {
+                        StatisticsMeta.statistic_id: self.statistic_id,
+                        StatisticsMeta.source: self._domain_name.lower(),
+                        StatisticsMeta.name: f"Stats {self._name}",
+                    }
+                )
+        except IntegrityError as err:
+            _LOGGER.error("Can't move entity id. It already exists. %s", err)
+
+    @property
+    def statistic_id(self) -> str:
+        """External API statistic ID."""
+        raise NotImplementedError()
+
+    @property
+    def should_poll(self):
+        """Don't poll."""
+        return False
 
     def _get_statistic_unit_class(self):
         """Return Home Assistant statistic unit_class inferred from device_class/unit."""

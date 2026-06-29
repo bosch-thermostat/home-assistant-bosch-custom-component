@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta, datetime
 import logging
 
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 
 from .statistic_helper import StatisticHelper
 
@@ -41,6 +41,16 @@ class RecordingSensor(StatisticHelper):
 
     def attrs_write(self, last_reset=None) -> None:
         """Entity attributes write."""
+        self._unit_of_measurement = UNITS_CONVERTER.get(
+            self._bosch_object.unit_of_measurement
+        )
+        self._attr_device_class = self._bosch_object.device_class
+        self._attr_state_class = self._bosch_object.state_class
+        # Fix: temperature device class is incompatible with state_class total
+        if (self._attr_device_class == SensorDeviceClass.TEMPERATURE
+                and self._attr_state_class == SensorStateClass.TOTAL):
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
         if last_reset and self._attr_device_class == SensorDeviceClass.ENERGY:
             self._attr_last_reset = last_reset
         if self._update_init:
