@@ -81,7 +81,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         sensor_attributes=energy,
                         attr_uri=sensor.attr_id,
                         new_stats_api=new_stats_api,
-                        is_enabled=sensor.attr_id in enabled_sensors,
+                        is_enabled=True,
                     )
                     for energy in EnergySensors
                 ],
@@ -98,7 +98,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         sensor_attributes=energy,
                         attr_uri=sensor.attr_id,
                         new_stats_api=new_stats_api,
-                        is_enabled=sensor.attr_id in enabled_sensors,
+                        is_enabled=True,
                     )
                     for energy in EcusRecordingSensors
                 ],

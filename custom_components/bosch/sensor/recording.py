@@ -3,8 +3,10 @@
 from __future__ import annotations
 from datetime import timedelta, datetime
 import logging
-from .statistic_helper import StatisticHelper
+
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+
+from .statistic_helper import StatisticHelper
 
 from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
 from homeassistant.components.recorder.models import (
@@ -37,7 +39,7 @@ class RecordingSensor(StatisticHelper):
             )
         return f"{self._domain_name}:{self._short_id}external".lower()
 
-    def attrs_write(self, last_reset) -> None:
+    def attrs_write(self, last_reset=None) -> None:
         """Entity attributes write."""
         self._unit_of_measurement = UNITS_CONVERTER.get(
             self._bosch_object.unit_of_measurement
@@ -49,7 +51,8 @@ class RecordingSensor(StatisticHelper):
                 and self._attr_state_class == SensorStateClass.TOTAL):
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
-        self._attr_last_reset = last_reset
+        if last_reset and self._attr_device_class == SensorDeviceClass.ENERGY:
+            self._attr_last_reset = last_reset
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

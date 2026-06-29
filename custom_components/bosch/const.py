@@ -8,6 +8,7 @@ from homeassistant.const import UnitOfEnergy, UnitOfTemperature
 
 DOMAIN = "bosch"
 BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
+COORDINATOR = "coordinator"
 ACCESS_KEY = "access_key"
 ACCESS_TOKEN = "access_token"
 UUID = "uuid"

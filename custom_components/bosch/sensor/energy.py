@@ -73,10 +73,10 @@ class EnergySensor(StatisticHelper):
     _domain_name = "Energy"
 
     def __init__(
-        self,
-        sensor_attributes,
-        uuid,
-        **kwargs,
+            self,
+            sensor_attributes,
+            uuid,
+            **kwargs,
     ) -> None:
         """Initialize Energy sensor."""
         self._attr_read_key = None
@@ -85,15 +85,16 @@ class EnergySensor(StatisticHelper):
         self._attr_unique_id = f"{self._domain_name}{self._read_attr_to_search}{uuid}"
 
         super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
-        self._unit_of_measurement = sensor_attributes.get(UNITS)
+        self._unit_of_measurement = sensor_attributes.get("unitOfMeasure")
         self._attr_device_class = sensor_attributes.get(
             "deviceClass", SensorDeviceClass.ENERGY
         )
-        if (
-            self._attr_state_class
-            and self._attr_device_class == SensorDeviceClass.TEMPERATURE
-        ):
-            self._attr_device_class = SensorStateClass.MEASUREMENT
+        if self._attr_device_class == SensorDeviceClass.ENERGY:
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            self._attr_last_reset = None
+
+        if self._attr_device_class == SensorDeviceClass.TEMPERATURE:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def device_name(self) -> str:
@@ -105,11 +106,28 @@ class EnergySensor(StatisticHelper):
         data = self._bosch_object.get_property(self._attr_uri)
         value = data.get(VALUE)
 
+        _LOGGER.debug(
+            "=== DIAGNOSTICS: Energy sensor '%s' update started ===",
+            self._name
+        )
+        _LOGGER.debug(
+            "Full data structure from API: %s",
+            data
+        )
+        _LOGGER.debug(
+            "Value dict keys: %s",
+            list(value.keys()) if value else "No value"
+        )
+
         def search_read_attr():
             if not self._attr_read_key:
                 for attr in value:
                     if self._read_attr_to_search in attr.upper():
                         self._attr_read_key = attr
+                        _LOGGER.debug(
+                            "Found attr_read_key: %s for search pattern: %s",
+                            self._attr_read_key, self._read_attr_to_search
+                        )
                         return True
             else:
                 return True
@@ -121,19 +139,67 @@ class EnergySensor(StatisticHelper):
             _LOGGER.debug("Energy sensor data not available %s", self._name)
             self._state = STATE_UNAVAILABLE
 
+        # Get the raw value from API
+        raw_value = value.get(self._attr_read_key) if self._attr_read_key else None
+
+        _LOGGER.debug(
+            "raw_value from API for key '%s': %s",
+            self._attr_read_key, raw_value
+        )
+
+        if raw_value is not None:
+            # DIAGNOSTICS: Log all possible calculations
+            hourly_if_assumed = raw_value
+            daily_if_assumed = raw_value * 24
+            _LOGGER.info(
+                "=== ENERGY SENSOR DIAGNOSTICS ==="
+            )
+            _LOGGER.info(
+                "Sensor: '%s' (device_class: %s)",
+                self._name, self._attr_device_class
+            )
+            _LOGGER.info(
+                "API raw_value: %.4f",
+                raw_value
+            )
+            _LOGGER.info(
+                "IF raw_value is HOURLY (kWh/h): %.4f × 24 = %.2f kWh daily",
+                hourly_if_assumed, daily_if_assumed
+            )
+            _LOGGER.info(
+                "IF raw_value is DAILY (kWh): %.2f kWh daily (no multiplication needed)",
+                raw_value
+            )
+            _LOGGER.info(
+                "Current calculation: using raw_value as DAILY: %.2f kWh",
+                raw_value
+            )
+
+            if self._attr_device_class == SensorDeviceClass.ENERGY:
+                self._state = raw_value
+                _LOGGER.info(
+                    "Sensor '%s' final state: %.2f kWh",
+                    self._name, self._state
+                )
+            elif self._normalize:
+                self._state = self._normalize(raw_value)
+            else:
+                self._state = raw_value
+        else:
+            self._state = STATE_UNAVAILABLE
+            _LOGGER.debug("raw_value is None, setting state to UNAVAILABLE")
+
         if self._new_stats_api and (
-            self._unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
-            or self._unit_of_measurement == UnitOfVolume.CUBIC_METERS
+                self._unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
+                or self._unit_of_measurement == UnitOfVolume.CUBIC_METERS
         ):
             await self._insert_statistics()
-        else:
-            if self._normalize:
-                self._state = self._normalize(value.get(self._attr_read_key))
-            else:
-                self._state = value.get(self._attr_read_key)
-        if self._update_init:
-            self._update_init = False
-            self.async_schedule_update_ha_state()
+
+        _LOGGER.debug(
+            "=== DIAGNOSTICS: Energy sensor '%s' update completed, state=%.2f ===",
+            self._name, self._state
+        )
+        self.async_schedule_update_ha_state()
 
     @property
     def statistic_id(self) -> str:
@@ -210,12 +276,43 @@ class EnergySensor(StatisticHelper):
     def append_statistics(self, stats, sum) -> float:
         statistics_to_push = []
         start_of_day = dt_util.start_of_local_day()
+        _LOGGER.debug(
+            "append_statistics called for %s with %d stats, attr_read_key: %s",
+            self.statistic_id,
+            len(stats),
+            self._attr_read_key
+        )
         for stat in stats:
             day_dt: datetime = datetime.strptime(stat["d"], "%d-%m-%Y")
             _date = start_of_day.replace(
                 year=day_dt.year, month=day_dt.month, day=day_dt.day
             )
-            _value = round(stat[self._attr_read_key] / 24, 2)
+            # Debug the actual data being processed
+            _LOGGER.debug(
+                "Processing stat for %s: %s, keys: %s",
+                self.statistic_id,
+                stat.get("d"),
+                list(stat.keys())
+            )
+            raw_value = stat.get(self._attr_read_key)
+            if raw_value is None:
+                _LOGGER.warning(
+                    "Key %s not found in stat data for %s. Available keys: %s",
+                    self._attr_read_key,
+                    self.statistic_id,
+                    list(stat.keys())
+                )
+                continue
+
+            if raw_value < 0:
+                _LOGGER.warning(
+                    "Negative value detected for %s: %s. Using absolute value.",
+                    self.statistic_id,
+                    raw_value
+                )
+                raw_value = abs(raw_value)
+
+            _value = round(raw_value / 24, 2)
             sum, statistics = self._generate_easycontrol_statistics(
                 start=_date,
                 end=_date + timedelta(days=1),
@@ -223,10 +320,15 @@ class EnergySensor(StatisticHelper):
                 init_value=sum,
             )
             statistics_to_push += statistics
+
+            if self._attr_device_class == SensorDeviceClass.ENERGY:
+                self._attr_last_reset = None
+
             _LOGGER.debug(
-                "Appending day to statistic table with id: %s. Date: %s, state: %s, sum: %s.",
+                "Appending day to statistic table with id: %s. Date: %s, daily_raw_value: %s kWh, hourly_value: %s kWh, sum: %s kWh.",
                 self.statistic_id,
                 _date,
+                raw_value,
                 _value,
                 sum,
             )
@@ -306,8 +408,35 @@ class EnergySensor(StatisticHelper):
             _LOGGER.debug(
                 "Returning state to put to statistic table %s", self.statistic_id
             )
-            return self._bosch_object.last_entry.values(), _sum
+            # Get the last entry and extract only the relevant data for this sensor
+            last_entries = self._bosch_object.last_entry
+            if last_entries:
+                # Filter to get only entries relevant to this sensor
+                relevant_data = []
+                for entry in last_entries.values():
+                    if isinstance(entry, dict) and self._attr_read_key in entry:
+                        # Create a filtered entry with only this sensor's data
+                        filtered_entry = {"d": entry.get("d", "")}
+                        filtered_entry[self._attr_read_key] = entry.get(self._attr_read_key, 0)
+                        relevant_data.append(filtered_entry)
+                return relevant_data, _sum
+            return [], _sum
 
         if self.statistic_id in last_stats:
             all_stats, _sum = await get_last_stats_from_bosch_api()
             self.append_statistics(stats=all_stats, sum=_sum)
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes for energy sensors."""
+        attrs = super().extra_state_attributes or {}
+
+        if self._attr_device_class == SensorDeviceClass.ENERGY:
+            attrs.update({
+                "statistics_source": "bosch_api",
+                "data_resolution": "daily_sum_distributed",
+                "measurement_accuracy": "estimated_from_daily",
+                "original_daily_value": self._state if self._state else None,
+            })
+
+        return attrs

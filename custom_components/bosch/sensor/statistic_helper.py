@@ -11,11 +11,8 @@ from homeassistant.components.recorder.models import (
 )
 from sqlalchemy.exc import IntegrityError
 from homeassistant.util import dt as dt_util
-
-try:
-    from homeassistant.components.recorder.statistics import StatisticMeanType
-except ImportError:
-    StatisticMeanType = None
+from homeassistant.const import UnitOfEnergy, UnitOfTemperature, UnitOfVolume
+from homeassistant.components.sensor import SensorDeviceClass
 
 try:
     from homeassistant.components.recorder.db_schema import StatisticsMeta
@@ -73,29 +70,68 @@ class StatisticHelper(BoschBaseSensor):
         """Don't poll."""
         return False
 
-    _UNIT_CLASS_MAP = {
-        "kWh": "energy",
-        "Wh": "energy",
-        "kW": "power",
-    }
+    def _get_statistic_unit_class(self):
+        """Return Home Assistant statistic unit_class inferred from device_class/unit."""
+        device_class = getattr(self, "_attr_device_class", None)
+        unit = self._unit_of_measurement
 
-    def _get_unit_class(self):
-        """Derive unit_class from unit_of_measurement."""
-        return self._UNIT_CLASS_MAP.get(self._unit_of_measurement)
+        # 1) Prefer mapping by sensor device_class (strict mode)
+        if device_class == SensorDeviceClass.ENERGY:
+            return "energy"
+        if device_class == SensorDeviceClass.TEMPERATURE:
+            return "temperature"
+        if device_class == SensorDeviceClass.GAS:
+            return "gas"
+
+        # 2) Fallback mapping by unit_of_measurement
+        if unit in (UnitOfEnergy.KILO_WATT_HOUR, "kWh", "Wh"):
+            return "energy"
+        if unit in (UnitOfVolume.CUBIC_METERS, "m³"):
+            return "volume"
+        if unit in (UnitOfTemperature.CELSIUS, UnitOfTemperature.FAHRENHEIT, "K"):
+            return "temperature"
+
+        return None
 
     @property
     def statistic_metadata(self) -> StatisticMetaData:
         """Statistic Metadata recorder model class."""
-        return StatisticMetaData(
-            has_mean=False,
-            **({'mean_type': StatisticMeanType.NONE} if StatisticMeanType is not None else {}),
-            has_sum=True,
-            name=f"Stats {self._name}",
-            source=self._domain_name.lower(),
-            statistic_id=self.statistic_id,
-            unit_of_measurement=self._unit_of_measurement,
-            unit_class=self._get_unit_class(),
+        unit_class = self._get_statistic_unit_class()
+        supports_unit_class = "unit_class" in getattr(
+            StatisticMetaData, "__annotations__", {}
         )
+
+        # Try to import StatisticMeanType for newer HA versions
+        try:
+            from homeassistant.components.recorder.models import StatisticMeanType
+            meta_kwargs = {
+                "mean_type": StatisticMeanType.NONE,
+                "has_sum": True,
+                "name": f"Stats {self._name}",
+                "source": self._domain_name.lower(),
+                "statistic_id": self.statistic_id,
+                "unit_of_measurement": self._unit_of_measurement,
+            }
+            if supports_unit_class and unit_class is not None:
+                meta_kwargs["unit_class"] = unit_class
+            return StatisticMetaData(**meta_kwargs)
+        except ImportError:
+            meta_kwargs = {
+                "has_mean": False,
+                "has_sum": True,
+                "name": f"Stats {self._name}",
+                "source": self._domain_name.lower(),
+                "statistic_id": self.statistic_id,
+                "unit_of_measurement": self._unit_of_measurement,
+            }
+            if supports_unit_class and unit_class is not None:
+                meta_kwargs["unit_class"] = unit_class
+            try:
+                return StatisticMetaData(**meta_kwargs)
+            except TypeError:
+                # Older HA without unit_class support
+                meta_kwargs.pop("unit_class", None)
+                return StatisticMetaData(**meta_kwargs)
 
     async def get_last_stat(self) -> dict[str, list[StatisticsRow]]:
         return await get_instance(self.hass).async_add_executor_job(
@@ -124,10 +160,86 @@ class StatisticHelper(BoschBaseSensor):
 
     def add_external_stats(self, stats: list[StatisticData]) -> None:
         """Add external statistics."""
-        self._state = -17
         if not stats:
+            _LOGGER.debug("add_external_stats called with empty stats for %s", self.statistic_id)
             return
+
+        _LOGGER.info(
+            "=== EXTERNAL STATS DIAGNOSTICS ==="
+        )
+        _LOGGER.info(
+            "Sensor: %s, statistic_id: %s",
+            self._name, self.statistic_id
+        )
+        _LOGGER.info(
+            "Number of statistics entries: %d",
+            len(stats)
+        )
+
+        # Log first and last few entries
+        if len(stats) > 0:
+            _LOGGER.info(
+                "First entry: %s",
+                stats[0]
+            )
+            _LOGGER.info(
+                "Last entry: %s",
+                stats[-1]
+            )
+
+            if len(stats) > 5:
+                _LOGGER.info(
+                    "Sample middle entries:"
+                )
+                for i in range(1, min(4, len(stats) - 1)):
+                    _LOGGER.info(
+                        "  Entry %d: %s",
+                        i, stats[i]
+                    )
+
+        _LOGGER.debug(
+            "add_external_stats for %s: %d entries, first=%s, last=%s",
+            self.statistic_id,
+            len(stats),
+            stats[0],
+            stats[-1],
+        )
         async_add_external_statistics(self.hass, self.statistic_metadata, stats)
+
+        latest_stat = stats[-1]
+        if isinstance(latest_stat, dict):
+            _sum = latest_stat.get("sum")
+            _state_val = latest_stat.get("state")
+        else:
+            _sum = latest_stat.sum
+            _state_val = latest_stat.state
+
+        _LOGGER.info(
+            "Latest statistics entry:"
+        )
+        _LOGGER.info(
+            "  sum (cumulative): %.4f kWh",
+            _sum
+        )
+        _LOGGER.info(
+            "  state (hourly value): %.4f kWh/h",
+            _state_val
+        )
+        _LOGGER.info(
+            "  Current sensor state (daily): %.2f kWh",
+            self._state
+        )
+        _LOGGER.info(
+            "  IMPORTANT: NOT overwriting sensor state with hourly value from stats"
+        )
+
+        _LOGGER.debug(
+            "add_external_stats for %s: sum=%s, hourly_state=%s (sensor daily state remains: %s)",
+            self.statistic_id,
+            _sum,
+            _state_val,
+            self._state,
+        )
         self.async_schedule_update_ha_state()
 
     def get_last_stats_before_date(
