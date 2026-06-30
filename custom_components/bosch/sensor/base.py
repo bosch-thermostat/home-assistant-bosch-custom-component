@@ -108,7 +108,10 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         if data.get(INVALID, False):
             self._state = None
         else:
-            if (_state := data.get(VALUE, INVALID)) in (INVALID, "unavailable"):
+            _state = data.get(VALUE, INVALID)
+            if _state == INVALID or (
+                isinstance(_state, str) and _state.lower() == "unavailable"
+            ):
                 self._state = None
             else:
                 self._state = _state
