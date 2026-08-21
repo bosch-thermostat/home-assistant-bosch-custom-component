@@ -1,0 +1,78 @@
+#!/bin/sh
+# pre-push IOC guard — refuses to push any commit carrying the PolinRider
+# supply-chain backdoor, regardless of how it entered the tree (including an
+# "evil merge"). Mirrors the server-side IOC-guard GitHub Action, but this one
+# BLOCKS the push instead of only alerting after it.
+#
+# One-time setup per clone:   git config core.hooksPath .githooks
+# Background: docs/security/incident-2026-08-12-github-credential-compromise.md
+set -u
+
+# Literal markers. NOTE: the payload's obfuscator splits strings into fragments
+# of <=10 chars, so full API names never appear contiguously — that is why the
+# fragment markers and, above all, the LINE-LENGTH check below are the
+# load-bearing detectors. Never remove check 2 to silence a false positive.
+markers='eth_getBlockByNumber|x-payload-b64|blockscout|Tgw=jFD|global\.i=|global\[.!.\]|global\[._V.\]|rmcej%otb%|Cot%3t=shtP'
+fragments="'ckByNumber'|'eth_getBlo'|\.publicnod|api\.trongrid\.io|vercel\.app/settings/"
+badpkgs='tailwindcss-style-animate|tailwind-mainanimation|tailwind-autoanimation|tailwind-animationbased|tailwindcss-typography-style|tailwindcss-style-modify|tailwindcss-animate-style'
+dropper='temp_auto_push\.bat|temp_interactive_push\.bat|config\.bat'
+fail=0
+
+# The two files that legitimately contain these strings.
+selfx1=':(exclude).github/workflows/ioc-guard.yml'
+selfx2=':(exclude).githooks/pre-push'
+
+# stdin: <local_ref> <local_oid> <remote_ref> <remote_oid>  per ref being pushed
+while read -r local_ref local_oid remote_ref remote_oid; do
+  case "$local_oid" in
+    *[!0]*) : ;;        # real object id -> scan it
+    *) continue ;;      # all zeros -> branch deletion, nothing to scan
+  esac
+
+  # 1) Known backdoor markers and obfuscation fragments.
+  if git grep -I -q -E -e "$markers" -e "$fragments" "$local_oid" -- . \
+       "$selfx1" "$selfx2" 2>/dev/null; then
+    echo "pre-push IOC guard: BACKDOOR MARKER found in $local_ref — push rejected." >&2
+    fail=1
+  fi
+
+  # 2) Over-long lines in source/config. THE load-bearing check: a payload hides
+  #    behind whitespace padding (~9000-31000 chars) and survives any obfuscation
+  #    change. Skip lockfiles / minified bundles.
+  if git grep -I -q -E -e '.{2001,}' "$local_oid" -- \
+       '*.js' '*.ts' '*.tsx' '*.jsx' '*.cjs' '*.mjs' '*.json' '*.yml' '*.yaml' \
+       '*.py' '*.go' '*.php' \
+       ':(exclude)*package-lock.json' ':(exclude)*.min.js' ':(exclude)*.min.css' 2>/dev/null; then
+    echo "pre-push IOC guard: OVER-LONG LINE (possible obfuscated payload) in $local_ref — push rejected." >&2
+    fail=1
+  fi
+
+  # 3) The campaign's auto-push droppers, as tracked files OR hidden via
+  #    .gitignore (the May 2026 infection added exactly these two ignore lines so
+  #    the scripts it drops never show up in `git status`).
+  if git ls-tree -r --name-only "$local_oid" 2>/dev/null | grep -q -E -e "$dropper"; then
+    echo "pre-push IOC guard: PROPAGATION SCRIPT committed in $local_ref — push rejected." >&2
+    fail=1
+  fi
+  if git grep -I -q -E -e "$dropper" "$local_oid" -- '.gitignore' '*/.gitignore' 2>/dev/null; then
+    echo "pre-push IOC guard: .gitignore hides a propagation script in $local_ref — push rejected." >&2
+    fail=1
+  fi
+
+  # 4) Known malicious npm packages from the PolinRider campaign.
+  if git grep -I -q -E -e "$badpkgs" "$local_oid" -- \
+       '*package.json' '*package-lock.json' '*yarn.lock' '*pnpm-lock.yaml' \
+       "$selfx1" "$selfx2" 2>/dev/null; then
+    echo "pre-push IOC guard: MALICIOUS NPM PACKAGE referenced in $local_ref — push rejected." >&2
+    fail=1
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "" >&2
+  echo "Push blocked by the local IOC guard." >&2
+  echo "Do NOT run npm install / npm test / a build on this tree until it is understood." >&2
+  echo "See docs/security/incident-2026-08-12-github-credential-compromise.md" >&2
+  exit 1
+fi
+exit 0

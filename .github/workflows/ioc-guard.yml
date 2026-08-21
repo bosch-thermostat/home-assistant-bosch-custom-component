@@ -1,0 +1,111 @@
+name: IOC guard
+
+# Fails the build if the PolinRider supply-chain backdoor, its auto-push
+# droppers, a known-malicious npm package, or an over-long line (the padding a
+# payload hides behind) appears in tracked files.
+#
+# The scheduled run matters: the 2026-08-12 attack arrived as a force-push from
+# stolen credentials, so detection must not depend only on someone pushing.
+# Background: docs/security/incident-2026-08-12-github-credential-compromise.md
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for backdoor markers, droppers and over-long lines
+        shell: bash
+        run: |
+          set -u
+          fail=0
+          SELFX1=':(exclude).github/workflows/ioc-guard.yml'
+          SELFX2=':(exclude).githooks/pre-push'
+
+          echo "== 1. Known backdoor markers and obfuscation fragments =="
+          # The obfuscator splits strings into <=10-char fragments, so full API
+          # names never appear contiguously -- hence the fragment patterns, and
+          # hence check 3 being the load-bearing one.
+          if git grep -nI -E \
+               -e 'eth_getBlockByNumber' \
+               -e 'x-payload-b64' \
+               -e 'blockscout' \
+               -e 'Tgw=jFD' \
+               -e 'global\.i=' \
+               -e "global\[.!.\]" \
+               -e "global\[._V.\]" \
+               -e 'rmcej%otb%' \
+               -e 'Cot%3t=shtP' \
+               -e "'ckByNumber'" \
+               -e "'eth_getBlo'" \
+               -e '\.publicnod' \
+               -e 'api\.trongrid\.io' \
+               -e 'vercel\.app/settings/' \
+               -- . "$SELFX1" "$SELFX2" ; then
+            echo "::error:: backdoor IOC marker found (see docs/security/incident-2026-08-12-github-credential-compromise.md)"
+            fail=1
+          else
+            echo "no markers"
+          fi
+
+          echo "== 2. PolinRider auto-push droppers (committed or hidden via .gitignore) =="
+          if git ls-files | grep -E -e 'temp_auto_push\.bat' -e 'temp_interactive_push\.bat' -e 'config\.bat' ; then
+            echo "::error:: propagation script is tracked in this repo"
+            fail=1
+          elif git grep -nI -E -e 'temp_auto_push\.bat' -e 'temp_interactive_push\.bat' -e 'config\.bat' \
+                 -- '.gitignore' '*/.gitignore' ; then
+            # The May 2026 infection added exactly these ignore lines so the
+            # scripts it drops stay invisible to `git status`.
+            echo "::error:: .gitignore hides a propagation script -- remove the entry so the dropper cannot hide"
+            fail=1
+          else
+            echo "no droppers"
+          fi
+
+          echo "== 3. Over-long lines in source/config (payload padding) =="
+          while IFS= read -r f; do
+            case "$f" in
+              *package-lock.json|*.min.js|*.min.css) continue;;
+            esac
+            if ! LC_ALL=C awk 'length>2000{print FILENAME":"NR" ("length" chars)"; bad=1} END{exit bad?1:0}' "$f"; then
+              fail=1
+            fi
+          done < <(git ls-files '*.js' '*.ts' '*.tsx' '*.jsx' '*.cjs' '*.mjs' '*.json' '*.yml' '*.yaml' '*.py' '*.go' '*.php')
+          [ "$fail" -eq 0 ] && echo "no over-long lines"
+
+          echo "== 4. Known malicious npm packages (PolinRider campaign) =="
+          if git grep -nI -E \
+               -e 'tailwindcss-style-animate' \
+               -e 'tailwind-mainanimation' \
+               -e 'tailwind-autoanimation' \
+               -e 'tailwind-animationbased' \
+               -e 'tailwindcss-typography-style' \
+               -e 'tailwindcss-style-modify' \
+               -e 'tailwindcss-animate-style' \
+               -- '*package.json' '*package-lock.json' '*yarn.lock' '*pnpm-lock.yaml' "$SELFX1" "$SELFX2" ; then
+            echo "::error:: a known-malicious npm package is referenced"
+            fail=1
+          else
+            echo "no malicious packages"
+          fi
+
+          echo "== 5. VS Code task hijack (runOn: folderOpen) =="
+          if git grep -nI -E -e 'folderOpen' -e 'e9b53a7c-2342-4b15-b02d-bd8b8f6a03f9' \
+               -- '*.vscode/tasks.json' "$SELFX1" "$SELFX2" ; then
+            echo "::error:: .vscode/tasks.json runs a task on folder open -- verify it is intentional"
+            fail=1
+          else
+            echo "no task hijack"
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error:: IOC guard failed — do not merge, and do not run npm install/test on this tree until understood"
+            exit 1
+          fi
+          echo "IOC guard: clean"
