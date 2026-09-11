@@ -75,7 +75,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
         Upstream lib doesn't check if value is proper!
         """
-        _LOGGER.info("Setting %s %s with value %s", self._name, CHARGE, value)
+        _LOGGER.info("Setting %s %s with value %s", self._attr_name, CHARGE, value)
         await self._bosch_object.set_service_call(CHARGE, value)
 
     @property
@@ -133,7 +133,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     async def async_set_operation_mode(self, operation_mode):
         """Set operation mode."""
-        _LOGGER.debug(f"Setting operation mode of {self._name} to {operation_mode}.")
+        _LOGGER.debug(f"Setting operation mode of {self._attr_name} to {operation_mode}.")
         status = await self.bosch_object.set_ha_mode(operation_mode)
         if status > 0:
             return True

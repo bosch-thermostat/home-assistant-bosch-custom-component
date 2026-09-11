@@ -11,7 +11,6 @@ from homeassistant.components.recorder.models import (
     StatisticData,
     timestamp_to_datetime_or_none,
 )
-from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,7 +71,7 @@ class RecordingSensor(StatisticHelper):
             for row in data[VALUE]:
                 if row["d"] == last_hour:
                     return row.get(VALUE)
-            return STATE_UNAVAILABLE
+            return None
 
         self._state = find_idx()
         self.attrs_write(last_reset=last_hour)

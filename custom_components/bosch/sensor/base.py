@@ -40,14 +40,20 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             domain_name=domain_name,
         )
         if not circuit_type:
-            self._name = (
+            self._attr_name = (
                 f"{domain_name} {name}"
                 if domain_name != "Sensors" and domain_name
                 else name
             )
         else:
-            self._name = f"{self._bosch_object.parent_id} {name}"
+            self._attr_name = f"{self._bosch_object.parent_id} {name}"
         self._attr_uri = attr_uri
+        # Always define these: async_update() (no-data path) and the
+        # state_class/device_class checks below read them unconditionally.
+        # When a device endpoint is unreachable the read raised
+        # AttributeError every update cycle (see #560, #376).
+        self._attr_device_class = None
+        self._attr_state_class = None
         if self._bosch_object.device_class:
             self._attr_device_class = self._bosch_object.device_class
         if self._bosch_object.state_class:
@@ -100,8 +106,8 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             return None
 
         def check_name():
-            if data.get(NAME, "") != self._name:
-                self._name = data.get(NAME)
+            if data.get(NAME, "") != self._attr_name:
+                self._attr_name = data.get(NAME, self._attr_name)
 
         units = get_units()
 
