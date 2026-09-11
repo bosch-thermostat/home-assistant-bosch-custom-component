@@ -84,7 +84,7 @@ class EnergySensor(StatisticHelper):
         self._attr_unique_id = f"{self._domain_name}{self._read_attr_to_search}{uuid}"
 
         super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
-        self._unit_of_measurement = sensor_attributes.get("unitOfMeasure")
+        self._unit_of_measurement = sensor_attributes.get(UNITS)
         self._attr_device_class = sensor_attributes.get(
             "deviceClass", SensorDeviceClass.ENERGY
         )
