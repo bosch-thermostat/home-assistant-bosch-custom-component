@@ -95,11 +95,11 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
             gateway=gateway,
             domain_name=domain_name,
         )
-        self._name = name
+        self._attr_name = name
         self._attr_uri = attr_uri
         self._state = bosch_object.state
         self._update_init = True
-        self._attr_unique_id = self._domain_name + self._name + self._uuid
+        self._attr_unique_id = self._domain_name + self._attr_name + self._uuid
         self._attrs = {}
         self._circuit_type = circuit_type
         self._attr_entity_registry_enabled_default = is_enabled
@@ -111,7 +111,7 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn on switch."""
-        _LOGGER.debug("Turning on %s switch.", self._name)
+        _LOGGER.debug("Turning on %s switch.", self._attr_name)
         await self._bosch_object.turn_on()
         self._state = True
         self.schedule_update_ha_state()
@@ -123,7 +123,7 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn off switch."""
-        _LOGGER.debug("Turning off %s switch.", self._name)
+        _LOGGER.debug("Turning off %s switch.", self._attr_name)
         await self._bosch_object.turn_off()
         self._state = False
         self.schedule_update_ha_state()

@@ -118,7 +118,7 @@ class EnergySensor(StatisticHelper):
             return False
 
         if not value or not search_read_attr():
-            _LOGGER.debug("Energy sensor data not available %s", self._name)
+            _LOGGER.debug("Energy sensor data not available %s", self._attr_name)
             self._state = STATE_UNAVAILABLE
 
         if self._new_stats_api and (

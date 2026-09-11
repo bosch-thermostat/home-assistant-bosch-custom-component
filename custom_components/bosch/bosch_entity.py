@@ -18,11 +18,6 @@ class BoschEntity:
         self._uuid = kwargs.get("uuid")
 
     @property
-    def name(self):
-        """Return the name of the entity."""
-        return self._name
-
-    @property
     def bosch_object(self):
         """Return upstream component. Used for refreshing."""
         return self._bosch_object
@@ -58,7 +53,7 @@ class BoschClimateWaterEntity(BoschEntity):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._name = self._bosch_object.name
+        self._attr_name = self._bosch_object.name
         self._temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_unique_id = f"{self._uuid}{self._bosch_object.id}"
         self._current_temperature = None
@@ -72,7 +67,7 @@ class BoschClimateWaterEntity(BoschEntity):
     @property
     def device_name(self):
         """Return name displayed in device_info."""
-        return f"{self._name_prefix} {self._name}"
+        return f"{self._name_prefix} {self._attr_name}"
 
     @property
     def temperature_unit(self):

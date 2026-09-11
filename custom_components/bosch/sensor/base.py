@@ -40,13 +40,13 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             domain_name=domain_name,
         )
         if not circuit_type:
-            self._name = (
+            self._attr_name = (
                 f"{domain_name} {name}"
                 if domain_name != "Sensors" and domain_name
                 else name
             )
         else:
-            self._name = f"{self._bosch_object.parent_id} {name}"
+            self._attr_name = f"{self._bosch_object.parent_id} {name}"
         self._attr_uri = attr_uri
         if self._bosch_object.device_class:
             self._attr_device_class = self._bosch_object.device_class
@@ -100,8 +100,8 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             return None
 
         def check_name():
-            if data.get(NAME, "") != self._name:
-                self._name = data.get(NAME)
+            if data.get(NAME, "") != self._attr_name:
+                self._attr_name = data.get(NAME, self._attr_name)
 
         units = get_units()
 

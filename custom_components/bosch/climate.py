@@ -155,7 +155,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
 
     async def async_update(self):
         """Update state of device."""
-        _LOGGER.debug("Update of climate %s component called.", self._name)
+        _LOGGER.debug("Update of climate %s component called.", self._attr_name)
         if not self._bosch_object or not self._bosch_object.update_initialized:
             return
         self._temperature_units = UNITS_CONVERTER.get(self._bosch_object.temp_units)

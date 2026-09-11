@@ -65,12 +65,12 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
             hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
         )
 
-        self._name = name
+        self._attr_name = name
         self._attr_uri = attr_uri
         self._state = None
         self._update_init = True
 
-        self._attr_unique_id = f"{self._domain_name}{self._name}{self._uuid}"
+        self._attr_unique_id = f"{self._domain_name}{self._attr_name}{self._uuid}"
         self._attrs = {}
         self._attr_entity_registry_enabled_default = is_enabled
 
