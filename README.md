@@ -62,6 +62,22 @@ Open PR or issue.
 Always attach debugscan if you have any troubles or something is missing.
 To make debugscan go to HA developer tools -> Services and choose
 
+## Setup fails with "Unable to decrypt" or "Wrong IP or credentials"
+
+If the credentials look correct but setup still fails with a decryption error, the usual
+cause on **Buderus KM100 / KM200** gateways is that the device password was never actually
+written to the gateway.
+
+The **MyBuderus** app pairs via the QR code on the device and does not need the device
+password — but it still prompts you to set one, and does not save it. The separate
+**Buderus MyDevice** app connects locally and does set it.
+
+Also note the device password is neither your SingleKey ID nor your MyBuderus account
+password.
+
+Full walkthrough, including a command to verify the password before retrying in Home
+Assistant: [Setting the device password on Buderus gateways](https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/wiki/Home-Assistant-Installation-Guide#setting-the-device-password-on-buderus-gateways-km100-km200)
+
 ## Home Assistant debugging log
 
 In case of a working integration within Home Assistant you may find issues in the way the Bosch environment is visible within HA. To identify the root cause, a debug log is helpful. To obtain these log, please follow the guidenance in the wiki https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/wiki/Home-Assistant-Obtain-Debug-Logs.
