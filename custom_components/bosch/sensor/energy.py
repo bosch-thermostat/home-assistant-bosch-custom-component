@@ -9,7 +9,6 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfTemperature,
     UnitOfVolume,
-    STATE_UNAVAILABLE,
 )
 from homeassistant.util import dt as dt_util
 from homeassistant.components.recorder.models import (
@@ -85,7 +84,7 @@ class EnergySensor(StatisticHelper):
         self._attr_unique_id = f"{self._domain_name}{self._read_attr_to_search}{uuid}"
 
         super().__init__(name=sensor_attributes.get("name"), uuid=uuid, **kwargs)
-        self._unit_of_measurement = sensor_attributes.get(UNITS)
+        self._unit_of_measurement = sensor_attributes.get("unitOfMeasure")
         self._attr_device_class = sensor_attributes.get(
             "deviceClass", SensorDeviceClass.ENERGY
         )
@@ -93,7 +92,7 @@ class EnergySensor(StatisticHelper):
             self._attr_state_class
             and self._attr_device_class == SensorDeviceClass.TEMPERATURE
         ):
-            self._attr_device_class = SensorStateClass.MEASUREMENT
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def device_name(self) -> str:
@@ -114,12 +113,12 @@ class EnergySensor(StatisticHelper):
             else:
                 return True
             _LOGGER.debug("Reading attribute not available %s", self._attr_read_key)
-            self._state = STATE_UNAVAILABLE
+            self._state = None
             return False
 
         if not value or not search_read_attr():
             _LOGGER.debug("Energy sensor data not available %s", self._attr_name)
-            self._state = STATE_UNAVAILABLE
+            self._state = None
 
         if self._new_stats_api and (
             self._unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
@@ -127,10 +126,14 @@ class EnergySensor(StatisticHelper):
         ):
             await self._insert_statistics()
         else:
-            if self._normalize:
-                self._state = self._normalize(value.get(self._attr_read_key))
+            raw_value = value.get(self._attr_read_key)
+
+            if raw_value in (None, "unavailable"):
+                self._state = None
+            elif self._normalize:
+                self._state = self._normalize(raw_value)
             else:
-                self._state = value.get(self._attr_read_key)
+                self._state = raw_value
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()
