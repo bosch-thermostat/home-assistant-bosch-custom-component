@@ -9,7 +9,6 @@ from homeassistant.components.recorder.models import (
     StatisticData,
     timestamp_to_datetime_or_none,
 )
-from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.util import dt as dt_util
 
 from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
@@ -111,7 +110,7 @@ class RecordingSensor(StatisticHelper):
                     latest_date,
                     age,
                 )
-            return STATE_UNAVAILABLE
+            return None
 
         self._state = find_idx()
         self.attrs_write(last_reset=last_hour)

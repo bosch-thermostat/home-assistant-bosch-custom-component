@@ -11,7 +11,6 @@ from homeassistant.components.recorder.models import (
 )
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import (
-    STATE_UNAVAILABLE,
     UnitOfEnergy,
     UnitOfTemperature,
     UnitOfVolume,
@@ -115,12 +114,12 @@ class EnergySensor(StatisticHelper):
             else:
                 return True
             _LOGGER.debug("Reading attribute not available %s", self._attr_read_key)
-            self._state = STATE_UNAVAILABLE
+            self._state = None
             return False
 
         if not value or not search_read_attr():
             _LOGGER.debug("Energy sensor data not available %s", self._name)
-            self._state = STATE_UNAVAILABLE
+            self._state = None
 
         if self._new_stats_api and (
             self._unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
@@ -133,10 +132,14 @@ class EnergySensor(StatisticHelper):
                 # re-importing 30 days with a fresh sum
                 return
         else:
-            if self._normalize:
-                self._state = self._normalize(value.get(self._attr_read_key))
+            raw_value = value.get(self._attr_read_key)
+
+            if raw_value in (None, "unavailable"):
+                self._state = None
+            elif self._normalize:
+                self._state = self._normalize(raw_value)
             else:
-                self._state = value.get(self._attr_read_key)
+                self._state = raw_value
         if self._update_init:
             self._update_init = False
         self.async_schedule_update_ha_state()
