@@ -71,6 +71,35 @@ class RecordingSensor(StatisticHelper):
             for row in data[VALUE]:
                 if row["d"] == last_hour:
                     return row.get(VALUE)
+
+            # Fallback for slow gateways with processing delays:
+            # Some gateways (e.g. KM100) write recording data with a 2-3 hour lag.
+            # Instead of returning unavailable, use the latest available value.
+            _LOGGER.debug(
+                "Recording %s: Could not find %s in data. Last items: %s",
+                self.unique_id,
+                last_hour,
+                [x["d"] for x in data[VALUE][-5:]] if data[VALUE] else "Empty",
+            )
+            if data[VALUE]:
+                latest_entry = data[VALUE][-1]
+                latest_date = latest_entry["d"]
+                age = now - latest_date if latest_date else None
+                if age and age <= timedelta(hours=6):
+                    _LOGGER.debug(
+                        "Recording %s: Using fallback value from %s (age: %s)",
+                        self.unique_id,
+                        latest_date,
+                        age,
+                    )
+                    return latest_entry.get(VALUE)
+                _LOGGER.warning(
+                    "Recording %s: Latest available data from %s is too old (age: %s). "
+                    "Check gateway clock synchronization.",
+                    self.unique_id,
+                    latest_date,
+                    age,
+                )
             return None
 
         self._state = find_idx()
@@ -282,3 +311,16 @@ class RecordingSensor(StatisticHelper):
         if self.statistic_id in last_stats:
             all_stats, _sum = await get_last_stats_from_bosch_api()
             self.append_statistics(stats=all_stats, sum=_sum, now=now)
+        else:
+            _LOGGER.debug(
+                "Statistic ID %s not found in last_stats keys: %s. "
+                "Falling back to last_stat.",
+                self.statistic_id,
+                list(last_stats.keys()),
+            )
+            # last_stat is guaranteed to contain self.statistic_id at this point
+            # (checked at method entry). Use it as fallback.
+            last_stats = last_stat
+            if self.statistic_id in last_stats:
+                all_stats, _sum = await get_last_stats_from_bosch_api()
+                self.append_statistics(stats=all_stats, sum=_sum, now=now)
