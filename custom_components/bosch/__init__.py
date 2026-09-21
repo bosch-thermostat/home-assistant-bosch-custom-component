@@ -53,8 +53,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
-    _init_status: bool = await gateway_entry.async_init()
+    try:
+        _init_status: bool = await gateway_entry.async_init()
+    except Exception:
+        # HA does not unload an entry whose setup raised (e.g. ConfigEntryNotReady
+        # retries), so close the connection here to avoid leaking XMPP clients.
+        # Deliberately not BaseException: a CancelledError during shutdown must
+        # propagate rather than wait on the close.
+        await gateway_entry.async_close()
+        raise
     if not _init_status:
+        await gateway_entry.async_close()
         return _init_status
     async_register_services(hass, entry)
     return True

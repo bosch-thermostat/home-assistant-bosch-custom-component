@@ -19,7 +19,7 @@ from homeassistant.core import callback
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .gateway import create_notification_firmware
+from .gateway import _create_ssl_context, create_notification_firmware
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
@@ -152,19 +152,24 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         self, device_type, session_type, host, access_token, password=None, session=None
     ):
         try:
+            ssl_context = await self.hass.async_add_executor_job(
+                _create_ssl_context, session_type, device_type
+            )
             BoschGateway = gateway_chooser(device_type)
-            device = BoschGateway(
+            # the test connection is closed again when leaving the block
+            async with BoschGateway(
                 session_type=session_type,
                 host=host,
                 access_token=access_token,
                 password=password,
                 session=session,
-            )
-            try:
-                uuid = await device.check_connection()
-            except (FirmwareException, UnknownDevice) as err:
-                create_notification_firmware(hass=self.hass, msg=err)
-                uuid = device.uuid
+                ssl_context=ssl_context,
+            ) as device:
+                try:
+                    uuid = await device.check_connection()
+                except (FirmwareException, UnknownDevice) as err:
+                    create_notification_firmware(hass=self.hass, msg=err)
+                    uuid = device.uuid
             if uuid:
                 await self.async_set_unique_id(uuid)
                 self._abort_if_unique_id_configured()

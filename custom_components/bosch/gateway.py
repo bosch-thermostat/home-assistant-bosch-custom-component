@@ -4,9 +4,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import ssl
 from typing import Any, TYPE_CHECKING
 
-from bosch_thermostat_client.const import HTTP
+from bosch_thermostat_client import easycontrol_ssl_context
+from bosch_thermostat_client.const import HTTP, XMPP
+from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     EncryptionException,
@@ -25,6 +28,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.json import save_json
 from homeassistant.helpers.network import get_url
 from homeassistant.util.json import load_json
+from homeassistant.util.ssl import client_context
 
 from .const import (
     DOMAIN,
@@ -43,6 +47,23 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 CUSTOM_DB = "custom_bosch_db.json"
+
+
+def _create_ssl_context(protocol: str, device_type: str) -> ssl.SSLContext | None:
+    """Return the SSL context for an XMPP connection (run in the executor).
+
+    Without one, slixmpp builds a default context on the event loop, which HA
+    reports as a blocking call (#570). EasyControl pins Bosch's own CA; NEFIT
+    and IVT use HA's shared, cached client context. The HTTP connector talks
+    plain http:// to the gateway, so it needs none.
+    """
+    if protocol != XMPP:
+        return None
+    if device_type == EASYCONTROL:
+        # The client caches this, so the CA file is read once per process
+        # rather than on every setup attempt and config flow step.
+        return easycontrol_ssl_context()
+    return client_context()
 
 
 def create_notification_firmware(hass: HomeAssistant, msg: str | Exception) -> None:
@@ -106,15 +127,24 @@ class BoschGatewayEntry:
         self._update_lock = asyncio.Lock()
 
         BoschGatewayClass = bosch.gateway_chooser(device_type=self._device_type)
-        self.gateway = BoschGatewayClass(
-            session=async_get_clientsession(self.hass, verify_ssl=False)
+        # Loading the CA certificate is a blocking call HA flags inside the
+        # event loop; build the context in the executor and hand it over.
+        ssl_context = await self.hass.async_add_executor_job(
+            _create_ssl_context, self._protocol, self._device_type
+        )
+        session = (
+            async_get_clientsession(self.hass, verify_ssl=False)
             if self._protocol == HTTP
-            else None,
+            else None
+        )
+        self.gateway = BoschGatewayClass(
+            session=session,
             session_type=self._protocol,
             host=self._host,
             access_key=self._access_key,
             access_token=self._access_token,
             password=self._password,
+            ssl_context=ssl_context,
         )
 
         if await self.async_init_bosch():
