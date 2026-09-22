@@ -19,7 +19,7 @@ from homeassistant.core import callback
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import create_notification_firmware
+from .gateway import create_notification_firmware
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
