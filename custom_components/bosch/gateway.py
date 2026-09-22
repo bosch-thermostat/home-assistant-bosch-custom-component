@@ -149,6 +149,7 @@ class BoschGatewayEntry:
         self._device_type = device_type
         self._protocol = protocol
         self.config_entry = entry
+        self.gateway_device_id: str | None = None
         self._debug_service_registered = False
         self.gateway = None
         self.prefs = None
@@ -188,18 +189,22 @@ class BoschGatewayEntry:
             async_dispatcher_connect(
                 self.hass, SIGNAL_BOSCH, self.async_get_signals
             )
-            await self.hass.config_entries.async_forward_entry_setups(
-                self.config_entry,
-                [component for component in self.supported_platforms if component != SOLAR]
-            )
+            # Register the gateway before the platforms so child devices can
+            # reference it via via_device_id.
             device_registry = dr.async_get(self.hass)
-            device_registry.async_get_or_create(
+            gateway_device = device_registry.async_get_or_create(
                 config_entry_id=self.config_entry.entry_id,
                 identifiers={(DOMAIN, self.uuid)},
                 manufacturer=self.gateway.device_model,
                 model=self.gateway.device_type,
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware,
+            )
+            self.gateway_device_id = gateway_device.id
+            self._async_migrate_device_identifiers(device_registry)
+            await self.hass.config_entries.async_forward_entry_setups(
+                self.config_entry,
+                [component for component in self.supported_platforms if component != SOLAR]
             )
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
                 _LOGGER.debug("Registering debug services.")
@@ -210,6 +215,48 @@ class BoschGatewayEntry:
             )
             return True
         return False
+
+    @callback
+    def _async_migrate_device_identifiers(
+        self, device_registry: dr.DeviceRegistry
+    ) -> None:
+        """Rewrite legacy (DOMAIN, id, uuid) identifiers to (DOMAIN, f"{uuid}_{id}").
+
+        If a device with the new identifier already exists (downgrade followed
+        by an upgrade, or an entry previously run by ha_bosch), the legacy
+        device is a stale duplicate: remove it so the entities re-attach to the
+        existing one on setup instead of failing the entry. Home Assistant
+        restores their entity_id, name and area from its deleted-entity record,
+        so their history carries on.
+        """
+        for device in dr.async_entries_for_config_entry(
+            device_registry, self.config_entry.entry_id
+        ):
+            new_identifiers = {
+                (DOMAIN, f"{self.uuid}_{ident[1]}")
+                if len(ident) == 3 and ident[0] == DOMAIN and ident[2] == self.uuid
+                else ident
+                for ident in device.identifiers
+            }
+            if new_identifiers == device.identifiers:
+                continue
+            try:
+                device_registry.async_update_device(
+                    device.id, new_identifiers=new_identifiers
+                )
+            except dr.DeviceIdentifierCollisionError:
+                _LOGGER.warning(
+                    "Device %s already exists with identifiers %s; removing the "
+                    "legacy duplicate %s",
+                    device.name,
+                    new_identifiers,
+                    device.identifiers,
+                )
+                # The legacy device belongs to this entry only, so removing it
+                # outright is what detaching used to mean. Passing
+                # remove_config_entry_id to async_update_device is deprecated
+                # in HA 2026.9 and breaks in 2027.8.
+                device_registry.async_remove_device(device.id)
 
     @callback
     def async_get_signals(self) -> None:

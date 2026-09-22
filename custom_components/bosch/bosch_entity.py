@@ -1,7 +1,7 @@
 """Bosch base entity."""
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
+from .const import BOSCH_GATEWAY_ENTRY, DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from homeassistant.helpers.entity import DeviceInfo
 
 
@@ -31,21 +31,25 @@ class BoschEntity:
     @property
     def _domain_identifier(self):
         if self._bosch_object.parent_id:
-            return {(DOMAIN, self._bosch_object.parent_id, self._uuid)}
-        return {(DOMAIN, self._domain_name, self._uuid)}
+            return {(DOMAIN, f"{self._uuid}_{self._bosch_object.parent_id}")}
+        return {(DOMAIN, f"{self._uuid}_{self._domain_name}")}
 
     @property
     def device_info(self) -> DeviceInfo:
         """Get attributes about the device."""
-        return DeviceInfo(
+        device_info = DeviceInfo(
             identifiers=self._domain_identifier,
             manufacturer=self._gateway.device_model,
             model=self._gateway.device_type,
             name=self.device_name,
             sw_version=self._gateway.firmware,
             hw_version=self._uuid,
-            via_device=(DOMAIN, self._uuid),
         )
+        # The gateway device is registered before the platforms are set up.
+        gateway_entry = self.hass.data[DOMAIN][self._uuid][BOSCH_GATEWAY_ENTRY]
+        if gateway_entry.gateway_device_id:
+            device_info["via_device_id"] = gateway_entry.gateway_device_id
+        return device_info
 
 
 class BoschClimateWaterEntity(BoschEntity):
@@ -62,7 +66,7 @@ class BoschClimateWaterEntity(BoschEntity):
 
     @property
     def _domain_identifier(self):
-        return {(DOMAIN, self._bosch_object.id, self._uuid)}
+        return {(DOMAIN, f"{self._uuid}_{self._bosch_object.id}")}
 
     @property
     def device_name(self):
