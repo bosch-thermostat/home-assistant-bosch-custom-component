@@ -5,15 +5,30 @@ import logging
 from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 
 from ..bosch_entity import BoschEntity
-from ..const import UNITS_CONVERTER
+from ..const import UNITS_CONVERTER, WORKING_TIME
 
 _LOGGER = logging.getLogger(__name__)
 
 entity_categories = {"diagnostic": EntityCategory.DIAGNOSTIC}
+
+# Mirrors homeassistant.components.sensor._numeric_state_expected
+NON_NUMERIC_DEVICE_CLASSES = {
+    SensorDeviceClass.DATE,
+    SensorDeviceClass.ENUM,
+    SensorDeviceClass.TIMESTAMP,
+}
+
+
+def _is_number(value) -> bool:
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 class BoschBaseSensor(BoschEntity, SensorEntity):
@@ -56,6 +71,10 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         self._attr_state_class = None
         if self._bosch_object.device_class:
             self._attr_device_class = self._bosch_object.device_class
+        if self._bosch_object.attr_id == WORKING_TIME:
+            # reported in minutes; let HA convert to hours for display
+            self._attr_device_class = SensorDeviceClass.DURATION
+        self._non_numeric_logged = False
         if self._bosch_object.state_class:
             self._attr_state_class = self._bosch_object.state_class
             # Fix: temperature device class is incompatible with state_class total
@@ -82,13 +101,49 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Return the state of the sensor."""
-        return self._state
+        """Return the state of the sensor.
+
+        HA raises on every state write when a sensor that must be numeric
+        gets a string such as "unavailable", so drop such values here. This
+        covers every update path, including the Energy/Recording subclasses.
+        """
+        state = self._state
+        if state is None or not self._numeric_state_required() or _is_number(state):
+            self._non_numeric_logged = False
+            return state
+        if not self._non_numeric_logged:
+            self._non_numeric_logged = True
+            _LOGGER.warning(
+                "Sensor %s expects a numeric value but received %r from %s",
+                self.entity_id or self._attr_name,
+                state,
+                self._attr_uri,
+            )
+        return None
+
+    def _numeric_state_required(self) -> bool:
+        """Whether HA requires a numeric state (same rule HA applies)."""
+        if self.device_class in NON_NUMERIC_DEVICE_CLASSES:
+            return False
+        return (
+            self.state_class is not None
+            or self.native_unit_of_measurement is not None
+            or self.device_class is not None
+        )
 
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement of the sensor."""
+        if self._bosch_object.attr_id == WORKING_TIME:
+            return UnitOfTime.MINUTES
         return self._unit_of_measurement
+
+    @property
+    def suggested_unit_of_measurement(self):
+        """Return the suggested unit of measurement."""
+        if self._bosch_object.attr_id == WORKING_TIME:
+            return UnitOfTime.HOURS
+        return None
 
     @property
     def extra_state_attributes(self):
