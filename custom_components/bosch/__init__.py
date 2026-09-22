@@ -5,7 +5,10 @@ import logging
 
 from bosch_thermostat_client.version import __version__ as LIBVERSION
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_ADDRESS
+from homeassistant.const import (
+    CONF_ADDRESS,
+    CONF_PASSWORD,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
@@ -16,13 +19,13 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
     DOMAIN,
-    FW_INTERVAL,
-    INTERVAL,
-    RECORDING_INTERVAL,
     UUID,
 )
 from .gateway import BoschGatewayEntry
-from .services import async_register_services, async_remove_services
+from .services import (
+    async_register_services,
+    async_remove_services,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +38,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
-    _LOGGER.info(f"Setting up Bosch component version {LIBVERSION}.")
+    _LOGGER.debug("Setting up Bosch component version %s.", LIBVERSION)
     uuid = entry.data[UUID]
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     gateway_entry = BoschGatewayEntry(
@@ -46,6 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         device_type=entry.data[CONF_DEVICE_TYPE],
         access_key=entry.data[ACCESS_KEY],
         access_token=entry.data[ACCESS_TOKEN],
+        password=entry.data.get(CONF_PASSWORD),
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
@@ -60,16 +64,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
     _LOGGER.debug("Removing entry.")
     uuid = entry.data[UUID]
-    data = hass.data[DOMAIN][uuid]
-
-    def remove_entry(key):
-        value = data.pop(key, None)
-        if value:
-            value()
-
-    remove_entry(INTERVAL)
-    remove_entry(FW_INTERVAL)
-    remove_entry(RECORDING_INTERVAL)
     bosch = hass.data[DOMAIN].pop(uuid)
     unload_ok = await bosch[BOSCH_GATEWAY_ENTRY].async_reset()
     async_remove_services(hass, entry)

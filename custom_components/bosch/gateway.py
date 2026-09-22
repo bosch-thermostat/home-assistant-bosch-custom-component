@@ -1,27 +1,12 @@
-"""Bosch gateway entry."""
+"""Bosch gateway entry config class."""
 from __future__ import annotations
 
 import asyncio
 import logging
 import random
-from collections.abc import Awaitable
-from datetime import timedelta
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
-from bosch_thermostat_client.const import (
-    DHW,
-    HC,
-    HTTP,
-    NUMBER,
-    RECORDING,
-    SC,
-    SELECT,
-    SENSOR,
-    ZN,
-)
-from bosch_thermostat_client.const.easycontrol import DV
+from bosch_thermostat_client.const import HTTP
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     EncryptionException,
@@ -31,94 +16,36 @@ from bosch_thermostat_client.exceptions import (
 from homeassistant.components.persistent_notification import (
     async_create as async_create_persistent_notification,
 )
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    EVENT_HOMEASSISTANT_STOP,
-)
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import (
-    async_dispatcher_connect,
-    async_dispatcher_send,
-)
-from homeassistant.helpers.event import (
-    async_call_later,
-    async_track_point_in_utc_time,
-    async_track_time_interval,
-)
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.json import save_json
 from homeassistant.helpers.network import get_url
-from homeassistant.util import dt as dt_util
 from homeassistant.util.json import load_json
 
-from custom_components.bosch.switch import SWITCH
-
 from .const import (
-    BINARY_SENSOR,
-    CLIMATE,
     DOMAIN,
     FIRMWARE_SCAN_INTERVAL,
-    FW_INTERVAL,
     GATEWAY,
-    INTERVAL,
     NOTIFICATION_ID,
-    RECORDING_INTERVAL,
-    SCAN_INTERVAL,
-    SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
-    SIGNAL_BOSCH,
-    SIGNAL_CLIMATE_UPDATE_BOSCH,
-    SIGNAL_DHW_UPDATE_BOSCH,
-    SIGNAL_NUMBER,
-    SIGNAL_SELECT,
-    SIGNAL_SENSOR_UPDATE_BOSCH,
-    SIGNAL_SOLAR_UPDATE_BOSCH,
-    SIGNAL_SWITCH,
-    SOLAR,
-    UUID,
-    WATER_HEATER,
+    SUPPORTED_PLATFORMS,
 )
 from .services import async_register_debug_service
+from .types import BoschGateway
 
-SIGNALS = {
-    CLIMATE: SIGNAL_CLIMATE_UPDATE_BOSCH,
-    WATER_HEATER: SIGNAL_DHW_UPDATE_BOSCH,
-    SENSOR: SIGNAL_SENSOR_UPDATE_BOSCH,
-    BINARY_SENSOR: SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
-    SOLAR: SIGNAL_SOLAR_UPDATE_BOSCH,
-    SWITCH: SIGNAL_SWITCH,
-    SELECT: SIGNAL_SELECT,
-    NUMBER: SIGNAL_NUMBER,
-}
-
-SUPPORTED_PLATFORMS = {
-    HC: [CLIMATE],
-    DHW: [WATER_HEATER],
-    SWITCH: [SWITCH],
-    SELECT: [SELECT],
-    NUMBER: [NUMBER],
-    SC: [SENSOR],
-    SENSOR: [SENSOR, BINARY_SENSOR],
-    ZN: [CLIMATE],
-    DV: [SENSOR],
-}
-
-
-CUSTOM_DB = "custom_bosch_db.json"
-SERVICE_DEBUG_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids})
-SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(UUID): int})
-
-TASK = "task"
-
-DATA_CONFIGS = "bosch_configs"
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from .coordinator import BoschDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-HOUR = timedelta(hours=1)
+CUSTOM_DB = "custom_bosch_db.json"
 
 
-def create_notification_firmware(hass: HomeAssistant, msg):
+def create_notification_firmware(hass: HomeAssistant, msg: str | Exception) -> None:
     """Create notification about firmware to the user."""
     async_create_persistent_notification(
         hass,
@@ -138,7 +65,16 @@ class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
     def __init__(
-        self, hass, uuid, host, protocol, device_type, access_key, access_token, entry
+        self,
+        hass: HomeAssistant,
+        uuid: str,
+        host: str,
+        protocol: str,
+        device_type: str,
+        access_key: str,
+        access_token: str,
+        entry: ConfigEntry,
+        password: str | None = None,
     ) -> None:
         """Init Bosch gateway entry config class."""
         self.hass = hass
@@ -148,15 +84,15 @@ class BoschGatewayEntry:
         self._access_token = access_token
         self._device_type = device_type
         self._protocol = protocol
+        self._password = password
         self.config_entry = entry
-        self.gateway_device_id: str | None = None
         self._debug_service_registered = False
-        self.gateway = None
-        self.prefs = None
-        self._initial_update = False
-        self._signal_registered = False
-        self.supported_platforms = []
-        self._update_lock = None
+        self.gateway: BoschGateway | None = None
+        self._closed = False
+        self._stop_unsub: CALLBACK_TYPE | None = None
+        self.supported_platforms: list[str] = []
+        self._update_lock: asyncio.Lock | None = None
+        self.coordinator: BoschDataUpdateCoordinator | None = None
 
     @property
     def device_id(self) -> str:
@@ -168,8 +104,9 @@ class BoschGatewayEntry:
 
         _LOGGER.debug("Initializing Bosch integration.")
         self._update_lock = asyncio.Lock()
-        BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
-        self.gateway = BoschGateway(
+
+        BoschGatewayClass = bosch.gateway_chooser(device_type=self._device_type)
+        self.gateway = BoschGatewayClass(
             session=async_get_clientsession(self.hass, verify_ssl=False)
             if self._protocol == HTTP
             else None,
@@ -177,20 +114,19 @@ class BoschGatewayEntry:
             host=self._host,
             access_key=self._access_key,
             access_token=self._access_token,
+            password=self._password,
         )
 
-        async def close_connection(event) -> None:
-            """Close connection with server."""
-            _LOGGER.debug("Closing connection to Bosch")
-            await self.gateway.close()
-
         if await self.async_init_bosch():
-            self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, close_connection)
-            async_dispatcher_connect(
-                self.hass, SIGNAL_BOSCH, self.async_get_signals
+            from .coordinator import BoschDataUpdateCoordinator
+            from .helpers import async_setup_platforms
+
+            self.coordinator = BoschDataUpdateCoordinator(
+                self.hass, self.gateway, self.uuid, self.config_entry
             )
-            # Register the gateway before the platforms so child devices can
-            # reference it via via_device_id.
+
+            # Register the gateway device before the platforms so entities can
+            # reference it as their parent (via_device_id).
             device_registry = dr.async_get(self.hass)
             gateway_device = device_registry.async_get_or_create(
                 config_entry_id=self.config_entry.entry_id,
@@ -200,15 +136,42 @@ class BoschGatewayEntry:
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware,
             )
-            self.gateway_device_id = gateway_device.id
+            self.coordinator.gateway_device_id = gateway_device.id
             self._async_migrate_device_identifiers(device_registry)
-            await self.hass.config_entries.async_forward_entry_setups(
-                self.config_entry,
-                [component for component in self.supported_platforms if component != SOLAR]
+
+            async def close_connection(event) -> None:
+                """Close connection with server on HA shutdown."""
+                self._stop_unsub = None  # one-time listener already consumed
+                _LOGGER.debug("Closing connection to Bosch")
+                await self.async_close()
+
+            self._stop_unsub = self.hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STOP, close_connection
             )
+            self.config_entry.async_on_unload(self._async_remove_stop_listener)
+
+            await async_setup_platforms(self, self.config_entry)
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
                 _LOGGER.debug("Registering debug services.")
                 async_register_debug_service(hass=self.hass, entry=self)
+
+            # Entities registered their Bosch objects with the coordinator
+            # while the platforms were set up; fetch their data now and start
+            # the periodic refresh.
+            await self.coordinator.async_refresh()
+            # Firmware validity is checked every 4 hours, as before
+            self.config_entry.async_on_unload(
+                async_track_time_interval(
+                    self.hass, self.firmware_refresh, FIRMWARE_SCAN_INTERVAL
+                )
+            )
+            # Recording sensors use their own hourly schedule
+            self.config_entry.async_create_background_task(
+                self.hass,
+                self.coordinator.async_recording_sensors_update(),
+                name=f"bosch-{self.uuid}-recording-update",
+            )
+
             _LOGGER.debug(
                 "Bosch component registered with platforms %s.",
                 self.supported_platforms,
@@ -259,29 +222,28 @@ class BoschGatewayEntry:
                 device_registry.async_remove_device(device.id)
 
     @callback
-    def async_get_signals(self) -> None:
-        """Prepare update after all entities are loaded."""
-        if not self._signal_registered and all(
-            k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
-        ):
-            _LOGGER.debug("Registering thermostat update interval.")
-            self._signal_registered = True
-            self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(
-                self.hass, self.thermostat_refresh, SCAN_INTERVAL
-            )
-            self.hass.data[DOMAIN][self.uuid][FW_INTERVAL] = async_track_time_interval(
-                self.hass,
-                self.firmware_refresh,
-                FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
-            )
-            async_call_later(self.hass, 5, self.thermostat_refresh)
-            asyncio.run_coroutine_threadsafe(self.recording_sensors_update(),
-                self.hass.loop
-            )
+    def _async_remove_stop_listener(self) -> None:
+        """Drop the HA-stop listener if it has not fired yet."""
+        if self._stop_unsub is not None:
+            self._stop_unsub()
+            self._stop_unsub = None
+
+    async def async_close(self) -> None:
+        """Close the connection to the gateway (idempotent)."""
+        if self.gateway is None or self._closed:
+            return
+        self._closed = True
+        if self.coordinator:
+            self.coordinator.async_shutdown_recording()
+        try:
+            await self.gateway.close()
+        except Exception as err:  # noqa: BLE001 - shutdown must not raise
+            _LOGGER.debug("Error closing Bosch connection: %s", err)
 
     async def async_init_bosch(self) -> bool:
         """Initialize Bosch gateway module."""
         _LOGGER.debug("Checking connection to Bosch gateway as %s.", self._host)
+        assert self.gateway
         try:
             await self.gateway.check_connection()
         except (FirmwareException) as err:
@@ -289,160 +251,67 @@ class BoschGatewayEntry:
             _LOGGER.error(err)
             return False
         except (UnknownDevice, EncryptionException) as err:
-            _LOGGER.error(err)
-            _LOGGER.error("You might need to check your password.")
-            raise ConfigEntryNotReady(
-                "Cannot connect to Bosch gateway, host %s with UUID: %s",
-                self._host,
+            _LOGGER.error(
+                "Cannot connect to Bosch gateway (%s): %s. Please verify your password and access key.",
                 self.uuid,
+                err,
+            )
+            raise ConfigEntryNotReady(
+                f"Cannot connect to Bosch gateway, host {self._host} with UUID: {self.uuid}"
             )
         if not self.gateway.uuid:
             raise ConfigEntryNotReady(
-                "Cannot connect to Bosch gateway, host %s with UUID: %s",
-                self._host,
-                self.uuid,
+                f"Cannot connect to Bosch gateway, host {self._host} with UUID: {self.uuid}"
             )
         _LOGGER.debug("Bosch BUS detected: %s", self.gateway.bus_type)
         if not self.gateway.database:
             custom_db = load_json(self.hass.config.path(CUSTOM_DB), default=None)
             if custom_db:
-                _LOGGER.info("Loading custom db file.")
+                _LOGGER.debug("Loading custom db file.")
+                assert isinstance(custom_db, dict)
                 await self.gateway.custom_initialize(custom_db)
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
-            _LOGGER.debug(f"Bosch supported capabilities: {supported_bosch}")
+            _LOGGER.debug("Bosch supported capabilities: %s", supported_bosch)
             for supported in supported_bosch:
-                elements = SUPPORTED_PLATFORMS[supported]
+                elements = SUPPORTED_PLATFORMS.get(supported, [])
                 for element in elements:
                     if element not in self.supported_platforms:
                         self.supported_platforms.append(element)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
-        _LOGGER.info("Bosch initialized.")
+        _LOGGER.debug("Bosch initialized.")
         return True
 
-    async def recording_sensors_update(self, now=None) -> bool | None:
-        """Update of 1-hour sensors.
-
-        It suppose to be called only once an hour
-        so sensor get's average data from Bosch.
-        """
-        entities = self.hass.data[DOMAIN][self.uuid].get(RECORDING, [])
-        if not entities:
-            return
-        recording_callback = self.hass.data[DOMAIN][self.uuid].pop(
-            RECORDING_INTERVAL, None
-        )
-        if recording_callback is not None:
-            recording_callback()
-            recording_callback = None
-        updated = False
-        signals = []
-        now = dt_util.now()
-        for entity in entities:
-            if entity.enabled:
-                try:
-                    _LOGGER.debug("Updating component 1-hour Sensor by %s", id(self))
-                    await entity.bosch_object.update(time=now)
-                    updated = True
-                    if entity.signal not in signals:
-                        signals.append(entity.signal)
-                except DeviceException as err:
-                    _LOGGER.warning(
-                        "Bosch object of entity %s is no longer available. %s",
-                        entity.name,
-                        err,
-                    )
-
-        def rounder(t):
-            matching_seconds = [0]
-            matching_minutes = [6]  # 6
-            matching_hours = dt_util.parse_time_expression("*", 0, 23)
-            return dt_util.find_next_time_expression_time(
-                t, matching_seconds, matching_minutes, matching_hours
-            )
-
-        nexti = rounder(now + timedelta(seconds=1))
-        self.hass.data[DOMAIN][self.uuid][
-            RECORDING_INTERVAL
-        ] = async_track_point_in_utc_time(
-            self.hass, self.recording_sensors_update, nexti
-        )
-        _LOGGER.debug("Next update of 1-hour sensors scheduled at: %s", nexti)
-        if updated:
-            _LOGGER.debug("Bosch 1-hour entitites updated.")
-            for signal in signals:
-                async_dispatcher_send(self.hass, signal)
-            return True
+    async def firmware_refresh(self, event_time: Any = None) -> None:
+        """Warn the user when the gateway firmware is no longer supported."""
+        assert self.gateway
+        _LOGGER.debug("Updating info about Bosch firmware.")
+        try:
+            await self.gateway.check_firmware_validity()
+        except FirmwareException as err:
+            create_notification_firmware(hass=self.hass, msg=err)
+        except DeviceException as err:
+            _LOGGER.debug("Firmware check failed: %s", err)
 
     async def custom_put(self, path: str, value: Any) -> None:
         """Send PUT directly to gateway without parsing."""
+        assert self.gateway
         await self.gateway.raw_put(path=path, value=value)
 
-    async def custom_get(self, path) -> str:
+    async def custom_get(self, path: str) -> Any:
         """Fetch value from gateway."""
+        assert self._update_lock
+        assert self.gateway
         async with self._update_lock:
             return await self.gateway.raw_query(path=path)
-
-    async def component_update(self, component_type=None, event_time=None):
-        """Update data from HC, DHW, ZN, Sensors, Switch."""
-        if component_type in self.supported_platforms:
-            updated = False
-            entities = self.hass.data[DOMAIN][self.uuid][component_type]
-            for entity in entities:
-                if entity.enabled:
-                    try:
-                        _LOGGER.debug(
-                            "Updating component %s %s by %s",
-                            component_type,
-                            entity.entity_id,
-                            id(self),
-                        )
-                        await entity.bosch_object.update()
-                        updated = True
-                    except DeviceException as err:
-                        _LOGGER.warning(
-                            "Bosch object of entity %s is no longer available. %s",
-                            entity.name,
-                            err,
-                        )
-            if updated:
-                _LOGGER.debug(f"Bosch {component_type   } entitites updated.")
-                async_dispatcher_send(self.hass, SIGNALS[component_type])
-                return True
-        return False
-
-    async def thermostat_refresh(self, event_time=None):
-        """Call Bosch to refresh information."""
-        if self._update_lock.locked():
-            _LOGGER.debug("Update already in progress. Not updating.")
-            return
-        _LOGGER.debug("Updating Bosch thermostat entitites.")
-        async with self._update_lock:
-            await self.component_update(SENSOR, event_time)
-            await self.component_update(BINARY_SENSOR, event_time)
-            await self.component_update(CLIMATE, event_time)
-            await self.component_update(WATER_HEATER, event_time)
-            await self.component_update(SWITCH, event_time)
-            await self.component_update(NUMBER, event_time)
-            _LOGGER.debug("Finish updating entities. Waiting for next scheduled check.")
-
-    async def firmware_refresh(self, event_time=None):
-        """Call Bosch to refresh firmware info."""
-        if self._update_lock.locked():
-            _LOGGER.debug("Update already in progress. Not updating.")
-            return
-        _LOGGER.debug("Updating info about Bosch firmware.")
-        try:
-            async with self._update_lock:
-                await self.gateway.check_firmware_validity()
-        except FirmwareException as err:
-            create_notification_firmware(hass=self.hass, msg=err)
 
     async def make_rawscan(self, filename: str) -> dict:
         """Create rawscan from service."""
         rawscan = {}
+        assert self._update_lock
+        assert self.gateway
         async with self._update_lock:
-            _LOGGER.info("Starting rawscan of Bosch component")
+            _LOGGER.debug("Starting rawscan of Bosch component")
             async_create_persistent_notification(
                 self.hass,
                 title="Bosch scan",
@@ -461,25 +330,27 @@ class BoschGatewayEntry:
                 "/local/bosch_scan.json?v",
                 random.randint(0, 5000),
             )
-            _LOGGER.info(f"Rawscan success. Your URL: {url}")
+            _LOGGER.debug("Rawscan success. Your URL: %s", url)
             async_create_persistent_notification(
                 self.hass,
                 title="Bosch scan",
-                message=(f"[{url}]({url})"),
+                message=f"[{url}]({url})",
                 notification_id=NOTIFICATION_ID,
             )
         return rawscan
 
     async def async_reset(self) -> bool:
         """Reset this device to default state."""
-        _LOGGER.warning("Unloading Bosch module.")
-        _LOGGER.debug("Closing connection to gateway.")
-        tasks: list[Awaitable] = [
-            self.hass.config_entries.async_forward_entry_unload(
-                self.config_entry, platform
-            )
-            for platform in self.supported_platforms
-        ]
-        unload_ok = await asyncio.gather(*tasks)
-        await self.gateway.close(force=False)
-        return all(unload_ok)
+        _LOGGER.debug("Unloading Bosch module for UUID: %s", self.uuid)
+        await self.async_close()
+
+        async with asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(
+                    self.hass.config_entries.async_forward_entry_unload(
+                        self.config_entry, platform
+                    )
+                )
+                for platform in self.supported_platforms
+            ]
+        return all(task.result() for task in tasks)
