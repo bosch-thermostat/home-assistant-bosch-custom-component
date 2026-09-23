@@ -10,6 +10,7 @@ from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+from aiohttp import ClientConnectionError
 from bosch_thermostat_client.const import (
     DHW,
     HC,
@@ -153,7 +154,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
-    _init_status: bool = await gateway_entry.async_init()
+    try:
+        _init_status: bool = await gateway_entry.async_init()
+    except DeviceException as err:
+        cause = err.__cause__ or err.__context__
+        if not isinstance(cause, (TimeoutError, ClientConnectionError)):
+            raise
+        hass.data[DOMAIN].pop(uuid, None)
+        raise ConfigEntryNotReady(str(err)) from err
     if not _init_status:
         return _init_status
     async_register_services(hass, entry)
