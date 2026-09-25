@@ -27,18 +27,21 @@ EnergySensors = [
         "attr": "T",
         "unitOfMeasure": UnitOfTemperature.CELSIUS,
         "deviceClass": SensorDeviceClass.TEMPERATURE,
+        "stateClass": SensorStateClass.MEASUREMENT,
     },
     {
         "name": "energy central heating",
         "attr": "CH",
         "unitOfMeasure": UnitOfEnergy.KILO_WATT_HOUR,
         "deviceClass": SensorDeviceClass.ENERGY,
+        "stateClass": SensorStateClass.TOTAL,
     },
     {
         "name": "energy hot water",
         "attr": "HW",
         "unitOfMeasure": UnitOfEnergy.KILO_WATT_HOUR,
         "deviceClass": SensorDeviceClass.ENERGY,
+        "stateClass": SensorStateClass.TOTAL,
     },
 ]
 
@@ -49,20 +52,32 @@ EcusRecordingSensors = [
         "unitOfMeasure": UnitOfTemperature.CELSIUS,
         "normalize": lambda x: x / 10,
         "deviceClass": SensorDeviceClass.TEMPERATURE,
+        "stateClass": SensorStateClass.MEASUREMENT,
     },
     {
         "name": "central heating",
         "attr": "CH",
         "unitOfMeasure": UnitOfVolume.CUBIC_METERS,
         "deviceClass": SensorDeviceClass.GAS,
+        "stateClass": SensorStateClass.TOTAL,
     },
     {
         "name": "hot water",
         "attr": "HW",
         "unitOfMeasure": UnitOfVolume.CUBIC_METERS,
         "deviceClass": SensorDeviceClass.GAS,
+        "stateClass": SensorStateClass.TOTAL,
     },
 ]
+
+
+def _start_of_day(day: str | None) -> datetime | None:
+    """Local start of a "dd-mm-YYYY" day as reported by the gateway."""
+    try:
+        parsed = datetime.strptime(day, "%d-%m-%Y")
+    except (TypeError, ValueError):
+        return None
+    return dt_util.start_of_local_day(parsed.date())
 
 
 class EnergySensor(StatisticHelper):
@@ -88,11 +103,10 @@ class EnergySensor(StatisticHelper):
         self._attr_device_class = sensor_attributes.get(
             "deviceClass", SensorDeviceClass.ENERGY
         )
-        if (
-            self._attr_state_class
-            and self._attr_device_class == SensorDeviceClass.TEMPERATURE
-        ):
-            self._attr_state_class = SensorStateClass.MEASUREMENT
+        # Each derived sensor declares its own state class instead of inheriting
+        # the one of the underlying Bosch object. The kWh / m3 values are the
+        # total of one day, so they are TOTAL with last_reset at that day's start.
+        self._attr_state_class = sensor_attributes.get("stateClass")
 
     @property
     def device_name(self) -> str:
@@ -134,6 +148,8 @@ class EnergySensor(StatisticHelper):
                 self._state = self._normalize(raw_value)
             else:
                 self._state = raw_value
+            if self._attr_state_class == SensorStateClass.TOTAL:
+                self._attr_last_reset = _start_of_day(value.get("d"))
         if self._update_init:
             self._update_init = False
             self.async_schedule_update_ha_state()

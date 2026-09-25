@@ -54,6 +54,7 @@ SERVICE_MOVE_OLD_DATA = "move_old_statistic_data"
 SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"
 CHARGE = "charge"
+WORKING_TIME = "totalWorkingTime"
 MINS = "mins"
 SWITCH = "switch"
 
