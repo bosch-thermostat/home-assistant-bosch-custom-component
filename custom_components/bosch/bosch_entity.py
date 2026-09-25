@@ -1,6 +1,7 @@
 """Bosch base entity."""
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers import device_registry as dr
 from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from homeassistant.helpers.entity import DeviceInfo
 
@@ -37,6 +38,14 @@ class BoschEntity:
     @property
     def device_info(self) -> DeviceInfo:
         """Get attributes about the device."""
+
+        device_registry = dr.async_get(self.hass)
+
+        gateway_device = device_registry.async_get_device_by_identifier(
+            self.hass.config_entries.async_entries(DOMAIN)[0].entry_id,
+            (DOMAIN, self._uuid),
+        )
+        
         return DeviceInfo(
             identifiers=self._domain_identifier,
             manufacturer=self._gateway.device_model,
@@ -44,9 +53,8 @@ class BoschEntity:
             name=self.device_name,
             sw_version=self._gateway.firmware,
             hw_version=self._uuid,
-            via_device=(DOMAIN, self._uuid),
+            via_device_id=gateway_device.id if gateway_device else None,
         )
-
 
 class BoschClimateWaterEntity(BoschEntity):
     """Bosch climate and water entities base class."""
