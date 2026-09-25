@@ -237,7 +237,7 @@ class RecordingSensor(StatisticHelper):
             )
             start_time = last_stats_row.get("start")
             _sum = last_stats_row.get("sum", 0)
-            if isinstance(start_time, float):
+            if isinstance(start_time, (int, float)):
                 start_time = timestamp_to_datetime_or_none(start_time)
             if not start_time:
                 _LOGGER.debug(
