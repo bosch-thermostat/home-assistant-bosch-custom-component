@@ -38,14 +38,6 @@ fetch_recordings_sensor_range:
       example: 'recording:recording'
       selector:
         text:
-move_old_statistic_data:
-  description: >-
-    Move old statistic data. Choose one **recording/energy** sensor from Bosch component.
-  target:
-    entity:
-      integration: bosch
-      domain: sensor
-      # description:
 set_dhw_charge:
   description: Charge DHW circuit.
   target:

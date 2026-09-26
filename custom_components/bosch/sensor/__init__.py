@@ -8,10 +8,7 @@ from bosch_thermostat_client.const import (
     SENSORS,
 )
 from bosch_thermostat_client.const.easycontrol import ENERGY
-from homeassistant.helpers import entity_platform
-from homeassistant.helpers.dispatcher import async_dispatcher_send
-
-from ..const import CIRCUITS, DOMAIN, GATEWAY, SERVICE_MOVE_OLD_DATA, SIGNAL_BOSCH, UUID
+from ..const import CIRCUITS, DOMAIN, BOSCH_GATEWAY_ENTRY, UUID
 from .bosch import BoschSensor
 from .circuit import CircuitSensor
 from .energy import EcusRecordingSensors, EnergySensor, EnergySensors
@@ -38,12 +35,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
+    entry = data[BOSCH_GATEWAY_ENTRY]
+    coordinator = entry.coordinator
     enabled_sensors = config_entry.data.get(SENSORS, [])
 
     new_stats_api = config_entry.options.get("new_stats_api", False)
-    gateway = data[GATEWAY]
-    data[SENSOR] = []
-    data[RECORDING] = []
+    gateway = entry.gateway
+    
+    sensor_entities = []
+    recording_entities = []
 
     def get_sensors(sensor):
         if sensor.kind in (RECORDING, REGULAR, "notification"):
@@ -58,7 +58,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 SensorKinds[sensor.kind],
                 [
                     SensorClass[sensor.kind](
-                        hass=hass,
+                        coordinator=coordinator,
                         uuid=uuid,
                         bosch_object=sensor,
                         gateway=gateway,
@@ -74,7 +74,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 SensorKinds[sensor.kind],
                 [
                     SensorClass[sensor.kind](
-                        hass=hass,
+                        coordinator=coordinator,
                         uuid=uuid,
                         bosch_object=sensor,
                         gateway=gateway,
@@ -91,7 +91,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 SensorKinds[sensor.kind],
                 [
                     SensorClass[sensor.kind](
-                        hass=hass,
+                        coordinator=coordinator,
                         uuid=uuid,
                         bosch_object=sensor,
                         gateway=gateway,
@@ -110,18 +110,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if not target:
             continue
         for sensor_entity in sensors:
-            data[target].append(sensor_entity)
+            if target == RECORDING:
+                recording_entities.append(sensor_entity)
+            else:
+                sensor_entities.append(sensor_entity)
 
     for circ_type in CIRCUITS:
-        circuits = data[GATEWAY].get_circuits(circ_type)
+        circuits = gateway.get_circuits(circ_type)
         for circuit in circuits:
             for sensor in circuit.sensors:
-                data[SENSOR].append(
+                sensor_entities.append(
                     CircuitSensor(
-                        hass=hass,
+                        coordinator=coordinator,
                         uuid=uuid,
                         bosch_object=sensor,
-                        gateway=data[GATEWAY],
+                        gateway=gateway,
                         name=sensor.name,
                         attr_uri=sensor.attr_id,
                         domain_name=circuit.name,
@@ -129,16 +132,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         is_enabled=sensor.attr_id in enabled_sensors,
                     )
                 )
-    async_add_entities(data[SENSOR])
-    async_add_entities(data[RECORDING])
-    if data[RECORDING]:
-        platform = entity_platform.async_get_current_platform()
-
-        # This will register add possibility via service to move old data to new format.
-        platform.async_register_entity_service(
-            SERVICE_MOVE_OLD_DATA,
-            {},
-            "move_old_entity_data_to_new",
-        )
-    async_dispatcher_send(hass, SIGNAL_BOSCH)
+    # Recording/energy entities put themselves on the coordinator's hourly
+    # schedule when added; regular sensors join the per-scan refresh.
+    async_add_entities(sensor_entities + recording_entities)
     return True

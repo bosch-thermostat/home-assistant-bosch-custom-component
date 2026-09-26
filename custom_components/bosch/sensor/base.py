@@ -1,15 +1,23 @@
 """Base sensor component."""
-
+from __future__ import annotations
 import logging
+from typing import Any, TYPE_CHECKING, cast
 
-from bosch_thermostat_client.const import NAME, UNITS, VALUE
+if TYPE_CHECKING:
+    from ..coordinator import BoschDataUpdateCoordinator
+
+from bosch_thermostat_client.const import UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
-from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
 from homeassistant.const import EntityCategory, UnitOfTime
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 
 from ..bosch_entity import BoschEntity
-from ..const import UNITS_CONVERTER, WORKING_TIME
+from ..const import LAST_RESET, UNITS_CONVERTER, WORKING_TIME
+from ..types import BoschGateway, BoschObject
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,19 +44,19 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
 
     def __init__(
         self,
-        hass,
-        uuid,
-        bosch_object: BoschSensor,
-        gateway,
-        name,
-        attr_uri,
-        domain_name=None,
-        circuit_type=None,
-        is_enabled=False,
-    ):
+        coordinator: BoschDataUpdateCoordinator,
+        uuid: str,
+        bosch_object: BoschObject,
+        gateway: BoschGateway,
+        name: str,
+        attr_uri: str,
+        domain_name: str | None = None,
+        circuit_type: str | None = None,
+        is_enabled: bool = False,
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(
-            hass=hass,
+            coordinator=coordinator,
             uuid=uuid,
             bosch_object=bosch_object,
             gateway=gateway,
@@ -63,31 +71,26 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         else:
             self._attr_name = f"{self._bosch_object.parent_id} {name}"
         self._attr_uri = attr_uri
-        # Always define these: async_update() (no-data path) and the
-        # state_class/device_class checks below read them unconditionally.
-        # When a device endpoint is unreachable the read raised
-        # AttributeError every update cycle (see #560, #376).
-        self._attr_device_class = None
-        self._attr_state_class = None
-        if self._bosch_object.device_class:
-            self._attr_device_class = self._bosch_object.device_class
+        self._attr_device_class = cast(
+            SensorDeviceClass, self._bosch_object.device_class
+        )
+        self._attr_state_class = cast(
+            SensorStateClass, self._bosch_object.state_class
+        )
+        # temperature device class is incompatible with state_class total
+        if (
+            self._attr_device_class == SensorDeviceClass.TEMPERATURE
+            and self._attr_state_class == SensorStateClass.TOTAL
+        ):
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         if self._bosch_object.attr_id == WORKING_TIME:
             # reported in minutes; let HA convert to hours for display
             self._attr_device_class = SensorDeviceClass.DURATION
         self._non_numeric_logged = False
-        if self._bosch_object.state_class:
-            self._attr_state_class = self._bosch_object.state_class
-            # Fix: temperature device class is incompatible with state_class total
-            if (self._attr_device_class == SensorDeviceClass.TEMPERATURE
-                    and self._attr_state_class == SensorStateClass.TOTAL):
-                self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_entity_category = entity_categories.get(
-            self._bosch_object.entity_category, None
+            self._bosch_object.entity_category or "", None
         )
-        self._state = None
         self._update_init = True
-        self._unit_of_measurement = None
-        self._uuid = uuid
         if not hasattr(self, "_attr_unique_id") or not self._attr_unique_id:
             self._attr_unique_id = (
                 f"{self._domain_name}{self._bosch_object.parent_id}{self._bosch_object.id}{self._uuid}"
@@ -95,19 +98,19 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
                 else f"{self._domain_name}{self._bosch_object.id}{self._uuid}"
             )
 
-        self._attrs = {}
         self._circuit_type = circuit_type
         self._attr_entity_registry_enabled_default = is_enabled
 
     @property
-    def native_value(self):
+    def native_value(self) -> Any:
         """Return the state of the sensor.
 
         HA raises on every state write when a sensor that must be numeric
-        gets a string such as "unavailable", so drop such values here. This
-        covers every update path, including the Energy/Recording subclasses.
+        gets a string such as "unavailable", so drop such values here.
+        Subclasses override _native_value(), not this property, so the
+        guard covers every sensor type including Energy/Recording.
         """
-        state = self._state
+        state = self._native_value()
         if state is None or not self._numeric_state_required() or _is_number(state):
             self._non_numeric_logged = False
             return state
@@ -131,74 +134,52 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
             or self.device_class is not None
         )
 
+    def _native_value(self) -> Any:
+        """Raw state from the coordinator data, before the numeric guard."""
+        data = self._bosch_object.get_property(self._attr_uri)
+        if not data or data.get(INVALID, False):
+            return None
+        state = data.get(VALUE, INVALID)
+        if state in (INVALID, "unavailable"):
+            if not self._bosch_object.update_initialized:
+                return (
+                    None
+                    if self._attr_state_class
+                    and self._attr_state_class == SensorStateClass.MEASUREMENT
+                    else self._bosch_object.state
+                )
+            return None
+
+        return state
+
     @property
-    def native_unit_of_measurement(self):
+    def native_unit_of_measurement(self) -> str | None:
         """Return the unit of measurement of the sensor."""
         if self._bosch_object.attr_id == WORKING_TIME:
             return UnitOfTime.MINUTES
-        return self._unit_of_measurement
+        data = self._bosch_object.get_property(self._attr_uri)
+        if data and not isinstance(data, list):
+            return UNITS_CONVERTER.get(data.get(UNITS, ""))
+        return None
 
     @property
-    def suggested_unit_of_measurement(self):
+    def suggested_unit_of_measurement(self) -> str | None:
         """Return the suggested unit of measurement."""
         if self._bosch_object.attr_id == WORKING_TIME:
             return UnitOfTime.HOURS
         return None
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes of the sensor."""
-        return self._attrs
-
-    async def async_update(self):
-        """Update state of device."""
-        _LOGGER.debug("Update of sensor %s called.", self.unique_id)
         data = self._bosch_object.get_property(self._attr_uri)
-
-        def get_units():
-            if not isinstance(data, list):
-                return UNITS_CONVERTER.get(data.get(UNITS))
-            return None
-
-        def check_name():
-            if data.get(NAME, "") != self._attr_name:
-                self._attr_name = data.get(NAME, self._attr_name)
-
-        units = get_units()
-
-        if data.get(INVALID, False):
-            self._state = None
-        else:
-            if (_state := data.get(VALUE, INVALID)) in (INVALID, "unavailable"):
-                self._state = None
-            else:
-                self._state = _state
-            check_name()
-
-        self._attrs = {}
         if not data:
-            if not self._bosch_object.update_initialized:
-                self._state = (
-                    None
-                    if self._attr_state_class
-                    and self._attr_state_class == "measurement"
-                    else self._bosch_object.state
-                )
-                self._attrs["stateExtra"] = self._bosch_object.state_message
-            return
-        self.attrs_write(
-            data={
-                **data,
-                "stateExtra": self._bosch_object.state,
-                "path": self._bosch_object.path,
-            },
-            units=units,
-        )
+            return {"stateExtra": self._bosch_object.state_message}
+        return {
+            # The client's energy data carries its own "last_reset" (end of
+            # the day); it must not shadow SensorEntity.last_reset.
+            **{key: value for key, value in data.items() if key != LAST_RESET},
+            "stateExtra": self._bosch_object.state,
+            "path": self._bosch_object.path,
+        }
 
-    def attrs_write(self, data, units):
-        self._attrs = data
-        if self._state != INVALID:
-            self._unit_of_measurement = units
-        if self._update_init:
-            self._update_init = False
-            self.async_schedule_update_ha_state()
