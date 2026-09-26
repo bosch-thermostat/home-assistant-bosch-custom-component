@@ -1,0 +1,11 @@
+# pytest-homeassistant-custom-component pins the matching Home Assistant
+# release (0.13.366 -> homeassistant 2026.9.3; needs Python 3.14).
+pytest-homeassistant-custom-component==0.13.366
+syrupy==6.0.0
+pytest-asyncio==1.4.0
+# slixmpp comes in unpinned through the client; pin it so runs stay reproducible.
+slixmpp==1.17.0
+# Client with ssl_context / async context manager support, pinned to the head
+# of bosch-thermostat/bosch-thermostat-client-python#64 until it is released;
+# replace with the release version from manifest.json afterwards.
+bosch-thermostat-client @ git+https://github.com/alaraun/bosch-thermostat-client-python.git@8f825bfcf7bf8e52a572f188cd9fe6b030bc1e25
