@@ -19,7 +19,7 @@ from homeassistant.core import callback
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import create_notification_firmware
+from .gateway import create_notification_firmware
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
@@ -212,6 +212,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         new_stats_api = self.entry.options.get("new_stats_api", False)
         optimistic_mode = self.entry.options.get("optimistic_mode", False)
+        scan_interval = self.entry.options.get("scan_interval", 60)
 
         return self.async_show_form(
             step_id="init",
@@ -219,6 +220,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional("new_stats_api", default=new_stats_api): bool,
                     vol.Optional("optimistic_mode", default=optimistic_mode): bool,
+                    vol.Optional("scan_interval", default=scan_interval): vol.All(
+                        vol.Coerce(int), vol.Range(min=30, max=3600)
+                    ),
                 }
             ),
         )
