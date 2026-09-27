@@ -1,37 +1,41 @@
 """Bosch Thermostat Number Entities."""
 
 from __future__ import annotations
+from typing import Any, TYPE_CHECKING
 
-from bosch_thermostat_client.const import GATEWAY, NUMBER
-from homeassistant.components.number import NumberEntity
-from homeassistant.components.number.const import NumberMode
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+if TYPE_CHECKING:
+    from .coordinator import BoschDataUpdateCoordinator
 
 from .bosch_entity import BoschEntity
 from .const import (
     CIRCUITS,
     CIRCUITS_SENSOR_NAMES,
     DOMAIN,
-    SIGNAL_BOSCH,
-    SIGNAL_NUMBER,
+    BOSCH_GATEWAY_ENTRY,
+    NUMBER,
     UNITS_CONVERTER,
     UUID,
 )
+from homeassistant.components.number import NumberEntity
+from homeassistant.components.number.const import NumberMode
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the Bosch Water heater from a config entry."""
+    """Set up the Bosch Number from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
+    entry = data[BOSCH_GATEWAY_ENTRY]
+    coordinator = entry.coordinator
     enabled_switches = config_entry.data.get(NUMBER, [])
-    data_number = []
-    for switch in data[GATEWAY].number_switches:
-        data_number.append(
+    
+    entities = []
+    for switch in entry.gateway.number_switches:
+        entities.append(
             BoschNumber(
-                hass=hass,
+                coordinator=coordinator,
                 uuid=uuid,
                 bosch_object=switch,
-                gateway=data[GATEWAY],
+                gateway=entry.gateway,
                 name=switch.name,
                 attr_uri=switch.attr_id,
                 domain_name="Switches",
@@ -39,15 +43,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             )
         )
     for circ_type in CIRCUITS:
-        circuits = data[GATEWAY].get_circuits(circ_type)
+        circuits = entry.gateway.get_circuits(circ_type)
         for circuit in circuits:
             for switch in circuit.number_switches:
-                data_number.append(
+                entities.append(
                     CircuitNumber(
-                        hass=hass,
+                        coordinator=coordinator,
                         uuid=uuid,
                         bosch_object=switch,
-                        gateway=data[GATEWAY],
+                        gateway=entry.gateway,
                         name=switch.name,
                         attr_uri=switch.attr_id,
                         domain_name=circuit.name,
@@ -55,44 +59,37 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         is_enabled=switch.attr_id in enabled_switches,
                     )
                 )
-    data[NUMBER] = data_number
-    async_add_entities(data[NUMBER])
-    async_dispatcher_send(hass, SIGNAL_BOSCH)
+    async_add_entities(entities)
     return True
-
-
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the Bosch Thermostat Platform."""
-    pass
 
 
 class BoschNumber(BoschEntity, NumberEntity):
     """Bosch number class represents HA Number entity."""
 
-    signal = SIGNAL_NUMBER
     _attr_mode: NumberMode = NumberMode.BOX
 
     def __init__(
         self,
-        hass,
-        uuid,
-        bosch_object,
-        gateway,
-        name,
-        attr_uri,
-        domain_name,
-        circuit_type=None,
-        is_enabled=False,
-    ):
+        coordinator: BoschDataUpdateCoordinator,
+        uuid: str,
+        bosch_object: Any,
+        gateway: Any,
+        name: str,
+        attr_uri: str,
+        domain_name: str,
+        circuit_type: str | None = None,
+        is_enabled: bool = False,
+    ) -> None:
         """Set up device and add update callback to get data from websocket."""
         super().__init__(
-            hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
+            coordinator=coordinator,
+            uuid=uuid,
+            bosch_object=bosch_object,
+            gateway=gateway,
+            domain_name=domain_name,
         )
-        self._domain_name = domain_name
         self._attr_name = name
         self._attr_uri = attr_uri
-        self._state = bosch_object.state
-        self._update_init = True
         self._attr_unique_id = f"{self._domain_name}{self._attr_name}{self._uuid}"
         self._attrs = {}
         self._circuit_type = circuit_type
@@ -141,13 +138,11 @@ class BoschNumber(BoschEntity, NumberEntity):
             )
         )
 
-    async def async_update(self):
-        """Update state of device."""
-        pass
-
     async def async_set_native_value(self, value: float) -> None:
         """Set new value."""
         await self._bosch_object.set_value(value)
+        await self.coordinator.async_request_refresh()
+
 
 
 class CircuitNumber(BoschNumber):

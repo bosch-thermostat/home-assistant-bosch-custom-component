@@ -3,22 +3,23 @@ Support for water heaters connected to Bosch thermostat.
 
 For more details about this platform, please refer to the documentation at...
 """
+from __future__ import annotations
 import logging
+from typing import Any, TYPE_CHECKING
 
-from bosch_thermostat_client.const import GATEWAY
-from homeassistant.components.switch import SwitchEntity
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+if TYPE_CHECKING:
+    from .coordinator import BoschDataUpdateCoordinator
 
 from .bosch_entity import BoschEntity
 from .const import (
     CIRCUITS,
     CIRCUITS_SENSOR_NAMES,
     DOMAIN,
-    SIGNAL_BOSCH,
-    SIGNAL_SWITCH,
+    BOSCH_GATEWAY_ENTRY,
     SWITCH,
     UUID,
 )
+from homeassistant.components.switch import SwitchEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,15 +28,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Bosch Switch from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
+    entry = data[BOSCH_GATEWAY_ENTRY]
+    coordinator = entry.coordinator
     enabled_switches = config_entry.data.get(SWITCH, [])
-    data_switch = []
-    for switch in data[GATEWAY].regular_switches:
-        data_switch.append(
+    
+    entities = []
+    for switch in entry.gateway.regular_switches:
+        entities.append(
             BoschSwitch(
-                hass=hass,
+                coordinator=coordinator,
                 uuid=uuid,
                 bosch_object=switch,
-                gateway=data[GATEWAY],
+                gateway=entry.gateway,
                 name=switch.name,
                 attr_uri=switch.attr_id,
                 domain_name="Switches",
@@ -43,15 +47,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             )
         )
     for circ_type in CIRCUITS:
-        circuits = data[GATEWAY].get_circuits(circ_type)
+        circuits = entry.gateway.get_circuits(circ_type)
         for circuit in circuits:
             for switch in circuit.regular_switches:
-                data_switch.append(
+                entities.append(
                     CircuitSwitch(
-                        hass=hass,
+                        coordinator=coordinator,
                         uuid=uuid,
                         bosch_object=switch,
-                        gateway=data[GATEWAY],
+                        gateway=entry.gateway,
                         name=switch.name,
                         attr_uri=switch.attr_id,
                         domain_name=circuit.name,
@@ -59,37 +63,28 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         is_enabled=switch.attr_id in enabled_switches,
                     )
                 )
-    data[SWITCH] = data_switch
-    async_add_entities(data[SWITCH])
-    async_dispatcher_send(hass, SIGNAL_BOSCH)
+    async_add_entities(entities)
     return True
-
-
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the Bosch Thermostat Platform."""
-    pass
 
 
 class BoschBaseSwitch(BoschEntity, SwitchEntity):
     """Representation of a Bosch charge."""
 
-    signal = SIGNAL_SWITCH
-
     def __init__(
         self,
-        hass,
-        uuid,
-        bosch_object,
-        gateway,
-        name,
-        attr_uri,
-        domain_name,
-        circuit_type=None,
-        is_enabled=False,
-    ):
+        coordinator: BoschDataUpdateCoordinator,
+        uuid: str,
+        bosch_object: Any,
+        gateway: Any,
+        name: str,
+        attr_uri: str,
+        domain_name: str,
+        circuit_type: str | None = None,
+        is_enabled: bool = False,
+    ) -> None:
         """Set up device and add update callback to get data from websocket."""
         super().__init__(
-            hass=hass,
+            coordinator=coordinator,
             uuid=uuid,
             bosch_object=bosch_object,
             gateway=gateway,
@@ -97,8 +92,6 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
         )
         self._attr_name = name
         self._attr_uri = attr_uri
-        self._state = bosch_object.state
-        self._update_init = True
         self._attr_unique_id = self._domain_name + self._attr_name + self._uuid
         self._attrs = {}
         self._circuit_type = circuit_type
@@ -107,31 +100,20 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
     @property
     def is_on(self):
         """Return true if switch is on."""
-        return self._state
+        return self._bosch_object.state
 
     async def async_turn_on(self, **kwargs):
         """Turn on switch."""
         _LOGGER.debug("Turning on %s switch.", self._attr_name)
         await self._bosch_object.turn_on()
-        self._state = True
-        self.schedule_update_ha_state()
-
-    async def async_update(self):
-        if self._state != self._bosch_object.state:
-            self._state = self._bosch_object.state
-            self.schedule_update_ha_state()
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
         """Turn off switch."""
         _LOGGER.debug("Turning off %s switch.", self._attr_name)
         await self._bosch_object.turn_off()
-        self._state = False
-        self.schedule_update_ha_state()
+        await self.coordinator.async_request_refresh()
 
-    @property
-    def should_poll(self):
-        """Don't poll."""
-        return False
 
 
 class BoschSwitch(BoschBaseSwitch):
