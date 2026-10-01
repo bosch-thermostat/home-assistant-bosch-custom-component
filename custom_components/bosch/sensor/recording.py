@@ -20,6 +20,9 @@ from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
+# Gateways with a processing lag still get a value, up to this age.
+_MAX_RECORDING_LAG = timedelta(hours=6)
+
 
 class RecordingSensor(StatisticHelper):
     """Representation of Recording Sensor."""
@@ -49,6 +52,7 @@ class RecordingSensor(StatisticHelper):
             new_stats_api=new_stats_api,
         )
         self._unit_of_measurement = bosch_object.unit_of_measurement
+        self._stale_logged = False
 
     @property
     def device_name(self) -> str:
@@ -70,25 +74,71 @@ class RecordingSensor(StatisticHelper):
 
     @property
     def last_reset(self) -> datetime | None:
-        """The value covers the last full hour (state_class total)."""
+        """Start of the hour the value covers (state_class total)."""
         if self._new_stats_api:
             return None
-        return self._last_full_hour()
+        row = self._current_row()
+        return row["d"] if row else self._last_full_hour()
 
-    def _native_value(self) -> Any:
-        """Return the raw state of the sensor."""
-        if self._new_stats_api:
-            return -17 # Legend state for external stats
-        
+    def _current_row(self) -> dict[str, Any] | None:
+        """Row for the last full hour, or the latest completed row up to 6 h old.
+
+        Some gateways (e.g. KM100) publish recordings with a 2-3 hour lag,
+        so the last full hour is often missing. The latest available row is
+        used instead; last_reset follows its hour, so a row that is shown
+        again in the next hour is not counted twice. Only completed hours
+        count: the running hour (and rows from a gateway clock running
+        ahead) are ignored. Hours without consumption have no row, so the
+        shown value can be up to 6 h old; it belongs to the hour named by
+        last_reset, not to the current one. Rows that are skipped while the
+        lag shrinks, and the last hours of a day, are not shown; the external
+        statistics (new_stats_api) import every row.
+        """
         data = self._bosch_object.get_property(self._attr_uri)
         if not data or not data.get(VALUE):
             return None
 
         last_hour = self._last_full_hour()
-        for row in data[VALUE]:
+        rows = [row for row in data[VALUE] if row.get("d") and row["d"] <= last_hour]
+        for row in rows:
             if row["d"] == last_hour:
-                return row.get(VALUE)
+                self._stale_logged = False
+                return row
+        if not rows:
+            return None
+
+        latest = max(rows, key=lambda row: row["d"])
+        age = dt_util.now() - latest["d"]
+        if age <= _MAX_RECORDING_LAG:
+            _LOGGER.debug(
+                "Recording %s: %s missing, using latest row from %s (age %s)",
+                self.unique_id,
+                last_hour,
+                latest["d"],
+                age,
+            )
+            self._stale_logged = False
+            return latest
+        # Hours without consumption have no row at all, so old data is not
+        # always a gateway problem: log it once at info level.
+        if not self._stale_logged:
+            self._stale_logged = True
+            _LOGGER.info(
+                "Recording %s: latest data from %s is %s old (no consumption "
+                "since then, or the gateway lags or its clock is off).",
+                self.unique_id,
+                latest["d"],
+                age,
+            )
         return None
+
+    def _native_value(self) -> Any:
+        """Return the raw state of the sensor."""
+        if self._new_stats_api:
+            return -17 # Legend state for external stats
+
+        row = self._current_row()
+        return row.get(VALUE) if row else None
 
     async def _upsert_past_statistics(
         self, start: datetime, stop: datetime
