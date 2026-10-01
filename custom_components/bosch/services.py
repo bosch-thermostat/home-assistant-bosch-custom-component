@@ -46,14 +46,10 @@ def find_gateway_entry(
     for target in devices_id:
         device = registry.async_get(target)
         if device:
-            device_entries = list[ConfigEntry]()
             for entry_id in device.config_entries:
                 entry = hass.config_entries.async_get_entry(entry_id)
                 if entry and entry.domain == DOMAIN and entry not in config_entries:
-                    device_entries.append(entry)
-                if not device_entries:
-                    continue
-                config_entries.extend(device_entries)
+                    config_entries.append(entry)
         else:
             _LOGGER.warning(f"Device '{target}' not found in device registry")
     bosch_gateway_entries = []
@@ -171,7 +167,9 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
             return {}
         _path = service_call.data.get("path")
         _value = service_call.data.get(VALUE)
-        if not _path or not _value:
+        # 0 and 0.0 are valid values to write; a missing value or an empty
+        # string is not.
+        if not _path or _value is None or _value == "":
             _LOGGER.error("Path or value not defined.")
             return {}
         data: list[Any] = []
@@ -220,6 +218,21 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 def async_remove_services(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
-    """Remove services."""
-    hass.services.async_remove(DOMAIN, SERVICE_DEBUG)
-    hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
+    """Remove the services once the last gateway is unloaded.
+
+    The services are shared by all gateways, so unloading one gateway must
+    not take them away from the others.
+    """
+    if hass.data.get(DOMAIN):
+        return
+    for service in (
+        SERVICE_DEBUG,
+        SERVICE_UPDATE,
+        RECORDING_SERVICE_UPDATE,
+        SERVICE_GET,
+        SERVICE_PUT_STRING,
+        SERVICE_PUT_FLOAT,
+        "fetch_recordings_sensor_range",
+    ):
+        if hass.services.has_service(DOMAIN, service):
+            hass.services.async_remove(DOMAIN, service)
