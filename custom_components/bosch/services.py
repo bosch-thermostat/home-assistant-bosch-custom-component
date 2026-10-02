@@ -1,6 +1,7 @@
 """Services used in HA."""
 from __future__ import annotations
 import logging
+from typing import TYPE_CHECKING, Any
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.const import ATTR_DEVICE_ID
@@ -8,7 +9,6 @@ from homeassistant.util import dt as dt_util
 from homeassistant.config_entries import ConfigEntry
 import homeassistant.helpers.device_registry as dr
 import homeassistant.helpers.config_validation as cv
-from bosch_thermostat_client.const import RECORDING
 from .const import (
     DOMAIN,
     SERVICE_DEBUG,
@@ -21,7 +21,8 @@ from .const import (
     VALUE,
 )
 
-from .sensor.recording import RecordingSensor
+if TYPE_CHECKING:
+    from .gateway import BoschGatewayEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,9 @@ SERVICE_PUT_FLOAT_SCHEMA = SERVICE_GET_SCHEMA.extend(
 )
 
 
-def find_gateway_entry(hass: HomeAssistant, devices_id: str) -> list[ConfigEntry]:
+def find_gateway_entry(
+    hass: HomeAssistant, devices_id: list[str]
+) -> list[BoschGatewayEntry]:
     """Find gateway in config entries."""
     config_entries = list[ConfigEntry]()
     registry = dr.async_get(hass)
@@ -52,9 +55,7 @@ def find_gateway_entry(hass: HomeAssistant, devices_id: str) -> list[ConfigEntry
                     continue
                 config_entries.extend(device_entries)
         else:
-            _LOGGER.warn(
-                f"Device '{target}' not found in device registry"
-            )
+            _LOGGER.warning(f"Device '{target}' not found in device registry")
     bosch_gateway_entries = []
     for entry in hass.data[DOMAIN].values():
         for config_entry in config_entries:
@@ -63,101 +64,121 @@ def find_gateway_entry(hass: HomeAssistant, devices_id: str) -> list[ConfigEntry
     return bosch_gateway_entries
 
 
-def async_register_debug_service(hass: HomeAssistant, entry: ConfigEntry) -> None:
+def async_register_debug_service(
+    hass: HomeAssistant, entry: BoschGatewayEntry | ConfigEntry
+) -> None:
     """Register services."""
 
     async def async_handle_debug_service(service_call: ServiceCall) -> ServiceResponse:
         """Make bosch scan for debug purposes of thermostat."""
         filename = hass.config.path("www/bosch_scan.json")
-        _gateway_entries = find_gateway_entry(hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID])
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
         if not _gateway_entries:
-            return
-        data = []
+            return {}
+        data: list[Any] = []
         for _gateway_entry in _gateway_entries:
             data.append(await _gateway_entry.make_rawscan(filename))
-        return {
-            "data": data
-        }
+        return {"data": data}
 
     hass.services.async_register(
         DOMAIN,
         SERVICE_DEBUG,
         async_handle_debug_service,
         schema=SERVICE_INTEGRATION_SCHEMA,
-        supports_response=SupportsResponse.ONLY
+        supports_response=SupportsResponse.ONLY,
     )
 
 
 def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Register services."""
 
-    async def async_handle_thermostat_refresh(service_call: ServiceCall):
-        """Request update of thermostat manually."""
-        _gateway_entries = find_gateway_entry(hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID])
+    async def async_handle_thermostat_refresh(service_call: ServiceCall) -> None:
+        """Request update of gateway manually."""
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
         if not _gateway_entries:
             return
         for _gateway_entry in _gateway_entries:
-            await _gateway_entry.thermostat_refresh()
+            if _gateway_entry.coordinator:
+                await _gateway_entry.coordinator.async_request_refresh()
 
-    async def async_handle_recording_sensor_refresh(service_call: ServiceCall):
+    async def async_handle_recording_sensor_refresh(service_call: ServiceCall) -> None:
         """Request update of recording sensor manually."""
-        _gateway_entries = find_gateway_entry(hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID])
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
         if not _gateway_entries:
             return
         for _gateway_entry in _gateway_entries:
-            await _gateway_entry.thermostat_refresh()
-        _LOGGER.debug("Performing sensor update on service request. UUID: %s", _gateway_entry.uuid)
-        await _gateway_entry.recording_sensors_update()
+            if _gateway_entry.coordinator:
+                await _gateway_entry.coordinator.async_request_refresh()
+                _LOGGER.debug(
+                    "Performing sensor update on service request. UUID: %s",
+                    _gateway_entry.uuid,
+                )
+                await _gateway_entry.coordinator.async_recording_sensors_update()
 
-    async def async_handle_recording_sensor_fetch_past(service_call: ServiceCall):
+    async def async_handle_recording_sensor_fetch_past(service_call: ServiceCall) -> None:
         """Request update of recording sensor manually."""
         statistic_id = service_call.data.get("statistic_id")
         day = dt_util.start_of_local_day(service_call.data.get("day"))
-        _gateway_entries = find_gateway_entry(hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID])
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
         if not _gateway_entries:
             return
         for _gateway_entry in _gateway_entries:
-            recording_entities: list[RecordingSensor] = _gateway_entry.hass.data[DOMAIN][_gateway_entry.uuid].get(RECORDING, [])
-            for entity in recording_entities:
+            if not _gateway_entry.coordinator:
+                continue
+            for entity in _gateway_entry.coordinator.recording_entities:
                 if entity.enabled and entity.statistic_id == statistic_id:
-                    _LOGGER.debug("Fetching single day by service request. UUID: %s, statistic_id: %s, day: %s", _gateway_entry.uuid, statistic_id, day)
+                    _LOGGER.debug(
+                        "Fetching single day by service request. UUID: %s, statistic_id: %s, day: %s",
+                        _gateway_entry.uuid,
+                        statistic_id,
+                        day,
+                    )
                     await entity.insert_statistics_range(start_time=day)
 
     async def async_handle_get(service_call: ServiceCall) -> ServiceResponse:
         """Request update of recording sensor manually."""
-        _gateway_entries = find_gateway_entry(hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID])
-        if not _gateway_entries:
-            data = ""
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
         _path = service_call.data.get("path")
         if not _path:
             _LOGGER.error("Path or value not defined.")
-            data = ""
-        else:
-            data = []
-            for _gateway_entry in _gateway_entries:
-                single_data = await _gateway_entry.custom_get(path=_path)
-                data.append(single_data)
-        return {
-            "data": data
-        }
+            return {"data": ""}
+
+        if not _gateway_entries:
+            return {"data": ""}
+
+        data: list[Any] = []
+        for _gateway_entry in _gateway_entries:
+            single_data = await _gateway_entry.custom_get(path=_path)
+            data.append(single_data)
+        return {"data": data}
 
     async def async_handle_put(service_call: ServiceCall) -> ServiceResponse:
         """Request update of recording sensor manually."""
-        _gateway_entries = find_gateway_entry(hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID])
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
         if not _gateway_entries:
-            return
+            return {}
         _path = service_call.data.get("path")
         _value = service_call.data.get(VALUE)
         if not _path or not _value:
             _LOGGER.error("Path or value not defined.")
-            return
-        data = []
+            return {}
+        data: list[Any] = []
         for _gateway_entry in _gateway_entries:
-            return_value = await _gateway_entry.custom_put(path=_path, value=_value)
-            data.append(return_value)
-        return {
-            "data": data
-        }
+            await _gateway_entry.custom_put(path=_path, value=_value)
+            data.append({"path": _path, "value": _value})
+        return {"data": data}
         
     hass.services.async_register(
         DOMAIN,

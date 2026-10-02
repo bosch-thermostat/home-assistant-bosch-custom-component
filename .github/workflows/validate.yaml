@@ -1,0 +1,23 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install ruff
+        run: pip install ruff
+      # Error-class rules only (pyflakes plus the pycodestyle E4/E7/E9 groups):
+      # undefined names, broken imports, syntax errors. Deliberately not a
+      # style gate, so it stays green without a formatting sweep first.
+      - name: Lint
+        run: ruff check --select E4,E7,E9,F custom_components/bosch
+

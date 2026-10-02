@@ -1,0 +1,54 @@
+{
+  "config": {
+    "title": "Bosch-termostat",
+    "step": {
+      "choose_type": {
+        "title": "Välj enhetstyp.",
+        "data": {
+          "device_type": "Välj typ av din enhet."
+        }
+      },
+      "http_config": {
+        "title": "Bosch-termostat HTTP-konfiguration",
+        "data": {
+          "address": "IP-adress",
+          "access_token": "Åtkomsttoken",
+          "password": "Lösenord"
+        }
+      },
+      "xmpp_config": {
+        "title": "Bosch-termostat XMPP-konfiguration",
+        "data": {
+          "address": "Serienummer för enheten",
+          "access_token": "Åtkomsttoken",
+          "password": "Lösenord"
+        }
+      },
+      "protocol": {
+        "title": "Bosch IVT-protokoll. HTTP är lokalt. XMPP är molnbaserat!",
+        "data": {
+          "Protocol": "Antingen http eller xmpp"
+        }
+      }
+    },
+    "error": {
+      "service_unavailable": "Ingen tjänst tillgänglig"
+    },
+    "abort": {
+      "faulty_credentials": "Felaktiga användaruppgifter eller fel IP-adress",
+      "already_configured": "Styrenheten är redan konfigurerad",
+      "unknown": "Okänd anledning. Kontrollera loggarna."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bosch-alternativ",
+        "data": {
+          "new_stats_api": "Använd nytt statistik-API",
+          "optimistic_mode": "Använd optimistiskt läge för vissa funktioner (för närvarande inställning av Easycontrol driftläge)."
+        }
+      }
+    }
+  }
+}

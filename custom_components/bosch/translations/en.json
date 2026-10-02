@@ -46,7 +46,8 @@
         "title": "Bosch options",
         "data": {
           "new_stats_api": "Use new statistic API",
-          "optimistic_mode": "Use optimistic mode for some functions (currently Easycontrol Operation mode set)."
+          "optimistic_mode": "Use optimistic mode for some functions (currently Easycontrol Operation mode set).",
+          "scan_interval": "Scan interval (seconds)"
         }
       }
     }
