@@ -114,7 +114,6 @@ class StatisticHelper(BoschBaseSensor):
         "kWh": "energy",
         "Wh": "energy",
         "kW": "power",
-        "m³": "volume",
     }
 
     def _get_unit_class(self) -> str | None:
