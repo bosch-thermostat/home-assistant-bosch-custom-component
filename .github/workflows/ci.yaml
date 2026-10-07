@@ -1,0 +1,44 @@
+name: CI
+
+# No `schedule:` trigger on purpose. A cron trigger makes GitHub disable the
+# whole workflow after 60 days without repository activity, push and
+# pull_request included, and it does so quietly.
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest pytest-asyncio
+          # Present once tests need Home Assistant itself. The smoke test does
+          # not, so CI stays fast until something actually imports the
+          # integration.
+          if [ -f unittests/requirements.txt ]; then pip install -r unittests/requirements.txt; fi
+
+      - name: Lint with Ruff
+        run: ruff check .
+
+      - name: Run tests
+        run: |
+          # pipefail is not on by default in Actions' `bash -e {0}`. Without it
+          # a later `tee` would swallow pytest's exit code.
+          set -o pipefail
+          python3 -m pytest --tb=short -q unittests
