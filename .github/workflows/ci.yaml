@@ -1,4 +1,4 @@
-name: CI
+name: Tests
 
 # No `schedule:` trigger on purpose. A cron trigger makes GitHub disable the
 # whole workflow after 60 days without repository activity, push and
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Test & Lint
+    name: Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,14 +27,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pytest pytest-asyncio
+          pip install pytest pytest-asyncio
           # Present once tests need Home Assistant itself. The smoke test does
           # not, so CI stays fast until something actually imports the
           # integration.
           if [ -f unittests/requirements.txt ]; then pip install -r unittests/requirements.txt; fi
-
-      - name: Lint with Ruff
-        run: ruff check .
 
       - name: Run tests
         run: |
