@@ -40,7 +40,9 @@ _LOGGER = logging.getLogger(__name__)
 class BoschFlowHandler(config_entries.ConfigFlow):
     """Handle a bosch config flow."""
 
-    VERSION = 1
+    # 12 so that ha_bosch entries (version 11) load here. See migration.py.
+    VERSION = 12
+    MINOR_VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     def __init__(self):
