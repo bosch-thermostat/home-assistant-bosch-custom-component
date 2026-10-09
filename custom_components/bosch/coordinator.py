@@ -162,22 +162,29 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
         self.async_shutdown_recording()
         entities = [entity for entity in self._recording_entities if entity.enabled]
         now = dt_util.now()
-        if entities:
-            _LOGGER.debug("Updating %d Bosch 1-hour sensors.", len(entities))
-            # Several entities can share one Bosch object (the three energy
-            # sensors read one library object), so fetch each object once.
-            objects = {
-                id(entity.bosch_object): entity.bosch_object for entity in entities
-            }
-            # Recording/energy sensors fetch the data of the given (local)
-            # time; the library's own default must not be relied on.
-            async with asyncio.TaskGroup() as tg:
-                for obj in objects.values():
-                    tg.create_task(self._async_update_object(obj, time=now))
-            async with asyncio.TaskGroup() as tg:
-                for entity in entities:
-                    tg.create_task(self._async_push_recording_entity(entity))
-            _LOGGER.debug("Bosch 1-hour entitites updated.")
+        try:
+            if entities:
+                _LOGGER.debug("Updating %d Bosch 1-hour sensors.", len(entities))
+                # Several entities can share one Bosch object (the three energy
+                # sensors read one library object), so fetch each object once.
+                objects = {
+                    id(entity.bosch_object): entity.bosch_object
+                    for entity in entities
+                }
+                # Recording/energy sensors fetch the data of the given (local)
+                # time; the library's own default must not be relied on.
+                async with asyncio.TaskGroup() as tg:
+                    for obj in objects.values():
+                        tg.create_task(self._async_update_object(obj, time=now))
+                async with asyncio.TaskGroup() as tg:
+                    for entity in entities:
+                        tg.create_task(self._async_push_recording_entity(entity))
+                _LOGGER.debug("Bosch 1-hour entitites updated.")
+        except Exception:
+            # Without this an unexpected error would skip the reschedule below
+            # and stop the hourly updates until Home Assistant is restarted.
+            # Cancellation (unload) is deliberately not caught.
+            _LOGGER.exception("Unexpected error while updating Bosch 1-hour sensors")
 
         def rounder(t):
             matching_seconds = [0]
