@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # the pinned Home Assistant release requires Python 3.14
+          python-version: '3.14'
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+      - name: Run tests
+        run: pytest
