@@ -1,0 +1,5 @@
+pytest>=7.0
+pytest-asyncio>=0.21
+aiohttp
+homeassistant
+bosch-thermostat-client==0.28.2
