@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["unittests"]
+
+[tool.ruff.lint]
+# Pinned rule set. CI installs ruff unpinned, and ruff has widened its defaults
+# before (0.16), which fails lint on files nobody has touched. Pinning keeps a
+# tool upgrade from changing what is enforced.
+#
+# ASYNC (blocking I/O in coroutines) and BLE (blind except) are deliberately
+# left off for now: the tree has three existing violations, and clearing those
+# belongs in its own change rather than hiding inside the one that turns CI on.
+select = ["E4", "E7", "E9", "F"]
