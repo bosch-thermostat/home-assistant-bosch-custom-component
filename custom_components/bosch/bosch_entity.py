@@ -83,20 +83,20 @@ class BoschClimateWaterEntity(BoschEntity):
         return f"{self._name_prefix} {self._name}"
 
     @property
-    def temperature_unit(self):
-        """Return the unit of measurement."""
+    def native_temperature_unit(self):
+        """Return the native unit of measurement."""
         return self._temperature_unit
 
     @property
-    def current_temperature(self):
+    def native_current_temperature(self):
         """Return the current temperature."""
         return self._current_temperature
 
     @property
-    def target_temperature(self):
+    def native_target_temperature(self):
         """Return the temperature we try to reach."""
         return self._target_temperature
-
+    
     @property
     def min_temp(self):
         """Return the minimum temperature."""
