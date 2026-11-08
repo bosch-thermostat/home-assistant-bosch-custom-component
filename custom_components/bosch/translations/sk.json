@@ -46,7 +46,8 @@
         "title": "Bosch možnosti",
         "data": {
           "new_stats_api": "Použite novú štatistiku API",
-          "optimistic_mode": "Pre niektoré funkcie použite optimistický režim (momentálne je nastavený prevádzkový režim Easycontrol)."
+          "optimistic_mode": "Pre niektoré funkcie použite optimistický režim (momentálne je nastavený prevádzkový režim Easycontrol).",
+          "scan_interval": "Interval skenovania (sekundy)"
         }
       }
     }
