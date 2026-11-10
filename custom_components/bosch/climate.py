@@ -1,12 +1,16 @@
 """Support for Bosch Thermostat Climate."""
 from __future__ import annotations
+import asyncio
+from collections.abc import Awaitable, Callable
 import logging
+import time
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .coordinator import BoschDataUpdateCoordinator
 
-from bosch_thermostat_client.const import HVAC_HEAT, HVAC_OFF, SETPOINT
+from bosch_thermostat_client.const import ACTIVE_PROGRAM, HVAC_HEAT, HVAC_OFF, SETPOINT
+from bosch_thermostat_client.exceptions import DeviceException
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     HVACAction,
@@ -26,6 +30,12 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# After a change the gateway is read back until it reports the new value.
+# Reading right after the PUT returns the old value for a moment (seen with
+# EasyControl: the program switched back in HA for one scan interval).
+CONFIRM_TIMEOUT = 15.0
+CONFIRM_INTERVAL = 1.0
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -70,6 +80,8 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         # Values shown until the next coordinator refresh confirms them
         self._optimistic_hvac_mode: str | None = None
         self._optimistic_target_temperature: float | None = None
+        self._confirm_task: asyncio.Task | None = None
+        self._confirm_generation = 0
         self._is_enabled = True
 
         super().__init__(
@@ -116,7 +128,12 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
             self.async_write_ha_state()
         status = await self._bosch_object.set_ha_mode(hvac_mode)
         if status > 0:
-            await self._async_refresh_after_set()
+            self._async_start_confirm(
+                "hvac mode",
+                hvac_mode,
+                lambda: self._bosch_object.ha_mode,
+                self._bosch_object.update,
+            )
             return True
         if self._optimistic_mode:
             # Setting failed, revert to the mode reported by the gateway.
@@ -131,8 +148,98 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         if self._optimistic_mode:
             self._optimistic_target_temperature = temperature
             self.async_write_ha_state()
-        await self._bosch_object.set_temperature(temperature)
-        await self._async_refresh_after_set()
+        if await self._bosch_object.set_temperature(temperature):
+            self._async_start_confirm(
+                "target temperature",
+                temperature,
+                lambda: self._bosch_object.target_temperature,
+                self._bosch_object.update,
+            )
+        else:
+            await self._async_refresh_after_set()
+
+    def _async_start_confirm(
+        self,
+        what: str,
+        expected: Any,
+        reader: Callable[[], Any],
+        refresher: Callable[[], Awaitable[Any]],
+    ) -> None:
+        """Read the gateway back in the background until it reports ``expected``.
+
+        The service call returns at once; the entity is updated as soon as the
+        gateway confirms the change (or after CONFIRM_TIMEOUT with what it
+        reports then).
+        """
+        # A newer change supersedes a running read-back. It is not cancelled:
+        # cancelling it inside a coordinator refresh would mark the refresh as
+        # failed (entities unavailable), and the library swallows cancellation
+        # inside its requests anyway. The old read-back stops at its next step.
+        self._confirm_generation += 1
+        self._confirm_task = self.hass.async_create_background_task(
+            self._async_confirm(what, expected, reader, refresher, self._confirm_generation),
+            name=f"bosch confirm {what} {self.entity_id}",
+        )
+
+    async def _async_confirm(
+        self,
+        what: str,
+        expected: Any,
+        reader: Callable[[], Any],
+        refresher: Callable[[], Awaitable[Any]],
+        generation: int | None = None,
+    ) -> bool | None:
+        """Poll the changed value until the gateway reports it.
+
+        Returns True/False (confirmed or not), None if a newer change took over.
+        """
+        if generation is None:
+            generation = self._confirm_generation
+        start = time.monotonic()
+        confirmed = False
+        while True:
+            await asyncio.sleep(CONFIRM_INTERVAL)
+            if generation != self._confirm_generation:
+                return None
+            try:
+                await refresher()
+            except DeviceException as err:
+                _LOGGER.debug("Reading back %s of %s failed: %s", what, self.entity_id, err)
+            except Exception as err:  # noqa: BLE001 - library errors must not end the read-back
+                _LOGGER.debug("Reading back %s of %s raised %r", what, self.entity_id, err)
+            if generation != self._confirm_generation:
+                return None
+            elapsed = time.monotonic() - start
+            if reader() == expected:
+                confirmed = True
+                _LOGGER.info(
+                    "%s: %s %r confirmed by the gateway after %.1f s",
+                    self.entity_id, what, expected, elapsed,
+                )
+                break
+            if elapsed >= CONFIRM_TIMEOUT:
+                _LOGGER.warning(
+                    "%s: %s %r not confirmed by the gateway within %.0f s (it reports %r)",
+                    self.entity_id, what, expected, CONFIRM_TIMEOUT, reader(),
+                )
+                break
+        self._optimistic_hvac_mode = None
+        self._optimistic_target_temperature = None
+        self.async_write_ha_state()
+        # Values depending on the change (e.g. setpoint of a new program). Own
+        # task: must not run inside this one, which may still be cancelled on
+        # removal - a cancelled refresh counts as failed.
+        self.hass.async_create_background_task(
+            self.coordinator.async_request_refresh(),
+            name=f"bosch refresh after {what} {self.entity_id}",
+        )
+        return confirmed
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Stop a running read-back."""
+        if self._confirm_task and not self._confirm_task.done():
+            self._confirm_task.cancel()
+        await super().async_will_remove_from_hass()
 
     async def _async_refresh_after_set(self) -> None:
         """Read the new state back, unless optimistic mode shows it already.
@@ -197,4 +304,15 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
     async def async_set_preset_mode(self, preset_mode):
         """Set new target preset mode."""
         await self._bosch_object.set_preset_mode(preset_mode)
-        await self.coordinator.async_request_refresh()
+        obj = self._bosch_object
+
+        async def refresh_program() -> None:
+            # only the active program, not the whole circuit
+            if obj.get_property(ACTIVE_PROGRAM):
+                await obj.update_requested_key(ACTIVE_PROGRAM)
+            else:
+                await obj.update()
+
+        self._async_start_confirm(
+            "preset", preset_mode, lambda: obj.preset_mode, refresh_program
+        )
