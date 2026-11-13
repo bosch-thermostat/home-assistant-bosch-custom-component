@@ -34,8 +34,15 @@ _LOGGER = logging.getLogger(__name__)
 # After a change the gateway is read back until it reports the new value.
 # Reading right after the PUT returns the old value for a moment (seen with
 # EasyControl: the program switched back in HA for one scan interval).
+# CONFIRM_TIMEOUT bounds when the last read-back attempt may start, not the
+# total duration: an attempt already running is not cut off, so on a slow or
+# stalled connection the read-back ends up to one request later.
 CONFIRM_TIMEOUT = 15.0
 CONFIRM_INTERVAL = 1.0
+# Setpoints of EasyControl gateways have stepSize 0.5; used when the gateway
+# does not report a step size.
+DEFAULT_TEMPERATURE_STEP = 0.5
+STEP_SIZE = "stepSize"
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -114,10 +121,45 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Drop optimistic values once real data arrives."""
-        self._optimistic_hvac_mode = None
-        self._optimistic_target_temperature = None
+        """Drop optimistic values once real data arrives.
+
+        While a read-back runs, a scheduled poll may still get the old value
+        from the gateway; the optimistic value stays until the read-back ends.
+        """
+        if not self._read_back_running:
+            self._optimistic_hvac_mode = None
+            self._optimistic_target_temperature = None
         super()._handle_coordinator_update()
+
+    @property
+    def _read_back_running(self) -> bool:
+        """Return True while a read-back of a change is running."""
+        return self._confirm_task is not None and not self._confirm_task.done()
+
+    def _setpoint_key(self) -> str | None:
+        """Return the data key holding the current target temperature.
+
+        Used to read back only that value. None if the circuit does not tell
+        (e.g. a circuit following its schedule), then the whole circuit is read.
+        """
+        obj = self._bosch_object
+        try:
+            op_mode = obj._op_mode  # noqa: SLF001 - the library has no public accessor
+            read_key = getattr(op_mode, "temp_setpoint_read", None)
+            key = read_key() if read_key else obj._temp_setpoint  # noqa: SLF001
+        except (AttributeError, KeyError, TypeError):
+            return None
+        if isinstance(key, str) and obj.get_property(key):
+            return key
+        return None
+
+    def _temperature_step(self, key: str | None) -> float:
+        """Return the step size of the setpoint, DEFAULT_TEMPERATURE_STEP if unknown."""
+        if key:
+            step = self._bosch_object.get_property(key).get(STEP_SIZE)
+            if isinstance(step, (int, float)) and step > 0:
+                return float(step)
+        return DEFAULT_TEMPERATURE_STEP
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set operation mode."""
@@ -128,6 +170,9 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
             self.async_write_ha_state()
         status = await self._bosch_object.set_ha_mode(hvac_mode)
         if status > 0:
+            # The whole circuit is read back: the library tracks the operation
+            # mode in a helper that only a full update refreshes, and a new
+            # mode usually brings a different setpoint as well.
             self._async_start_confirm(
                 "hvac mode",
                 hvac_mode,
@@ -148,12 +193,34 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         if self._optimistic_mode:
             self._optimistic_target_temperature = temperature
             self.async_write_ha_state()
-        if await self._bosch_object.set_temperature(temperature):
+        obj = self._bosch_object
+        # set_temperature returns False as well when the temperature is
+        # already set; then there is nothing to read back.
+        if await obj.set_temperature(temperature):
+            key = self._setpoint_key()
+
+            async def refresh_setpoint() -> None:
+                # only the setpoint, not the whole circuit
+                if key:
+                    await obj.update_requested_key(key)
+                else:
+                    await obj.update()
+
+            # The gateway may round the value to its step size (21.3 -> 21.5).
+            tolerance = self._temperature_step(key) / 2
+
+            def matches(reported: Any, expected: Any) -> bool:
+                return (
+                    isinstance(reported, (int, float))
+                    and abs(reported - expected) <= tolerance
+                )
+
             self._async_start_confirm(
                 "target temperature",
                 temperature,
-                lambda: self._bosch_object.target_temperature,
-                self._bosch_object.update,
+                lambda: obj.target_temperature,
+                refresh_setpoint,
+                matches,
             )
         else:
             await self._async_refresh_after_set()
@@ -164,6 +231,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         expected: Any,
         reader: Callable[[], Any],
         refresher: Callable[[], Awaitable[Any]],
+        matches: Callable[[Any, Any], bool] | None = None,
     ) -> None:
         """Read the gateway back in the background until it reports ``expected``.
 
@@ -177,7 +245,9 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         # inside its requests anyway. The old read-back stops at its next step.
         self._confirm_generation += 1
         self._confirm_task = self.hass.async_create_background_task(
-            self._async_confirm(what, expected, reader, refresher, self._confirm_generation),
+            self._async_confirm(
+                what, expected, reader, refresher, self._confirm_generation, matches
+            ),
             name=f"bosch confirm {what} {self.entity_id}",
         )
 
@@ -188,6 +258,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         reader: Callable[[], Any],
         refresher: Callable[[], Awaitable[Any]],
         generation: int | None = None,
+        matches: Callable[[Any, Any], bool] | None = None,
     ) -> bool | None:
         """Poll the changed value until the gateway reports it.
 
@@ -195,6 +266,8 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         """
         if generation is None:
             generation = self._confirm_generation
+        if matches is None:
+            matches = lambda reported, wanted: reported == wanted  # noqa: E731
         start = time.monotonic()
         confirmed = False
         while True:
@@ -205,22 +278,27 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
                 await refresher()
             except DeviceException as err:
                 _LOGGER.debug("Reading back %s of %s failed: %s", what, self.entity_id, err)
-            except Exception as err:  # noqa: BLE001 - library errors must not end the read-back
+            # Broad on purpose: any library error must not end the read-back.
+            # CancelledError is a BaseException, so cancelling the read-back on
+            # removal (async_will_remove_from_hass) still works - do not widen
+            # this to BaseException.
+            except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Reading back %s of %s raised %r", what, self.entity_id, err)
             if generation != self._confirm_generation:
                 return None
             elapsed = time.monotonic() - start
-            if reader() == expected:
+            if matches(reader(), expected):
                 confirmed = True
                 _LOGGER.info(
                     "%s: %s %r confirmed by the gateway after %.1f s",
                     self.entity_id, what, expected, elapsed,
                 )
                 break
-            if elapsed >= CONFIRM_TIMEOUT:
+            # Do not start an attempt that could only begin after the timeout.
+            if elapsed + CONFIRM_INTERVAL > CONFIRM_TIMEOUT:
                 _LOGGER.warning(
-                    "%s: %s %r not confirmed by the gateway within %.0f s (it reports %r)",
-                    self.entity_id, what, expected, CONFIRM_TIMEOUT, reader(),
+                    "%s: %s %r not confirmed by the gateway within %.1f s (it reports %r)",
+                    self.entity_id, what, expected, elapsed, reader(),
                 )
                 break
         self._optimistic_hvac_mode = None
@@ -303,8 +381,14 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
 
     async def async_set_preset_mode(self, preset_mode):
         """Set new target preset mode."""
-        await self._bosch_object.set_preset_mode(preset_mode)
         obj = self._bosch_object
+        # A failed PUT (XMPP), an unknown preset or the preset already being
+        # active returns None: nothing to read back. Not a plain falsy test -
+        # the HTTP connector answers a successful PUT with the response text,
+        # which may be empty.
+        if await obj.set_preset_mode(preset_mode) in (None, False):
+            await self._async_refresh_after_set()
+            return
 
         async def refresh_program() -> None:
             # only the active program, not the whole circuit
