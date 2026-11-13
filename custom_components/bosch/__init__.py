@@ -22,6 +22,7 @@ from .const import (
     UUID,
 )
 from .gateway import BoschGatewayEntry
+from .migration import async_migrate_entry  # noqa: F401 - HA resolves this on the integration module
 from .services import (
     async_register_services,
     async_remove_services,

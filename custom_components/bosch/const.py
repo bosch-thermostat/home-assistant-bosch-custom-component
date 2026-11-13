@@ -13,6 +13,10 @@ ACCESS_TOKEN = "access_token"
 UUID = "uuid"
 
 CONF_PROTOCOL = "http_xmpp"
+
+# Protocol identifier for the ha_bosch cloud path. No transport for it lives
+# here yet; the migration chain only needs the value to guard its steps.
+POINTTAPI = "pointtapi"
 CONF_DEVICE_TYPE = "device_type"
 
 GATEWAY = "gateway"
