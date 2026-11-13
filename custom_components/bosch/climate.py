@@ -39,6 +39,10 @@ _LOGGER = logging.getLogger(__name__)
 # stalled connection the read-back ends up to one request later.
 CONFIRM_TIMEOUT = 15.0
 CONFIRM_INTERVAL = 1.0
+# EasyControl reports the setpoint of a new program a few seconds after the
+# program itself. After a confirmed program change the setpoint is read for up
+# to SETPOINT_FOLLOW_TIMEOUT until it changes (it may legitimately stay equal).
+SETPOINT_FOLLOW_TIMEOUT = 20.0
 # Setpoints of EasyControl gateways have stepSize 0.5; used when the gateway
 # does not report a step size.
 DEFAULT_TEMPERATURE_STEP = 0.5
@@ -232,6 +236,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         reader: Callable[[], Any],
         refresher: Callable[[], Awaitable[Any]],
         matches: Callable[[Any, Any], bool] | None = None,
+        follow: Callable[[int], Awaitable[bool]] | None = None,
     ) -> None:
         """Read the gateway back in the background until it reports ``expected``.
 
@@ -246,7 +251,13 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         self._confirm_generation += 1
         self._confirm_task = self.hass.async_create_background_task(
             self._async_confirm(
-                what, expected, reader, refresher, self._confirm_generation, matches
+                what,
+                expected,
+                reader,
+                refresher,
+                self._confirm_generation,
+                matches,
+                follow,
             ),
             name=f"bosch confirm {what} {self.entity_id}",
         )
@@ -259,9 +270,12 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         refresher: Callable[[], Awaitable[Any]],
         generation: int | None = None,
         matches: Callable[[Any, Any], bool] | None = None,
+        follow: Callable[[int], Awaitable[bool]] | None = None,
     ) -> bool | None:
         """Poll the changed value until the gateway reports it.
 
+        ``follow`` runs after a confirmation for values that the gateway updates
+        later than the changed one; it returns False if a newer change took over.
         Returns True/False (confirmed or not), None if a newer change took over.
         """
         if generation is None:
@@ -304,6 +318,8 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         self._optimistic_hvac_mode = None
         self._optimistic_target_temperature = None
         self.async_write_ha_state()
+        if confirmed and follow is not None and not await follow(generation):
+            return None
         # Values depending on the change (e.g. setpoint of a new program). Own
         # task: must not run inside this one, which may still be cancelled on
         # removal - a cancelled refresh counts as failed.
@@ -312,6 +328,44 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
             name=f"bosch refresh after {what} {self.entity_id}",
         )
         return confirmed
+
+    async def _async_follow_setpoint(self, before: Any, generation: int) -> bool:
+        """Read the setpoint until it differs from ``before`` (new program).
+
+        Returns False if a newer change took over, True otherwise - also when
+        the setpoint stays the same, which is normal if both programs have the
+        same temperature at the moment.
+        """
+        key = self._setpoint_key()
+        if key is None:
+            return True
+        obj = self._bosch_object
+        start = time.monotonic()
+        while True:
+            await asyncio.sleep(CONFIRM_INTERVAL)
+            if generation != self._confirm_generation:
+                return False
+            try:
+                await obj.update_requested_key(key)
+            except Exception as err:  # noqa: BLE001 - see _async_confirm
+                _LOGGER.debug("Reading setpoint of %s raised %r", self.entity_id, err)
+            if generation != self._confirm_generation:
+                return False
+            elapsed = time.monotonic() - start
+            setpoint = obj.target_temperature
+            if setpoint != before:
+                _LOGGER.info(
+                    "%s: setpoint %r of the new program reported after another %.1f s",
+                    self.entity_id, setpoint, elapsed,
+                )
+                self.async_write_ha_state()
+                return True
+            if elapsed + CONFIRM_INTERVAL > SETPOINT_FOLLOW_TIMEOUT:
+                _LOGGER.debug(
+                    "%s: setpoint stayed at %r after the program change",
+                    self.entity_id, setpoint,
+                )
+                return True
 
     async def async_will_remove_from_hass(self) -> None:
         """Stop a running read-back."""
@@ -382,6 +436,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
     async def async_set_preset_mode(self, preset_mode):
         """Set new target preset mode."""
         obj = self._bosch_object
+        setpoint_before = obj.target_temperature
         # A failed PUT (XMPP), an unknown preset or the preset already being
         # active returns None: nothing to read back. Not a plain falsy test -
         # the HTTP connector answers a successful PUT with the response text,
@@ -398,5 +453,11 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
                 await obj.update()
 
         self._async_start_confirm(
-            "preset", preset_mode, lambda: obj.preset_mode, refresh_program
+            "preset",
+            preset_mode,
+            lambda: obj.preset_mode,
+            refresh_program,
+            follow=lambda generation: self._async_follow_setpoint(
+                setpoint_before, generation
+            ),
         )

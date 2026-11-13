@@ -326,3 +326,73 @@ async def test_optimistic_value_kept_during_read_back() -> None:
         assert entity._optimistic_target_temperature is None
         entity._handle_coordinator_update()
     assert entity.target_temperature == 21.5
+
+
+def _zone_with_setpoint(programs: list[str], setpoints: list[float]) -> MagicMock:
+    """Zone in auto mode: program and the setpoint read key report one after the other."""
+    obj = _zone(programs)
+    obj._op_mode.temp_setpoint_read = MagicMock(return_value="targetTemp")
+    obj.get_property = MagicMock(side_effect=lambda key: {"value": 1})
+    obj.target_temperature = setpoints[0]
+    values = iter(setpoints[1:])
+
+    async def read_key(key: str) -> None:
+        if key == "targetTemp":
+            obj.target_temperature = next(values, obj.target_temperature)
+
+    obj.update_requested_key = AsyncMock(side_effect=read_key)
+    return obj
+
+
+async def test_setpoint_of_new_program_is_followed(caplog) -> None:
+    """The program is confirmed first; its setpoint arrives two reads later."""
+    obj = _zone_with_setpoint(["Wohnzimmer Winter", "Buero Winter"], [17.0, 17.0, 17.0, 21.0])
+    entity = _thermostat(obj)
+    caplog.set_level(logging.INFO)
+    await entity.async_set_preset_mode("Buero Winter")
+    assert await entity._confirm_task is True
+    await entity.hass.settle()
+    assert obj.target_temperature == 21.0
+    assert "setpoint 21.0 of the new program reported" in caplog.text
+    keys = [c.args[0] for c in obj.update_requested_key.await_args_list]
+    assert keys.count("targetTemp") == 3
+    entity.coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_unchanged_setpoint_ends_quietly(caplog) -> None:
+    obj = _zone_with_setpoint(["A", "B"], [21.0])
+    entity = _thermostat(obj)
+    with patch.object(climate_mod, "SETPOINT_FOLLOW_TIMEOUT", 0.05):
+        await entity.async_set_preset_mode("B")
+        assert await entity._confirm_task is True
+    await entity.hass.settle()
+    assert "WARNING" not in caplog.text
+    entity.coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_newer_change_ends_the_setpoint_follow() -> None:
+    obj = _zone_with_setpoint(["A", "B", "B", "B", "B", "C"], [17.0])
+    entity = _thermostat(obj)
+    with patch.object(climate_mod, "SETPOINT_FOLLOW_TIMEOUT", 0.3):
+        await entity.async_set_preset_mode("B")
+        first = entity._confirm_task
+        async def following() -> None:  # program confirmed, setpoint being read
+            while obj.update_requested_key.await_count < 3:
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(following(), 2)
+        await entity.async_set_preset_mode("C")
+        assert await first is None
+        await entity._confirm_task
+    await entity.hass.settle()
+    entity.coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_no_setpoint_follow_without_setpoint_key() -> None:
+    obj = _zone(["A", "B"])
+    entity = _thermostat(obj)
+    await entity.async_set_preset_mode("B")
+    assert await entity._confirm_task is True
+    await entity.hass.settle()
+    keys = {c.args[0] for c in obj.update_requested_key.await_args_list}
+    assert keys == {climate_mod.ACTIVE_PROGRAM}  # only the program, no setpoint follow
