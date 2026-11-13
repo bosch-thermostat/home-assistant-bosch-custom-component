@@ -32,6 +32,10 @@ jobs:
           # not, so CI stays fast until something actually imports the
           # integration.
           if [ -f unittests/requirements.txt ]; then pip install -r unittests/requirements.txt; fi
+          # The client version lives in manifest.json and nowhere else. A second
+          # pin in a requirements file tests a version the integration does not
+          # declare, and says nothing when the two drift apart.
+          pip install "$(python -c 'import json; print(json.load(open("custom_components/bosch/manifest.json"))["requirements"][0])')"
 
       - name: Run tests
         run: |
