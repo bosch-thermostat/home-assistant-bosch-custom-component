@@ -5,6 +5,4 @@ syrupy==6.0.0
 pytest-asyncio==1.4.0
 # slixmpp comes in unpinned through the client; pin it so runs stay reproducible.
 slixmpp==1.17.0
-# Client release with bosch-thermostat/bosch-thermostat-client-python#64;
-# keep in step with manifest.json.
-bosch-thermostat-client==0.29.0b1
+# No client pin here: CI installs the version from manifest.json (see ci.yaml).

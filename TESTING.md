@@ -11,7 +11,9 @@ building are exercised exactly as on a real gateway.
 ```bash
 python3.14 -m venv .venv && . .venv/bin/activate
 pip install -r tests/requirements.txt
-pytest
+# the client version comes from manifest.json, as in CI
+pip install "$(python -c 'import json; print(json.load(open("custom_components/bosch/manifest.json"))["requirements"][0])')"
+pytest tests
 pytest --snapshot-update   # after an intended change to entity states
 ```
 
