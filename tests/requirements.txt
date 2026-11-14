@@ -1,0 +1,8 @@
+# pytest-homeassistant-custom-component pins the matching Home Assistant
+# release (0.13.366 -> homeassistant 2026.9.3; needs Python 3.14).
+pytest-homeassistant-custom-component==0.13.366
+syrupy==6.0.0
+pytest-asyncio==1.4.0
+# slixmpp comes in unpinned through the client; pin it so runs stay reproducible.
+slixmpp==1.17.0
+# No client pin here: CI installs the version from manifest.json (see ci.yaml).
