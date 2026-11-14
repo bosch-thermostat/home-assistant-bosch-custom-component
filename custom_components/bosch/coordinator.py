@@ -6,15 +6,19 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Protocol
 
-from bosch_thermostat_client.exceptions import DeviceException
+from bosch_thermostat_client.exceptions import DeviceConnectionError, DeviceException
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers.event import async_track_point_in_utc_time
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from .types import BoschGateway, BoschObject
 
 _LOGGER = logging.getLogger(__name__)
+
+# Sentinel: the gateway itself could not be reached, as opposed to a single
+# object failing to update.
+_UNREACHABLE = object()
 
 
 class RecordingEntity(Protocol):
@@ -119,21 +123,38 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
 
         objects = list(self._objects.values())
         if objects:
-            # The client handles DeviceException inside update() itself, so an
-            # unreachable gateway cannot be detected here (entities keep their
-            # last value, as before).
+            # The client absorbs an ordinary DeviceException inside update()
+            # (a single missing endpoint must not fail the whole refresh) but
+            # re-raises DeviceConnectionError. On XMPP that also means one
+            # request timed out twice, and some paths time out on some models
+            # every time, so a single object reporting it says nothing about
+            # the gateway. Only when every object does is the gateway treated
+            # as unreachable: UpdateFailed, and entities go unavailable
+            # instead of keeping a stale value.
             async with asyncio.TaskGroup() as tg:
-                for obj in objects:
-                    tg.create_task(self._async_update_object(obj))
+                tasks = [
+                    tg.create_task(self._async_update_object(obj)) for obj in objects
+                ]
+            if all(task.result() is _UNREACHABLE for task in tasks):
+                raise UpdateFailed(f"Bosch gateway {self.uuid} is unreachable")
 
         _LOGGER.debug("Bosch update completed successfully")
         return True
 
-    async def _async_update_object(self, obj: BoschObject, **kwargs: Any) -> bool:
-        """Update a single Bosch object; return whether it succeeded."""
+    async def _async_update_object(self, obj: BoschObject, **kwargs: Any) -> object:
+        """Update a single Bosch object.
+
+        Returns ``_UNREACHABLE`` when the gateway could not be reached at all,
+        otherwise whether the update succeeded.
+        """
         try:
             _LOGGER.debug("Updating Bosch object: %s", obj.name)
             await obj.update(**kwargs)
+        except DeviceConnectionError as err:
+            _LOGGER.debug(
+                "Bosch gateway unreachable while updating %s: %s", obj.name, err
+            )
+            return _UNREACHABLE
         except DeviceException as err:
             _LOGGER.warning("Bosch object %s is not available: %s", obj.name, err)
             return False
