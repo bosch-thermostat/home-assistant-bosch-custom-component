@@ -18,7 +18,7 @@ from .const import (
 )
 from .sensor.heatpump_virtual import (
     HeatpumpBinarySensor,
-    build_heatpump_virtual_entities,
+    get_heatpump_virtual_entities,
     should_register_heatpump_virtual,
 )
 
@@ -52,7 +52,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     if should_register_heatpump_virtual(config_entry):
         entities.extend(
             e
-            for e in build_heatpump_virtual_entities(
+            for e in get_heatpump_virtual_entities(
                 coordinator=coordinator,
                 gateway=entry.gateway,
                 uuid=uuid,

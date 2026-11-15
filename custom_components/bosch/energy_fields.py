@@ -44,7 +44,7 @@ def energy_keys_collide(row: dict[str, Any]) -> bool:
     return bool(ch and hw and ch == hw)
 
 
-def _row_for_day(bosch_data: dict[str, Any], day_key: str) -> dict[str, Any] | None:
+def row_for_day(bosch_data: dict[str, Any], day_key: str) -> dict[str, Any] | None:
     """History row for a dd-mm-YYYY key (dict key or nested d field)."""
     row = bosch_data.get(day_key)
     if isinstance(row, dict):
@@ -71,7 +71,7 @@ def missing_history_days(
     data = bosch_data or {}
     while day < end:
         day_key = day.strftime("%d-%m-%Y")
-        row = _row_for_day(data, day_key)
+        row = row_for_day(data, day_key)
         if not isinstance(row, dict) or not _is_numeric(row.get(read_key)):
             missing.append(day_key)
         day += timedelta(days=1)

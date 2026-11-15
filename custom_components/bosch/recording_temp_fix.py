@@ -46,3 +46,19 @@ def is_temperature_unit(unit: str | None) -> bool:
     if not unit:
         return False
     return unit in ("°C", "C", "°F", "F")
+
+
+def keep_hour_for_lts(
+    state: float,
+    *,
+    is_temperature: bool,
+    already_recorded: bool = False,
+) -> bool:
+    """Whether an hour state belongs in long-term statistics.
+
+    Energy kWh zeros are empty hours and stay omitted until revised.
+    Temperature zeros are real samples and are always kept.
+    """
+    if state != 0:
+        return True
+    return is_temperature or already_recorded

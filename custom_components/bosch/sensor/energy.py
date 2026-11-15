@@ -251,24 +251,30 @@ class EnergySensor(StatisticHelper):
             return 7
         return int(entry.options.get("energy_stats_repair_days", 7))
 
-    async def _maybe_auto_repair(self) -> None:
-        """Re-import recent days once after a field-key change."""
+    async def _maybe_auto_repair(self) -> bool:
+        """Re-import recent days once after a field-key change.
+
+        Returns True when a repair ran successfully (caller should skip
+        the same-tick incremental append). Keeps the pending flag on failure.
+        """
         if not self._pending_key_repair or not self._uses_external_statistics:
-            return
+            return False
         days = self._repair_days()
         if days <= 0:
             self._pending_key_repair = False
-            return
+            return False
         now = dt_util.now()
         if self._last_auto_repair_at and now - self._last_auto_repair_at < timedelta(
             hours=24
         ):
-            return
+            return False
         from ..statistics_repair import repair_energy_statistics_window
 
-        await repair_energy_statistics_window(self, days=days)
-        self._last_auto_repair_at = now
-        self._pending_key_repair = False
+        did_repair = await repair_energy_statistics_window(self, days=days)
+        if did_repair:
+            self._last_auto_repair_at = now
+            self._pending_key_repair = False
+        return did_repair
 
     async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict[str, Any]:
         """Fetch a range of past data from the gateway."""
@@ -372,7 +378,8 @@ class EnergySensor(StatisticHelper):
                     list(sample.keys()),
                 )
                 return
-            await self._maybe_auto_repair()
+            if await self._maybe_auto_repair():
+                return
 
             _sum: float = 0.0
             now = dt_util.now()

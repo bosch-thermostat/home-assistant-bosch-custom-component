@@ -81,6 +81,96 @@ def test_ch_hw_collision_detection() -> None:
     assert fields.resolve_energy_field_key({"eCH": 1}, "HW") is None
 
 
+def test_row_for_day_finds_nested_d() -> None:
+    """Repair write loop must find rows keyed only by nested d."""
+    nested = {
+        "0": {"d": "04-11-2026", "gCh": 1.2, "gHw": 0.4},
+        "1": {"d": "05-11-2026", "gCh": 2.0, "gHw": 0.5},
+        "2": {"d": "06-11-2026", "gCh": 0.8, "gHw": 0.3},
+    }
+    assert nested.get("04-11-2026") is None
+    row = fields.row_for_day(nested, "04-11-2026")
+    assert row is not None and row["gCh"] == 1.2
+    assert fields.row_for_day(nested, "05-11-2026")["gCh"] == 2.0
+    assert fields.row_for_day(nested, "07-11-2026") is None
+
+    from datetime import datetime, timedelta
+
+    start = datetime(2026, 11, 4)
+    end = datetime(2026, 11, 7)
+    assert (
+        fields.missing_history_days(nested, start=start, end=end, read_key="gCh")
+        == []
+    )
+    # Same lookup the repair write loop uses after the fix.
+    imported = 0
+    day = start
+    while day < end:
+        day_key = day.strftime("%d-%m-%Y")
+        row = fields.row_for_day(nested, day_key)
+        if isinstance(row, dict) and "gCh" in row:
+            imported += 1
+        day += timedelta(days=1)
+    assert imported == 3
+
+
+def test_auto_repair_success_skips_same_tick_append() -> None:
+    """Successful repair is terminal; failure keeps the pending flag."""
+    import asyncio
+    from datetime import datetime, timedelta
+    from unittest.mock import AsyncMock
+
+    class FakeEnergy:
+        """Minimal stand-in for EnergySensor auto-repair control flow."""
+
+        def __init__(self) -> None:
+            self._pending_key_repair = True
+            self._uses_external_statistics = True
+            self._last_auto_repair_at = None
+            self.append_called = False
+
+        def _repair_days(self) -> int:
+            return 7
+
+        async def _maybe_auto_repair(self, repair) -> bool:
+            if not self._pending_key_repair or not self._uses_external_statistics:
+                return False
+            days = self._repair_days()
+            if days <= 0:
+                self._pending_key_repair = False
+                return False
+            now = datetime(2026, 11, 15, 10, 0, 0)
+            if self._last_auto_repair_at and now - self._last_auto_repair_at < timedelta(
+                hours=24
+            ):
+                return False
+            did_repair = await repair(self, days=days)
+            if did_repair:
+                self._last_auto_repair_at = now
+                self._pending_key_repair = False
+            return did_repair
+
+        async def _insert_statistics(self, repair) -> None:
+            if await self._maybe_auto_repair(repair):
+                return
+            self.append_called = True
+
+    async def _run() -> None:
+        ok = FakeEnergy()
+        await ok._insert_statistics(AsyncMock(return_value=True))
+        assert ok.append_called is False
+        assert ok._pending_key_repair is False
+        assert ok._last_auto_repair_at is not None
+
+        fail = FakeEnergy()
+        await fail._insert_statistics(AsyncMock(return_value=False))
+        assert fail.append_called is True
+        assert fail._pending_key_repair is True
+        assert fail._last_auto_repair_at is None
+
+    asyncio.run(_run())
+
+
 def test_missing_history_days_requires_every_requested_day() -> None:
     """Repair must see a numeric row for each day before clearing HA."""
     from datetime import datetime

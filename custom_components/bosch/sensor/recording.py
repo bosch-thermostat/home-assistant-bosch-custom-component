@@ -12,7 +12,11 @@ if TYPE_CHECKING:
 from .statistic_helper import StatisticHelper
 
 from ..const import VALUE
-from ..recording_temp_fix import is_temperature_unit, parse_temperature_day
+from ..recording_temp_fix import (
+    is_temperature_unit,
+    keep_hour_for_lts,
+    parse_temperature_day,
+)
 from homeassistant.components.recorder.models import (
     StatisticData,
     timestamp_to_datetime_or_none,
@@ -358,7 +362,9 @@ class RecordingSensor(StatisticHelper):
                         raw,
                     )
                 continue
-            if _state == 0:
+            if not keep_hour_for_lts(
+                _state, is_temperature=self._is_temperature_recording
+            ):
                 continue
             sum += _state
             _LOGGER.debug(
@@ -420,11 +426,16 @@ class RecordingSensor(StatisticHelper):
             end_time=now + timedelta(hours=1),
         )
         existing_states, existing_sums = rows_to_maps(existing.get(self.statistic_id))
-        # New zero hours stay omitted; revisions to an existing hour keep zeros.
+        # Energy zeros stay omitted until revised; temperature keeps 0 °C.
+        is_temp = self._is_temperature_recording
         trimmed = {
             ts: state
             for ts, state in incoming.items()
-            if state != 0 or ts in existing_states
+            if keep_hour_for_lts(
+                state,
+                is_temperature=is_temp,
+                already_recorded=ts in existing_states,
+            )
         }
         if not trimmed:
             return

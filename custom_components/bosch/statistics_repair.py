@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from homeassistant.util import dt as dt_util
 
-from .energy_fields import missing_history_days
+from .energy_fields import missing_history_days, row_for_day
 from .recorder_compat import async_clear_statistics_range
 
 if TYPE_CHECKING:
@@ -94,7 +94,7 @@ async def repair_energy_statistics_window(
     day = start
     while day < end:
         day_key = day.strftime("%d-%m-%Y")
-        row = bosch_data.get(day_key)
+        row = row_for_day(bosch_data, day_key)
         if isinstance(row, dict) and entity._attr_read_key in row:
             try:
                 daily = float(row[entity._attr_read_key])

@@ -55,3 +55,13 @@ def test_is_temperature_unit() -> None:
     assert rt.is_temperature_unit("°C") is True
     assert rt.is_temperature_unit("C") is True
     assert rt.is_temperature_unit("kWh") is False
+
+
+def test_keep_hour_for_lts_temperature_zero() -> None:
+    """0 °C is kept; energy 0 kWh stays omitted unless already recorded."""
+    assert rt.keep_hour_for_lts(0.0, is_temperature=True) is True
+    assert rt.keep_hour_for_lts(0.0, is_temperature=False) is False
+    assert (
+        rt.keep_hour_for_lts(0.0, is_temperature=False, already_recorded=True) is True
+    )
+    assert rt.keep_hour_for_lts(6.5, is_temperature=False) is True

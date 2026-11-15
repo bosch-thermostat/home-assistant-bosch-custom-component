@@ -14,7 +14,7 @@ from .circuit import CircuitSensor
 from .energy import EcusRecordingSensors, EnergySensor, EnergySensors
 from .heatpump_virtual import (
     HeatpumpBinarySensor,
-    build_heatpump_virtual_entities,
+    get_heatpump_virtual_entities,
     should_register_heatpump_virtual,
 )
 from .notifications import NotificationSensor
@@ -143,7 +143,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 )
     # Optional IVT heat-pump virtual diagnostics (each disabled by default).
     if should_register_heatpump_virtual(config_entry):
-        virtual = build_heatpump_virtual_entities(
+        virtual = get_heatpump_virtual_entities(
             coordinator=coordinator, gateway=gateway, uuid=uuid
         )
         sensor_entities.extend(
