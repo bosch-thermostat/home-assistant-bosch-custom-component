@@ -147,6 +147,7 @@ Requestors can overlap. `dhw` when DHW setpoint is not 0; a circuit when the com
 - **hcN room sensor fault** — room temperature at or below −50 °C (one per circuit)
 - **Heat source delta** — supply minus return (°C)
 - **COP today** — produced heat / compressor electricity. Attributes: `produced_kwh`, `compressor_kwh`
+- **COP last 24h** — rolling 24h produced / compressor (settled hours only). Attributes: `produced_kwh`, `compressor_kwh`
 - **COP month / year** — produced heat / consumed electricity (no compressor period totals)
 - **Backup heater share today / month / year** — e-heater / consumed electricity (%)
 - **Backup heater used today** — e-heater today above 0

@@ -142,20 +142,28 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.warning("Unexpected error updating %s: %s", obj.name, err)
             return False
-        if (
-            keep_hours
-            and previous_state is not None
-            and _recording_has_numeric_hours(previous_state)
-            and not _recording_has_numeric_hours(getattr(obj, "state", None))
-        ):
-            _LOGGER.debug(
-                "Keeping previous numeric hours for %s after empty recording pull",
-                obj.name,
-            )
-            try:
-                obj.state = previous_state
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug("Could not restore state on %s", obj.name)
+        if keep_hours and previous_state is not None:
+            current_state = getattr(obj, "state", None)
+            if (
+                _recording_has_numeric_hours(previous_state)
+                and not _recording_has_numeric_hours(current_state)
+            ):
+                _LOGGER.debug(
+                    "Keeping previous numeric hours for %s after empty recording pull",
+                    obj.name,
+                )
+                merged = previous_state
+            else:
+                from .heatpump_diagnostics import merge_energy_monitoring_hours
+
+                merged = merge_energy_monitoring_hours(
+                    previous_state, current_state, now=dt_util.now()
+                )
+            if merged is not current_state:
+                try:
+                    obj.state = merged
+                except Exception:  # noqa: BLE001
+                    _LOGGER.debug("Could not restore/merge state on %s", obj.name)
         return True
 
     async def _async_push_recording_entity(self, entity: RecordingEntity) -> None:

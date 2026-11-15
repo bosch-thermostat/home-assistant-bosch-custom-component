@@ -245,7 +245,7 @@ def test_hourly_list_overrides_stale_today_scalar() -> None:
 
 
 def test_hourly_sums_local_today_with_provisional_hour() -> None:
-    """Local today only; newest closed hour is excluded until the next hour."""
+    """Local today only; current incomplete hour is excluded."""
     data = {
         "recordings/heatSources/total/energyMonitoring/consumedEnergy": [
             {"d": "2026-11-09T10:00:00", "value": 10.0},
@@ -263,15 +263,15 @@ def test_hourly_sums_local_today_with_provisional_hour() -> None:
             {"d": "2026-11-10T11:00:00", "value": 2.5},
         ],
     }
-    # 12:06 → last full hour 11:00 excluded; 10:00 settles.
+    # 12:06 → current hour 12:00 excluded; 10:00 and 11:00 settle.
     now = datetime(2026, 11, 10, 12, 6, 0)
     snap = hp.build_snapshot_from_path_map(data, now=now)
-    assert snap.consumed_today == 1.5
-    assert snap.produced_today == 5.0
-    assert snap.compressor_today == 1.5
-    assert snap.cop("today") == 3.33
+    assert snap.consumed_today == 4.0
+    assert snap.produced_today == 12.0
+    assert snap.compressor_today == 4.0
+    assert snap.cop("today") == 3.0
 
-    # Next hour includes 11:00.
+    # Still both hours; current hour remains excluded.
     later = datetime(2026, 11, 10, 13, 6, 0)
     snap2 = hp.build_snapshot_from_path_map(data, now=later)
     assert snap2.consumed_today == 4.0
@@ -450,6 +450,69 @@ def test_empty_today_hours_are_zero_not_yesterday() -> None:
     assert snap.produced_today == 0.0
     assert snap.compressor_today == 0.0
     assert snap.cop("today") is None
+
+
+def test_cop_today_includes_midnight_hour_at_0106() -> None:
+    """Numeric today 00:00 settles by 01:06 (no extra closed-hour hold)."""
+    data = {
+        "recordings/heatSources/total/energyMonitoring/outputProduced": [
+            {"d": "2026-11-13T00:00:00", "value": 7.0},
+        ],
+        "recordings/heatSources/total/energyMonitoring/compressor": [
+            {"d": "2026-11-13T00:00:00", "value": 2.0},
+        ],
+    }
+    snap = hp.build_snapshot_from_path_map(
+        data, now=datetime(2026, 11, 13, 1, 6, 0)
+    )
+    assert snap.produced_today == 7.0
+    assert snap.compressor_today == 2.0
+    assert snap.cop("today") == 3.5
+
+
+def test_cop_last_24h_spans_yesterday_and_today() -> None:
+    """Rolling 24h sums settled hours across the day boundary."""
+    data = {
+        "recordings/heatSources/total/energyMonitoring/outputProduced": [
+            {"d": "2026-11-12T00:00:00", "value": 1.0},  # outside 24h at 01:06
+            {"d": "2026-11-12T22:00:00", "value": 8.0},
+            {"d": "2026-11-13T00:00:00", "value": 7.0},
+        ],
+        "recordings/heatSources/total/energyMonitoring/compressor": [
+            {"d": "2026-11-12T00:00:00", "value": 1.0},
+            {"d": "2026-11-12T22:00:00", "value": 2.0},
+            {"d": "2026-11-13T00:00:00", "value": 2.0},
+        ],
+    }
+    # Window [2026-11-12 01:00, 2026-11-13 01:00)
+    snap = hp.build_snapshot_from_path_map(
+        data, now=datetime(2026, 11, 13, 1, 6, 0)
+    )
+    assert snap.produced_last_24h == 15.0
+    assert snap.compressor_last_24h == 4.0
+    assert snap.cop("last_24h") == 3.75
+    assert snap.produced_today == 7.0
+    assert snap.cop("today") == 3.5
+
+
+def test_merge_energy_monitoring_hours_keeps_yesterday() -> None:
+    """Day-roll merge retains yesterday numeric hours beside today."""
+    previous = [
+        {"d": "2026-11-12T22:00:00", "value": 8.0},
+        {"d": "2026-11-12T23:00:00", "value": 3.0},
+    ]
+    current = [
+        {"d": "2026-11-13T00:00:00", "value": 7.0},
+        {"d": "2026-11-13T01:00:00", "value": "unavailable"},
+    ]
+    merged = hp.merge_energy_monitoring_hours(
+        previous, current, now=datetime(2026, 11, 13, 1, 6, 0)
+    )
+    assert isinstance(merged, list)
+    by_d = {row["d"]: row["value"] for row in merged}
+    assert by_d["2026-11-12T22:00:00"] == 8.0
+    assert by_d["2026-11-12T23:00:00"] == 3.0
+    assert by_d["2026-11-13T00:00:00"] == 7.0
 
 
 def test_unavailable_today_stubs_sum_to_zero() -> None:

@@ -89,6 +89,8 @@ class HeatpumpSnapshot:
     eheater_month: float | None = None
     eheater_year: float | None = None
     compressor_today: float | None = None
+    produced_last_24h: float | None = None
+    compressor_last_24h: float | None = None
     last_hour_electricity: float | None = None
     last_hour_heat: float | None = None
     last_hour_eheater: float | None = None
@@ -238,13 +240,15 @@ class HeatpumpSnapshot:
         return round(num / den, 2)
 
     def cop(self, period: str) -> float | None:
-        """COP for today/month/year.
+        """COP for today/last_24h/month/year.
 
-        Today uses compressor kWh (IVA heat-pump slice). Month/year still
-        use consumed electricity (no compressor period totals).
+        Today and last 24h use compressor kWh (IVA heat-pump slice). Month/year
+        still use consumed electricity (no compressor period totals).
         """
         if period == "today":
             return self._ratio(self.produced_today, self.compressor_today)
+        if period == "last_24h":
+            return self._ratio(self.produced_last_24h, self.compressor_last_24h)
         mapping = {
             "month": (self.produced_month, self.consumed_month),
             "year": (self.produced_year, self.consumed_year),
@@ -559,6 +563,18 @@ def build_snapshot_from_path_map(
                 "recordings/heatSources/total/energyMonitoring/compressor_Today_kWh",
             )
         ),
+        produced_last_24h=_as_float(
+            _path_value(
+                index,
+                "recordings/heatSources/total/energyMonitoring/outputProduced_Last24h_kWh",
+            )
+        ),
+        compressor_last_24h=_as_float(
+            _path_value(
+                index,
+                "recordings/heatSources/total/energyMonitoring/compressor_Last24h_kWh",
+            )
+        ),
         last_hour_electricity=_recording_hour(index, "consumedEnergy"),
         last_hour_heat=_recording_hour(index, "outputProduced"),
         last_hour_eheater=_recording_hour(index, "eheater"),
@@ -700,12 +716,20 @@ def _day_key(stamp: Any) -> str | None:
     return text[:10] if len(text) >= 10 else None
 
 
+def _hour_cutoff(now: datetime) -> datetime:
+    """Start of the current wall-clock hour (still incomplete)."""
+    cutoff = now.replace(minute=0, second=0, microsecond=0)
+    if cutoff.tzinfo is None and now.tzinfo is not None:
+        cutoff = cutoff.replace(tzinfo=now.tzinfo)
+    return cutoff
+
+
 def _sum_hour_rows_local_today(
     value: Any,
     *,
     now: datetime | None = None,
 ) -> float | None:
-    """Sum numeric hourly rows for local today, excluding the newest closed hour.
+    """Sum numeric hourly rows for local today, excluding the current hour.
 
     Returns 0.0 when a list exists but today has no settled numeric rows.
     Returns None when value is not an hourly list.
@@ -715,9 +739,7 @@ def _sum_hour_rows_local_today(
         return None
     clock = now or datetime.now().astimezone()
     today = clock.date().isoformat()
-    last_full = clock.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
-    if last_full.tzinfo is None and clock.tzinfo is not None:
-        last_full = last_full.replace(tzinfo=clock.tzinfo)
+    cutoff = _hour_cutoff(clock)
     total = 0.0
     found = False
     for row in rows:
@@ -728,10 +750,47 @@ def _sum_hour_rows_local_today(
             continue
         parsed = _stamp_datetime(stamp)
         if parsed is not None:
-            if parsed.tzinfo is None and last_full.tzinfo is not None:
-                parsed = parsed.replace(tzinfo=last_full.tzinfo)
-            if parsed >= last_full:
+            if parsed.tzinfo is None and cutoff.tzinfo is not None:
+                parsed = parsed.replace(tzinfo=cutoff.tzinfo)
+            if parsed >= cutoff:
                 continue
+        number = _as_float(row.get("value", row.get("y")))
+        if number is None:
+            continue
+        total += number
+        found = True
+    return round(total, 2) if found else 0.0
+
+
+def _sum_hour_rows_last_hours(
+    value: Any,
+    *,
+    hours: int = 24,
+    now: datetime | None = None,
+) -> float | None:
+    """Sum numeric hourly rows in [now-hours, current hour).
+
+    Returns 0.0 when a list exists but the window has no settled numeric rows.
+    Returns None when value is not an hourly list.
+    """
+    rows = _recording_hour_rows(value)
+    if rows is None:
+        return None
+    clock = now or datetime.now().astimezone()
+    cutoff = _hour_cutoff(clock)
+    window_start = cutoff - timedelta(hours=hours)
+    total = 0.0
+    found = False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        parsed = _stamp_datetime(row.get("d"))
+        if parsed is None:
+            continue
+        if parsed.tzinfo is None and cutoff.tzinfo is not None:
+            parsed = parsed.replace(tzinfo=cutoff.tzinfo)
+        if parsed < window_start or parsed >= cutoff:
+            continue
         number = _as_float(row.get("value", row.get("y")))
         if number is None:
             continue
@@ -776,27 +835,101 @@ def _with_recording_today_totals(
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Expose hourly energy lists as ``*_Today_kWh``.
+    """Expose hourly energy lists as ``*_Today_kWh`` and ``*_Last24h_kWh``.
 
     When an hourly list exists it wins over a scalar ``*_Today_kWh`` so a
     stale Bosch daily total cannot override an empty new local day.
     """
     extra: dict[str, Any] = {}
     for path, value in path_values.items():
-        if "Today" in path:
+        if "Today" in path or "Last24h" in path:
             continue
         if "energyMonitoring" not in path:
             continue
         if _recording_hour_rows(value) is None:
             continue
-        key = f"{path}_Today_kWh"
-        total = _sum_hour_rows_local_today(value, now=now)
-        if total is None:
-            continue
-        extra[key] = total
+        today_total = _sum_hour_rows_local_today(value, now=now)
+        if today_total is not None:
+            extra[f"{path}_Today_kWh"] = today_total
+        roll_total = _sum_hour_rows_last_hours(value, hours=24, now=now)
+        if roll_total is not None:
+            extra[f"{path}_Last24h_kWh"] = roll_total
     if extra:
         return {**path_values, **extra}
     return path_values
+
+
+def merge_energy_monitoring_hours(
+    previous: Any,
+    current: Any,
+    *,
+    now: datetime | None = None,
+) -> Any:
+    """Merge yesterday+today hourly rows so rolling 24h survives day roll.
+
+    Same-stamp numeric current wins; previous numeric kept when current is
+    unavailable. Rows older than 48h before the current hour are dropped.
+    Returns ``current`` unchanged when it is not an hourly list shape.
+    """
+    prev_rows = _recording_hour_rows(previous)
+    curr_rows = _recording_hour_rows(current)
+    if curr_rows is None and prev_rows is None:
+        return current
+    if curr_rows is None:
+        return previous if prev_rows is not None else current
+    if not prev_rows:
+        return current
+
+    clock = now or datetime.now().astimezone()
+    cutoff = _hour_cutoff(clock)
+    keep_after = cutoff - timedelta(hours=48)
+
+    merged: dict[str, dict[str, Any]] = {}
+
+    def _ingest(rows: list[Any], *, prefer_numeric: bool) -> None:
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            stamp = row.get("d")
+            if stamp is None:
+                continue
+            key = str(stamp)
+            parsed = _stamp_datetime(stamp)
+            if parsed is not None:
+                if parsed.tzinfo is None and cutoff.tzinfo is not None:
+                    parsed = parsed.replace(tzinfo=cutoff.tzinfo)
+                if parsed < keep_after:
+                    continue
+            number = _as_float(row.get("value", row.get("y")))
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = dict(row)
+                continue
+            if prefer_numeric and number is not None:
+                merged[key] = dict(row)
+            elif (
+                prefer_numeric
+                and number is None
+                and _as_float(existing.get("value", existing.get("y"))) is not None
+            ):
+                continue
+            elif not prefer_numeric and number is not None:
+                if _as_float(existing.get("value", existing.get("y"))) is None:
+                    merged[key] = dict(row)
+
+    _ingest(prev_rows, prefer_numeric=False)
+    _ingest(curr_rows, prefer_numeric=True)
+
+    out_rows = sorted(merged.values(), key=lambda r: str(r.get("d")))
+    if isinstance(current, list):
+        return out_rows
+    if isinstance(current, dict):
+        return {**current, "value": out_rows}
+    if isinstance(previous, list):
+        return out_rows
+    if isinstance(previous, dict):
+        return {**previous, "value": out_rows}
+    return out_rows
 
 
 def _object_path(obj: Any) -> str:
