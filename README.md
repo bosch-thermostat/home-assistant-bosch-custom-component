@@ -122,73 +122,9 @@ When the gateway exposes `heatSources/poolStatus`, `poolTemperature`, and `poolS
 
 **Experimental.** Derived from gateway paths, not certified Bosch diagnostics. Mode, requestors, and the efficiency hint can be wrong. Enable only if you accept that.
 
-Only when **Virtual heat-pump diagnostics** is on and protocol is **HTTP** (local KM200, not cloud XMPP). Saving Configure reloads the integration.
+Only when **Virtual heat-pump diagnostics** is on and protocol is **HTTP** (local KM200, not cloud XMPP). Entities live on the child device **Heat pump diagnostics** and are **disabled** by default.
 
-They belong to the **Bosch thermostat** integration as a child device of the gateway:
-
-**Settings → Devices & services → Bosch thermostat → Heat pump diagnostics**
-
-All entities are **disabled**. On that device, enable **Show disabled entities**, then turn on the ones you want. After a reload they fill with the integration’s first refresh. COP, backup share, and last-hour kWh wait for the hourly recording pull (up to about an hour, or the next `:06`).
-
-Requestors can overlap. `dhw` when DHW setpoint is not 0; a circuit when the compressor is on and appliance supply is within 1 °C of that circuit’s actual supply (setpoint used only if actual is missing; usually one); `pool` when pool status is not `off`. Pump running alone is circulation, not a heat request. Efficiency hint is a coarse cutoff, not a fault.
-
-- **Heat pump mode** — `idle`, `circulation`, `compressor`, `space_heating`, `dhw`, `dhw_and_heating`, `pool`, `pool_and_heating`
-- **Compressor active** — modulation above 0
-- **DHW requested** — hot-water setpoint not 0
-- **DHW charging** — `charge=start` only
-- **DHW temperature gap** — setpoint minus tank temperature (°C)
-- **Pool requested** — pool status not `off`
-- **Pool temperature gap** — pool setpoint minus pool temperature (°C)
-- **Space heating active** — at least one circuit requests heat
-- **Heating circuits requesting** — count of matching circuits
-- **Heat requestors** — comma list, e.g. `dhw,hc2,pool`
-- **Primary heating circuit** — requesting circuit (appliance supply match); if hc1 (buffer) and another HC both match, prefer the non-hc1; else highest pump modulation
-- **hcN requesting heat** — one binary sensor per heating circuit
-- **hcN room sensor fault** — room temperature at or below −50 °C (one per circuit)
-- **Heat source delta** — supply minus return (°C)
-- **COP today** — produced heat / compressor electricity. Attributes: `produced_kwh`, `compressor_kwh`
-- **COP last 24h** — rolling 24h produced / compressor (settled hours only). Attributes: `produced_kwh`, `compressor_kwh`
-- **COP month / year** — produced heat / consumed electricity (no compressor period totals)
-- **Backup heater share today / month / year** — e-heater / consumed electricity (%)
-- **Backup heater used today** — e-heater today above 0
-- **Last hour electricity / heat / backup heater** — latest completed hourly kWh (`consumedEnergy` / `outputProduced` / `eheater`)
-- **hcN / dhw / pool compressor minutes today** — compressor-on time attributed to that sink
-- **hcN / dhw / pool compressor share today** — % of compressor-on time (not a Bosch per-circuit kWh meter)
-- **Heat pump efficiency hint** — coarse daily check (not a fault). Attributes include `cop_today`, `backup_share`, `outdoor`, `cop_min`, `spread`. States:
-  - `unknown` — not enough data yet (consumed today under 1 kWh, or produced missing)
-  - `check_backup` — e-heater is ≥ 20% of today's electricity
-  - `check_cop` — COP today below the outdoor-based floor (≥5 °C → 2.8; ≥0 °C → 2.3; ≥−7 °C → 1.8; colder → 1.5; unknown outdoor → 2.3)
-  - `check_spread` — compressor on but |supply − return| under 1 °C
-  - `ok` — none of the above
-
-### If the efficiency hint is not `ok`
-
-These are hints for investigation, not Bosch error codes. Compare with the Bosch / MyBuderus app and outdoor weather before changing settings.
-
-**`unknown`**
-- Wait until the hourly recording pull has run (about an hour, or after `:06`) and today has ≥ 1 kWh consumed.
-- Confirm energy monitoring / recording sensors are enabled and updating.
-- Early morning or after a reload with empty day totals is normal.
-
-**`check_backup`**
-- Backup (e-heater) is covering a large share of electricity — expensive and expected in deep cold, less so in mild weather.
-- Check whether DHW or space setpoints force high flow temps the compressor cannot meet alone.
-- Look at quiet hours / “boost” / legionella or forced electric modes on the controller.
-- If outdoor is mild and backup keeps running, check defrost cycles, low refrigerant symptoms (via installer), or oversized DHW demand.
-
-**`check_cop`**
-- Today’s produced/compressor ratio is below the outdoor floor in the entity attributes (`cop_today` vs `cop_min`).
-- Confirm `produced_kwh` / `compressor_kwh` on the COP today sensor app (Heat pump + Environment = Sum); wrong series would fake a bad COP.
-- Typical causes: high flow temperature, frequent short cycles, heavy DHW, icing/defrost, or backup already in the mix (often with `check_backup`).
-- Overlapping demand can hurt COP: DHW charge + several HCs / pool at once forces higher power and less efficient operating points. Prefer fewer concurrent requestors when possible.
-- Lower supply setpoints / heating curve if comfort allows; avoid repeated manual boosts.
-
-**`check_spread`**
-- Compressor is on but supply and return are almost equal (|ΔT| &lt; 1 °C) — little heat is being delivered to the system.
-- Often a **configuration / hydraulics** issue, not a broken compressor: wrong pump curves, mixer always open, parallel circuits stealing flow, buffer bypass, or flow rate set too high/low for the heat pump.
-- Check circulation: pumps running, valves/mixers open to the circuit that is supposed to take heat, filters/strainers, air in the loop.
-- For buffer/AKU setups, confirm the heat pump is actually charging the tank (primary / requesting circuit) and not only circulating on mixers.
-- Brief spikes during mode changes are possible; a persistent low spread with modulation &gt; 0 needs installer attention (flow rate / controller config / hydraulics).
+Full reference (mode states, requestors, COP, efficiency hint, compressor split): [docs/virtual-heatpump-sensors.md](docs/virtual-heatpump-sensors.md).
 
 # Help
 
