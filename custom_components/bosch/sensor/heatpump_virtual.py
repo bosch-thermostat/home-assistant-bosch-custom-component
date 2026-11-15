@@ -582,21 +582,6 @@ def build_heatpump_virtual_entities(
                 ),
             )
         )
-    entities.append(
-        HeatpumpNumericSensor(
-            coordinator,
-            gateway,
-            uuid,
-            "CopLast24h",
-            "COP last 24h",
-            lambda s: s.cop("last_24h"),
-            unit="",
-            attrs_getter=lambda s: {
-                "produced_kwh": s.produced_last_24h,
-                "compressor_kwh": s.compressor_last_24h,
-            },
-        )
-    )
         entities.append(
             HeatpumpNumericSensor(
                 coordinator,
@@ -612,6 +597,21 @@ def build_heatpump_virtual_entities(
                 unit=PERCENTAGE,
             )
         )
+    entities.append(
+        HeatpumpNumericSensor(
+            coordinator,
+            gateway,
+            uuid,
+            "CopLast24h",
+            "COP last 24h",
+            lambda s: s.cop("last_24h"),
+            unit="",
+            attrs_getter=lambda s: {
+                "produced_kwh": s.produced_last_24h,
+                "compressor_kwh": s.compressor_last_24h,
+            },
+        )
+    )
 
     entities.append(
         HeatpumpBinarySensor(
