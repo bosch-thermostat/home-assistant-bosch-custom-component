@@ -4,4 +4,4 @@ aiohttp
 # Prefer 2026.11 when the index has it (HA CI / modern pip). Fallback keeps
 # migration tests importable on older indexes.
 homeassistant>=2024.3.0
-bosch-thermostat-client==0.28.2
+# Client pin lives in custom_components/bosch/manifest.json (CI installs it).
