@@ -132,18 +132,6 @@ class EnergySensor(StatisticHelper):
         # total of one day, so they are TOTAL with last_reset at that day's start.
         self._attr_state_class = sensor_attributes.get("stateClass")
 
-    def _register_with_coordinator(self) -> None:
-        """Hourly stats for energy/gas; also poll live T and non-stats entities."""
-        self.coordinator.register_recording_entity(self)
-        if not self._uses_external_statistics:
-            self.coordinator.register_object(self._bosch_object)
-
-    def _unregister_from_coordinator(self) -> None:
-        """Leave hourly schedule and optional regular poll."""
-        self.coordinator.unregister_recording_entity(self)
-        if not self._uses_external_statistics:
-            self.coordinator.unregister_object(self._bosch_object)
-
     @property
     def device_name(self) -> str:
         """Device name."""
