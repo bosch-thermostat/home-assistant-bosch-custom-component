@@ -38,6 +38,7 @@ from ..heatpump_diagnostics import (
     heating_circuit_ids,
     is_recording_source,
 )
+from ..heatpump_snapshot_cache import SNAPSHOT_ATTR, get_or_build_snapshot
 from ..heatpump_split import HeatpumpSplitAccumulator
 
 if TYPE_CHECKING:
@@ -59,30 +60,20 @@ MODE_OPTIONS = [
 
 _HP_DIAG_ATTR = "_hp_diag_sources"
 _HP_SPLIT_ATTR = "_hp_split_acc"
-_HP_SNAPSHOT_ATTR = "_hp_snapshot_cache"
+_HP_SNAPSHOT_ATTR = SNAPSHOT_ATTR
 _HP_ENTITIES_ATTR = "_hp_virtual_entities"
 _SPLIT_STORE_VERSION = 1
-
-
-def _snapshot_generation(coordinator: BoschDataUpdateCoordinator) -> Any:
-    """Opaque key that changes after each coordinator refresh."""
-    gen = getattr(coordinator, "last_update_success_time", None)
-    if gen is not None:
-        return gen
-    return id(coordinator.data)
 
 
 def cached_snapshot(
     coordinator: BoschDataUpdateCoordinator, gateway: BoschGateway
 ) -> HeatpumpSnapshot:
     """One snapshot per refresh generation, shared by all virtual entities."""
-    gen = _snapshot_generation(coordinator)
-    cache = getattr(coordinator, _HP_SNAPSHOT_ATTR, None)
-    if isinstance(cache, tuple) and len(cache) == 2 and cache[0] == gen:
-        return cache[1]
-    snap = build_snapshot_from_gateway(gateway)
-    setattr(coordinator, _HP_SNAPSHOT_ATTR, (gen, snap))
-    return snap
+    return get_or_build_snapshot(
+        coordinator,
+        lambda: build_snapshot_from_gateway(gateway),
+        attr=_HP_SNAPSHOT_ATTR,
+    )
 
 
 class _HeatpumpRecordingPull:
@@ -467,7 +458,8 @@ def build_heatpump_virtual_entities(
     next coordinator refresh. COP / last-hour wait for the hourly recording
     pull.
     """
-    snap = cached_snapshot(coordinator, gateway)
+    # One-shot for entity list only; do not seed the live refresh cache.
+    snap = build_snapshot_from_gateway(gateway)
     if not snap.is_heatpump:
         _LOGGER.debug(
             "Heat-pump diagnostics registered; hs1/type not Heatpump yet"

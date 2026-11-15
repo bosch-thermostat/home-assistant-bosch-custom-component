@@ -9,7 +9,10 @@ from typing import Any, Protocol
 from bosch_thermostat_client.exceptions import DeviceConnectionError, DeviceException
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers.event import async_track_point_in_utc_time
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    TimestampDataUpdateCoordinator,
+    UpdateFailed,
+)
 from homeassistant.util import dt as dt_util
 
 from .types import BoschGateway, BoschObject
@@ -35,13 +38,15 @@ class RecordingEntity(Protocol):
         """Import a single day of past data."""
 
 
-class BoschDataUpdateCoordinator(DataUpdateCoordinator):
+class BoschDataUpdateCoordinator(TimestampDataUpdateCoordinator):
     """Class to manage fetching Bosch data.
 
     Entities register the Bosch object backing them when they are added to HA
     and unregister on removal, so only objects with an enabled entity are
     polled - the same behaviour as the pre-coordinator update loop. Recording
     and energy sensors are kept on a separate hourly schedule.
+    Uses TimestampDataUpdateCoordinator so last_update_success_time advances
+    each refresh (virtual heat-pump snapshot cache key).
     """
 
     def __init__(
@@ -231,6 +236,8 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
             await async_update_environment_tail(self.hass)
             await async_update_hdh_tail(self.hass)
             # Refresh virtual COP / diagnostics that read recording objects.
+            # async_set_updated_data does not bump last_update_success_time.
+            self.last_update_success_time = dt_util.utcnow()
             self.async_set_updated_data(
                 self.data if self.data is not None else True
             )
