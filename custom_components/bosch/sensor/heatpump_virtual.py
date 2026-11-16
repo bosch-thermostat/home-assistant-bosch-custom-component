@@ -58,6 +58,9 @@ MODE_OPTIONS = [
     "circulation",
 ]
 
+# Dimensionless COP; empty string so all COP sensors share one LTS unit.
+COP_UNIT = ""
+
 _HP_DIAG_ATTR = "_hp_diag_sources"
 _HP_SPLIT_ATTR = "_hp_split_acc"
 _HP_SNAPSHOT_ATTR = SNAPSHOT_ATTR
@@ -602,7 +605,7 @@ def build_heatpump_virtual_entities(
                 f"Cop{period.title()}",
                 f"COP {label}",
                 lambda s, p=period: s.cop(p),
-                unit="",
+                unit=COP_UNIT,
                 attrs_getter=lambda s, p=period: (
                     {
                         "produced_kwh": s.produced_today,
@@ -639,7 +642,7 @@ def build_heatpump_virtual_entities(
             "CopLast24h",
             "COP last 24h",
             lambda s: s.cop("last_24h"),
-            unit="",
+            unit=COP_UNIT,
             attrs_getter=lambda s: {
                 "produced_kwh": s.produced_last_24h,
                 "compressor_kwh": s.compressor_last_24h,

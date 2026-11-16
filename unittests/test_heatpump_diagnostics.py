@@ -423,6 +423,56 @@ def test_recording_hours_become_today_total() -> None:
     assert snap.last_hour_electricity == 2.5
 
 
+def test_obj_path_values_reads_get_property_hour_rows() -> None:
+    """When _data has no hour list, snapshot still uses get_property rows."""
+
+    class _PropOnlyRecording:
+        """Hours only on get_property (RecordingSensor path)."""
+
+        path = "/recordings/heatSources/total/energyMonitoring/compressor"
+        attr_id = "compressor"
+        kind = "recording"
+        name = "compressor"
+        sensors: list = []
+
+        def get_data(self):
+            # Non-empty _data without hour rows (early-return trap before fix).
+            return {
+                self.attr_id: {
+                    "result": {"value": "unavailable"},
+                    "uri": self.path,
+                    "type": "recording",
+                },
+                "meta": {
+                    "result": {"value": "ok"},
+                    "uri": f"{self.path}/meta",
+                    "type": "regular",
+                },
+            }
+
+        def get_property(self, name):
+            if name != self.attr_id:
+                return {}
+            return {
+                "value": [
+                    {"d": "2026-11-16T04:00:00", "value": 2.0},
+                    {"d": "2026-11-16T05:00:00", "value": 1.0},
+                ]
+            }
+
+        def get_value(self, name, default=None):
+            # Scalar accessor stays empty; hours live only on get_property.
+            return default
+
+    out = hp._obj_path_values(_PropOnlyRecording())
+    rows = out.get("/recordings/heatSources/total/energyMonitoring/compressor")
+    assert isinstance(rows, list) and len(rows) == 2
+    snap = hp.build_snapshot_from_path_map(
+        out, now=datetime(2026, 11, 16, 6, 6, 0)
+    )
+    assert snap.compressor_today == 3.0
+
+
 def test_cop_today_uses_compressor_not_consumed() -> None:
     """COP today divides produced by compressor kWh."""
     data = _standby()

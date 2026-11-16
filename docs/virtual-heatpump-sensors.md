@@ -12,7 +12,18 @@
 
 4. All entities are **disabled** by default. Enable **Show disabled entities**, then turn on the ones you want.
 
-Live sensors fill on the next coordinator refresh. **COP**, **backup share**, and **last-hour** kWh wait for the hourly recording pull (up to about an hour, or the next `:06`).
+### When values appear
+
+Two refresh paths:
+
+| Kind | Examples | When they fill |
+| --- | --- | --- |
+| Live (60s coordinator) | mode, compressor, delta, requestors, circuit gaps | Next scan after enable / reload |
+| Hourly recording | COP, backup share, last-hour kWh, efficiency hint | Next `energyMonitoring` pull (~`:06`) |
+
+**COP is not computed from Home Assistant history or long-term statistics.** It reads live `energyMonitoring` values on the gateway objects. After a reload those objects are empty until the hourly pull runs, so COP / last-hour stay `Unknown` until then (up to about an hour). Once filled, they keep that object state until the next hourly refresh.
+
+The more-info chart uses recorder long-term statistics for the entity. It only has points for hours when the entity was numeric (no backfill). All COP sensors use unit `""`. If an older `sensor.heat_pump_diagnostics_cop_today` statistic was registered with unit `null`, new states will not attach — remove that statistic once under **Developer tools → Statistics**, then let HA recreate it from the live entity.
 
 ## Contents
 
@@ -106,6 +117,8 @@ Binary. On when pool status is present and not `off`.
 Pool setpoint minus pool temperature (°C).
 
 ## Efficiency
+
+Source: gateway `recordings/.../energyMonitoring` (hourly pull). Not HA recorder / LTS. After reload, wait for the next `:06` before expecting numbers. Chart history is only the hours the entity was numeric; see [When values appear](#when-values-appear) for the null-unit statistic cleanup.
 
 ### COP today
 

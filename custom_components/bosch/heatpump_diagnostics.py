@@ -654,12 +654,27 @@ def _obj_value(obj: Any) -> Any:
     return None
 
 
+def _property_recording_rows(obj: Any) -> list[Any] | None:
+    """Hour rows from ``get_property``, same path RecordingSensor uses."""
+    attr = getattr(obj, "attr_id", None) or getattr(obj, "path", None)
+    if not attr or not hasattr(obj, "get_property"):
+        return None
+    try:
+        prop = obj.get_property(attr)
+    except Exception:  # noqa: BLE001
+        return None
+    if isinstance(prop, dict):
+        return _recording_hour_rows(prop.get("value"))
+    return _recording_hour_rows(prop)
+
+
 def _obj_path_values(obj: Any) -> dict[str, Any]:
     """URI → value map from one Bosch object, including circuit children."""
     out: dict[str, Any] = {}
+    path = getattr(obj, "path", None) or getattr(obj, "attr_id", None)
     data = _obj_data(obj)
     if data:
-        base = str(getattr(obj, "path", None) or "").rstrip("/")
+        base = str(path or "").rstrip("/")
         for key, item in data.items():
             if not isinstance(item, dict):
                 continue
@@ -676,12 +691,19 @@ def _obj_path_values(obj: Any) -> dict[str, Any]:
             if not uri:
                 uri = f"{base}/{key}" if base else key
             out[str(uri)] = val
-        if out:
-            return _with_recording_today_totals(out)
-    path = getattr(obj, "path", None) or getattr(obj, "attr_id", None)
-    val = _obj_value(obj)
-    if path and not _is_missing(val):
-        out[str(path)] = val
+    if path:
+        path_key = str(path)
+        # RecordingSensor stores hours under get_property; _data may lack them
+        # or only hold a non-list value. Prefer the property hour list when
+        # this path has no rows yet so COP can sum after the hourly pull.
+        if _recording_hour_rows(out.get(path_key)) is None:
+            rows = _property_recording_rows(obj)
+            if rows is not None:
+                out[path_key] = rows
+        if path_key not in out:
+            val = _obj_value(obj)
+            if not _is_missing(val):
+                out[path_key] = val
     return _with_recording_today_totals(out)
 
 
