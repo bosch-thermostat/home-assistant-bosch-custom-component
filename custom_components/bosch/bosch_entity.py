@@ -2,7 +2,6 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
-from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from homeassistant.helpers.entity import DeviceInfo
@@ -101,30 +100,29 @@ class BoschClimateWaterEntity(BoschEntity):
     ) -> None:
         """Initialize the climate/water entity."""
         super().__init__(coordinator, bosch_object, gateway, uuid)
-        self._temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_unique_id = f"{self._uuid}{self._bosch_object.id}"
-        self._current_temperature: float | None = None
         self._state: Any = None
-        self._target_temperature: float | None = None
 
     @property
     def _domain_identifier(self) -> set[tuple[str, str]]:
         return {(DOMAIN, f"{self._uuid}_{self._bosch_object.id}")}
 
+    # Home Assistant before 2026.11 reads these names; later versions read the
+    # native_* properties the platform classes define.
     @property
     def temperature_unit(self) -> str:
         """Return the unit of measurement."""
-        return self._temperature_unit
+        return self.native_temperature_unit
 
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        return self._current_temperature
+        return self.native_current_temperature
 
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        return self._target_temperature
+        return self.native_target_temperature
 
     @property
     def min_temp(self) -> float:
