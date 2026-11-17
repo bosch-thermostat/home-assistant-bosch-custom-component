@@ -319,7 +319,7 @@ class EnergySensor(StatisticHelper):
             )
 
             async def get_last_stats_from_bosch_api() -> tuple[list[Any], float]:
-                last_stats_row = self.get_last_stats_before_date(
+                last_stats_row = await self.async_get_last_stats_before_date(
                     last_stats=last_stats, day=start_of_yesterday_utc
                 )
                 start_time_raw = last_stats_row.get("start")
