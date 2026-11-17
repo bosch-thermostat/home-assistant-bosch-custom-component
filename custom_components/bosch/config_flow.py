@@ -43,7 +43,6 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     # 12 so that ha_bosch entries (version 11) load here. See migration.py.
     VERSION = 12
     MINOR_VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     def __init__(self):
         """Initialize Bosch flow."""

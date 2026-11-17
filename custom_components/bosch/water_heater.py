@@ -113,17 +113,17 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
         return self._bosch_object.ha_modes
 
     @property
-    def current_temperature(self):
+    def native_current_temperature(self):
         """Return the current temperature."""
         return self._bosch_object.current_temp
 
     @property
-    def target_temperature(self):
+    def native_target_temperature(self):
         """Return the temperature we try to reach."""
         return self._bosch_object.target_temperature
 
     @property
-    def temperature_unit(self):
+    def native_temperature_unit(self):
         """Return the unit of measurement."""
         return UNITS_CONVERTER.get(
             self._bosch_object.temp_units, UnitOfTemperature.CELSIUS
