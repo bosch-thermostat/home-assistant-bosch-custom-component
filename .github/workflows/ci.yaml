@@ -7,6 +7,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Tests
@@ -43,3 +46,27 @@ jobs:
           # a later `tee` would swallow pytest's exit code.
           set -o pipefail
           python3 -m pytest --tb=short -q unittests
+
+  simulator:
+    # Home Assistant with the real client gateway classes, replaying captured
+    # rawscans (tests/simulator.py, see TESTING.md).
+    name: Simulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          # the Home Assistant release pinned in tests/requirements.txt needs 3.14
+          python-version: "3.14"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
+          pip install "$(python -c 'import json; print(json.load(open("custom_components/bosch/manifest.json"))["requirements"][0])')"
+
+      - name: Run tests
+        run: python3 -m pytest --tb=short -q tests
