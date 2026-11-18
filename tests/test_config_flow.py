@@ -70,11 +70,18 @@ async def test_options_flow(hass, setup_integration):
     assert result["step_id"] == "init"
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"new_stats_api": True, "optimistic_mode": True, "scan_interval": 120},
+        {
+            "new_stats_api": True,
+            "recording_shifted_state": True,
+            "optimistic_mode": True,
+            "scan_interval": 120,
+            "virtual_heatpump_diagnostics": True,
+        },
     )
     await hass.async_block_till_done()  # entry reloads with the new options
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    # Fork adds extra option keys; assert the shared ones the flow set.
     assert setup_integration.options["new_stats_api"] is True
+    assert setup_integration.options["recording_shifted_state"] is True
     assert setup_integration.options["optimistic_mode"] is True
     assert setup_integration.options["scan_interval"] == 120
+    assert setup_integration.options["virtual_heatpump_diagnostics"] is True

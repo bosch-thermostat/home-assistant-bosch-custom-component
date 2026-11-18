@@ -25,14 +25,20 @@ Two refresh paths:
 
 The more-info chart uses recorder long-term statistics for the entity. It only has points for hours when the entity was numeric (no backfill). All COP sensors use unit `""`. If an older `sensor.heat_pump_diagnostics_cop_today` statistic was registered with unit `null`, new states will not attach — remove that statistic once under **Developer tools → Statistics**, then let HA recreate it from the live entity.
 
-## Contents
+## Sensors
 
-- [Operation](#operation)
-- [Who is asking for heat](#who-is-asking-for-heat)
-- [Efficiency](#efficiency)
-- [Last hour](#last-hour)
-- [Compressor time split](#compressor-time-split)
-- [Faults](#faults)
+Heating-circuit curve / supply sensors are **not** in this set. They live on each HC device: [hc-curve-sensors.md](hc-curve-sensors.md).
+
+| Group | Sensors |
+| --- | --- |
+| [Operation](#operation) | [Mode](#heat-pump-mode) · [Compressor active](#compressor-active) · [Delta](#heat-source-delta) |
+| [Who is asking](#who-is-asking-for-heat) | [Requestors](#heat-requestors) · [Primary circuit](#primary-heating-circuit) · [Space heating](#space-heating-active) · [Count](#heating-circuits-requesting) · [hcN](#hcn-requesting-heat) |
+| | [DHW requested](#dhw-requested) · [DHW charging](#dhw-charging) · [DHW gap](#dhw-temperature-gap) · [Pool requested](#pool-requested) · [Pool gap](#pool-temperature-gap) |
+| [Efficiency](#efficiency) | [COP today](#cop-today) · [COP 24h](#cop-last-24h) · [COP month/year](#cop-month--year) |
+| | [Backup share](#backup-heater-share-today--month--year) · [Backup used](#backup-heater-used-today) · [Hint](#heat-pump-efficiency-hint) |
+| [Last hour](#last-hour) | [Electricity](#last-hour-electricity) · [Heat](#last-hour-heat) · [Backup](#last-hour-backup-heater) |
+| [Compressor split](#compressor-time-split) | [Minutes](#compressor-minutes-today) · [Share](#compressor-share-today) |
+| [Faults](#faults) | [hcN room fault](#hcn-room-sensor-fault) |
 
 ## Operation
 
@@ -216,13 +222,25 @@ These are hints for investigation, not Bosch error codes. Compare with the Bosch
 
 ## Last hour
 
-Latest completed hourly kWh from recording series (not provisional current hour):
+Latest completed hourly kWh from recording series (not provisional current hour).
 
 | Sensor | Source |
 | --- | --- |
-| Last hour electricity | `consumedEnergy` |
-| Last hour heat | `outputProduced` |
-| Last hour backup heater | `eheater` |
+| [Last hour electricity](#last-hour-electricity) | `consumedEnergy` |
+| [Last hour heat](#last-hour-heat) | `outputProduced` |
+| [Last hour backup heater](#last-hour-backup-heater) | `eheater` |
+
+### Last hour electricity
+
+Hourly electricity from `consumedEnergy` (kWh).
+
+### Last hour heat
+
+Hourly produced heat from `outputProduced` (kWh).
+
+### Last hour backup heater
+
+Hourly backup / e-heater from `eheater` (kWh).
 
 ## Compressor time split
 
@@ -238,10 +256,18 @@ Per sink:
 
 | Sensor | Meaning |
 | --- | --- |
-| `{sink} compressor minutes today` | Attributed minutes |
-| `{sink} compressor share today` | Percent of today’s attributed compressor-on time |
+| [Compressor minutes today](#compressor-minutes-today) | Attributed minutes (`{sink} compressor minutes today`) |
+| [Compressor share today](#compressor-share-today) | Percent of today’s attributed compressor-on time |
 
 Attribute on both: `compressor_seconds` (raw seconds for that sink).
+
+### Compressor minutes today
+
+Attributed compressor-on minutes for that sink today.
+
+### Compressor share today
+
+Percent of today’s attributed compressor-on time for that sink.
 
 ## Faults
 

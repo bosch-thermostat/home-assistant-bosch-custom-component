@@ -56,10 +56,22 @@ If you have troubles, go to **wiki** and read more detailed installation instruc
 
 Device **Configure** options:
 
-- **Use new statistic API** — write EasyControl energy and IVT recordings into Home Assistant long-term statistics (Energy dashboard). Entities show `-17` by default; use `recording:…external` (not `sensor.*`) on the Energy dashboard and statistics-graph cards.
-- **Show last-hour recording values** — optional display only; last settled hour on entities instead of `-17`. Does not replace `recording:…external` for graphs. Default off.
+- **Use new statistic API** — write EasyControl energy and IVT recordings into Home Assistant long-term statistics (Energy dashboard). Recording entities show `-17` by default; use `recording:…external` (not `sensor.*`) on the Energy dashboard and statistics-graph cards.
+- **Show last-hour recording values** — put the last settled hour on recording **entities** instead of `-17`. Display only. Default off. See [Recording entity values](#recording-entity-values).
 - **Energy stats repair days** — auto-reimport window (0–30, default 7, 0 disables) after EasyControl energy JSON keys change (`eCH` → `gCh`). Does not clean already-wrong data by itself.
 - **Virtual heat-pump diagnostics** — register **experimental** derived IVT heat-pump sensors. Every entity stays **disabled** until you enable it.
+
+## Recording entity values
+
+With **Use new statistic API** on, recording sensors stay at **`-17`** so Home Assistant does not build a second long-term series from the entity. Graphs and the Energy dashboard use `recording:…external`.
+
+**Configure → Show last-hour recording values** (`recording_shifted_state`) puts the last completed hour on those entities ( Lovelace, automations). It does **not** replace `recording:…external` for history graphs.
+
+- Off (default) + new statistic API: entity state is `-17`.
+- On + new statistic API: entity shows the latest completed hour (kWh or °C).
+- New statistic API off: entities already show that hour; the option is not required.
+
+The shown hour can lag (some gateways are 2–3 hours behind). The value belongs to the hour in `last_reset`, not necessarily the previous clock hour. Rows older than about 6 hours are not shown. External statistics still import every hour.
 
 ## Energy statistics and repair (EasyControl CT200)
 
@@ -95,11 +107,11 @@ Bosch does not publish an “environment” recording. The integration derives:
 
 `recording:renvironmentexternal` = `max(0, outputProduced − compressor)` per hour
 
-It also derives heating degree-hours from the outdoor recording (base 15 °C):
+It also derives heating degree-hours (HDH) from the outdoor recording (base 15 °C):
 
 `recording:rheatingdegreehoursexternal` = `max(0, 15 − outdoor_hour)` per hour (`°C·h`)
 
-Chart compressor or produced against HDH; the slope is roughly **kWh per degree-hour** (weather-normalized efficiency).
+Full HDH reference (display, updates, backfill, weather-normalized charts): [docs/heating-degree-hours.md](docs/heating-degree-hours.md).
 
 Optional backfill of past days from existing statistics (environment + HDH; long ranges are chunked automatically):
 
@@ -113,6 +125,10 @@ data:
 ```
 
 IVT recordings: `bosch.fetch_recordings_sensor_range` with the recording `statistic_id` and a date.
+
+## Heating circuit curve sensors (HC)
+
+Per-circuit supply / curve diagnostics on each HC climate device (disabled by default; no Configure option). Intended so HA history can feed AI / manual tuning of the heating cycle and curve. Only paths the heat pump exports are filled — KM200 often does not export curve settings. Full reference: [docs/hc-curve-sensors.md](docs/hc-curve-sensors.md).
 
 ## Pool climate (IVT / KM200)
 
