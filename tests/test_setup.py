@@ -232,6 +232,58 @@ async def test_failed_setup_closes_connection(hass, simulator, config_entry):
     await hass.config_entries.async_unload(config_entry.entry_id)
 
 
+async def test_firmware_timeout_during_setup_is_retried(
+    hass, simulator, config_entry
+):
+    """A timed-out firmware request is not reported as unsupported firmware."""
+    simulator.timeout_paths = {"/gateway/versionFirmware"}
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert config_entry.state.name == "SETUP_RETRY"
+    assert not hass.states.async_all("persistent_notification")
+    await hass.config_entries.async_unload(config_entry.entry_id)
+
+
+async def test_circuit_timing_out_during_setup_is_retried(
+    hass, simulator, config_entry
+):
+    """A known circuit that times out during setup makes the setup retry.
+
+    The client drops a circuit whose requests time out during initialization
+    and reports no error. Setting up without it would leave the circuit's
+    entities unavailable until the next manual reload.
+    """
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    water_heaters = [
+        entry.entity_id
+        for entry in er.async_entries_for_config_entry(
+            er.async_get(hass), config_entry.entry_id
+        )
+        if entry.domain == "water_heater"
+    ]
+    assert water_heaters
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    simulator.timeout_paths = {"/dhwCircuits"}
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert config_entry.state.name == "SETUP_RETRY"
+
+    simulator.timeout_paths = set()
+    await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert config_entry.state.name == "LOADED"
+    assert all(
+        hass.states.get(entity_id).state != STATE_UNAVAILABLE
+        for entity_id in water_heaters
+    )
+    await hass.config_entries.async_unload(config_entry.entry_id)
+
+
 async def test_services(hass, setup_integration):
     assert hass.services.has_service(DOMAIN, "update_thermostat")
     assert hass.services.has_service(DOMAIN, "debug_scan")

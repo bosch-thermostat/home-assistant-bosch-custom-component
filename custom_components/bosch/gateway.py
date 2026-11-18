@@ -11,6 +11,7 @@ from bosch_thermostat_client import easycontrol_ssl_context
 from bosch_thermostat_client.const import HTTP, XMPP
 from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 from bosch_thermostat_client.exceptions import (
+    DeviceConnectionError,
     DeviceException,
     EncryptionException,
     FirmwareException,
@@ -23,6 +24,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.json import save_json
@@ -31,11 +33,13 @@ from homeassistant.util.json import load_json
 from homeassistant.util.ssl import client_context
 
 from .const import (
+    CLIMATE,
     DOMAIN,
     FIRMWARE_SCAN_INTERVAL,
     GATEWAY,
     NOTIFICATION_ID,
     SUPPORTED_PLATFORMS,
+    WATER_HEATER,
 )
 from .services import async_register_debug_service
 from .types import BoschGateway
@@ -271,12 +275,43 @@ class BoschGatewayEntry:
             _LOGGER.debug("Error closing Bosch connection: %s", err)
 
     async def async_init_bosch(self) -> bool:
+        """Initialize Bosch gateway module, retrying if the gateway times out."""
+        try:
+            return await self._async_init_bosch()
+        except DeviceConnectionError as err:
+            # Since bosch-thermostat-client 0.29 a request that gets no answer
+            # raises DeviceConnectionError instead of being swallowed. Slow
+            # gateways hit this regularly during setup; it is transient, so
+            # let Home Assistant retry instead of failing the entry for good.
+            _LOGGER.warning(
+                "Bosch gateway %s did not answer during setup, retrying later: %s",
+                self._host,
+                err,
+            )
+            raise ConfigEntryNotReady(
+                f"Bosch gateway {self._host} did not answer during setup: {err}"
+            ) from err
+
+    async def _async_init_bosch(self) -> bool:
         """Initialize Bosch gateway module."""
         _LOGGER.debug("Checking connection to Bosch gateway as %s.", self._host)
         assert self.gateway
         try:
             await self.gateway.check_connection()
         except (FirmwareException) as err:
+            if not self.gateway.firmware:
+                # The client reports "unsupported firmware None" when the
+                # firmware request itself timed out. That is a transient
+                # gateway problem, not an unsupported firmware, so let Home
+                # Assistant retry instead of failing the entry for good.
+                _LOGGER.warning(
+                    "Bosch gateway %s did not report its firmware version, "
+                    "retrying setup later.",
+                    self._host,
+                )
+                raise ConfigEntryNotReady(
+                    f"Bosch gateway {self._host} did not report its firmware version"
+                ) from err
             create_notification_firmware(hass=self.hass, msg=err)
             _LOGGER.error(err)
             return False
@@ -303,6 +338,20 @@ class BoschGatewayEntry:
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
             _LOGGER.debug("Bosch supported capabilities: %s", supported_bosch)
+            missing = self._missing_known_circuits()
+            if missing:
+                # The client drops a circuit silently when one of its startup
+                # requests times out. Setting up without it would leave the
+                # circuit's entities unavailable until the next restart.
+                _LOGGER.warning(
+                    "Bosch circuits %s did not respond during setup, retrying "
+                    "setup later. If a circuit was removed from the heating "
+                    "system, delete its entity to stop waiting for it.",
+                    ", ".join(missing),
+                )
+                raise ConfigEntryNotReady(
+                    f"Bosch circuits {', '.join(missing)} did not respond"
+                )
             for supported in supported_bosch:
                 elements = SUPPORTED_PLATFORMS.get(supported, [])
                 for element in elements:
@@ -311,6 +360,29 @@ class BoschGatewayEntry:
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
         _LOGGER.debug("Bosch initialized.")
         return True
+
+    def _missing_known_circuits(self) -> list[str]:
+        """Return circuits registered for this entry that the gateway did not return."""
+        assert self.gateway
+        circuit_types = getattr(self.gateway, "circuit_types", None)
+        if not circuit_types:
+            return []
+        found = {
+            circuit.id
+            for ctype in circuit_types
+            for circuit in self.gateway.get_circuits(ctype)
+        }
+        prefix = str(self.uuid)
+        known = {
+            entity.unique_id[len(prefix):]
+            for entity in er.async_entries_for_config_entry(
+                er.async_get(self.hass), self.config_entry.entry_id
+            )
+            if entity.domain in (CLIMATE, WATER_HEATER)
+            and entity.disabled_by is None
+            and entity.unique_id.startswith(prefix)
+        }
+        return sorted(known - found)
 
     async def firmware_refresh(self, event_time: Any = None) -> None:
         """Warn the user when the gateway firmware is no longer supported."""
