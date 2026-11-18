@@ -46,6 +46,7 @@
         "title": "Opcje Bosch",
         "data": {
           "new_stats_api": "Użyj nowego interfejsu API statystyk",
+          "recording_shifted_state": "Pokaż wartości ostatniej godziny na encjach (przesunięte; domyślnie -17 z nowym API)",
           "optimistic_mode": "Użyj trybu optymistycznego dla niektórych funkcji (aktualnie ustawiony tryb pracy Easycontrol)."
         }
       }

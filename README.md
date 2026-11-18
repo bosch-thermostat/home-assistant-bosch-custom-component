@@ -8,7 +8,7 @@ If you like this component consider sponsoring my work: [:heart: Sponsor](https:
 **Hi, I'm looking for help to make this component better**
 https://github.com/bosch-thermostat/home-assistant-bosch-custom-component/issues/414
 
-**Latest version will only work with Home Assistant 2025.7 and Python >=3.12.**
+**Latest version targets Home Assistant 2026.11 (minimum HACS: 2026.8.0) and Python >=3.12.**
 For older HA look into release notes.
 
 If possible and if it's ok with you please enable Home Assistant Analytics so I can see how many people uses this integration.
@@ -53,6 +53,96 @@ Go to integration page, add Bosch component and follow on going screens.
 By default all sensors are disabled!
 Go to integration device `Bosch sensors` and enable sensor you'd like to see.
 If you have troubles, go to **wiki** and read more detailed installation instructions.
+
+Device **Configure** options:
+
+- **Use new statistic API** — write EasyControl energy and IVT recordings into Home Assistant long-term statistics (Energy dashboard). Recording entities show `-17` by default; use `recording:…external` (not `sensor.*`) on the Energy dashboard and statistics-graph cards.
+- **Show last-hour recording values** — put the last settled hour on recording **entities** instead of `-17`. Display only. Default off. See [Recording entity values](#recording-entity-values).
+- **Energy stats repair days** — auto-reimport window (0–30, default 7, 0 disables) after EasyControl energy JSON keys change (`eCH` → `gCh`). Does not clean already-wrong data by itself.
+- **Virtual heat-pump diagnostics** — register **experimental** derived IVT heat-pump sensors. Every entity stays **disabled** until you enable it.
+
+## Recording entity values
+
+With **Use new statistic API** on, recording sensors stay at **`-17`** so Home Assistant does not build a second long-term series from the entity. Graphs and the Energy dashboard use `recording:…external`.
+
+**Configure → Show last-hour recording values** (`recording_shifted_state`) puts the last completed hour on those entities ( Lovelace, automations). It does **not** replace `recording:…external` for history graphs.
+
+- Off (default) + new statistic API: entity state is `-17`.
+- On + new statistic API: entity shows the latest completed hour (kWh or °C).
+- New statistic API off: entities already show that hour; the option is not required.
+
+The shown hour can lag (some gateways are 2–3 hours behind). The value belongs to the hour in `last_reset`, not necessarily the previous clock hour. Rows older than about 6 hours are not shown. External statistics still import every hour.
+
+## Energy statistics and repair (EasyControl CT200)
+
+EasyControl `/energy/history` is **one daily total per day** (`gCh`/`gHw`, older `eCH`/`eHW`). History on the thermostat is about **2–3 months**. Today is never imported.
+
+IVT / KM200 uses a different export (`/recordings/…?interval=YYYY-M-D`, 24 hourly slots, about **4 months**). The energy repair services below do **not** apply to IVT recordings.
+
+If heating kWh was stored on the hot-water statistic (or the reverse), new imports go to the correct series. To rewrite recent days, Developer tools → Actions:
+
+```yaml
+action: bosch.repair_energy_statistics
+target:
+  device_id: YOUR_BOSCH_DEVICE_ID
+data:
+  days: 7
+  logical_attr: all
+```
+
+The gateway is queried first. If any requested day is missing, repair **aborts and does not clear** Home Assistant. `logical_attr` can be `all`, `ch`, or `hw`.
+
+Leftover wrong series are not deleted. Rebind Energy dashboard if needed, or wipe one id:
+
+```yaml
+action: bosch.clear_energy_statistics
+target:
+  device_id: YOUR_BOSCH_DEVICE_ID
+data:
+  statistic_id: energy:gchenergy_central_heatingexternal
+  reimport: true
+```
+
+Bosch does not publish an “environment” recording. The integration derives:
+
+`recording:renvironmentexternal` = `max(0, outputProduced − compressor)` per hour
+
+It also derives heating degree-hours (HDH) from the outdoor recording (base 15 °C):
+
+`recording:rheatingdegreehoursexternal` = `max(0, 15 − outdoor_hour)` per hour (`°C·h`)
+
+Full HDH reference (display, updates, backfill, weather-normalized charts): [docs/heating-degree-hours.md](docs/heating-degree-hours.md).
+
+Optional backfill of past days from existing statistics (environment + HDH; long ranges are chunked automatically):
+
+```yaml
+service: bosch.backfill_environment_energy
+target:
+  device_id: <your bosch gateway device id>
+data:
+  start_date: "2024-06-01"
+  end_date: "2026-11-13"
+```
+
+IVT recordings: `bosch.fetch_recordings_sensor_range` with the recording `statistic_id` and a date.
+
+## Heating circuit curve sensors (HC)
+
+Per-circuit supply / curve diagnostics on each HC climate device (disabled by default; no Configure option). Intended so HA history can feed AI / manual tuning of the heating cycle and curve. Only paths the heat pump exports are filled — KM200 often does not export curve settings. Full reference: [docs/hc-curve-sensors.md](docs/hc-curve-sensors.md).
+
+## Pool climate (IVT / KM200)
+
+When the gateway exposes `heatSources/poolStatus`, `poolTemperature`, and `poolSetpointTemperature`, the integration creates a **Pool** climate entity (heat/off + target temperature) as a child device of the gateway. No extra option. Reload after update. Setpoint writes need installer/write access on the gateway.
+
+## Virtual heat-pump sensors (IVT / HTTP)
+
+**Experimental.** Derived from gateway paths, not certified Bosch diagnostics. Mode, requestors, and the efficiency hint can be wrong. Enable only if you accept that.
+
+Only when **Virtual heat-pump diagnostics** is on and protocol is **HTTP** (local KM200, not cloud XMPP). Entities live on the child device **Heat pump diagnostics** and are **disabled** by default.
+
+Live mode/delta/circuit sensors fill on the next 60s refresh. **COP / last-hour / efficiency hint** read gateway `energyMonitoring` (not HA history) and stay `Unknown` until the next hourly pull (~`:06`). If the COP today more-info chart stays empty while the state is numeric, remove the old null-unit statistic once under **Developer tools → Statistics**.
+
+Full reference (mode states, requestors, COP, efficiency hint, compressor split): [docs/virtual-heatpump-sensors.md](docs/virtual-heatpump-sensors.md).
 
 # Help
 

@@ -10,10 +10,13 @@ from bosch_thermostat_client.const import HVAC_HEAT, HVAC_OFF, SETPOINT
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     HVACAction,
+    HVACMode,
     ClimateEntityFeature,
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import callback
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .bosch_entity import BoschClimateWaterEntity
 from .const import (
@@ -23,6 +26,15 @@ from .const import (
     SWITCHPOINT,
     UNITS_CONVERTER,
     UUID,
+)
+from .pool import (
+    DEFAULT_TEMP_STEP,
+    HVAC_HEAT as POOL_HEAT,
+    HVAC_OFF as POOL_OFF,
+    PoolPoller,
+    async_pool_available,
+    hvac_to_status,
+    status_to_hvac,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,8 +47,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     entry = data[BOSCH_GATEWAY_ENTRY]
     coordinator = entry.coordinator
     optimistic_mode = config_entry.options.get("optimistic_mode", False)
-    
-    entities = [
+
+    entities: list[ClimateEntity] = [
         BoschThermostat(
             coordinator=coordinator,
             uuid=uuid,
@@ -46,6 +58,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         )
         for hc in entry.gateway.heating_circuits
     ]
+    if await async_pool_available(entry.gateway):
+        entities.append(
+            BoschPoolClimate(
+                coordinator=coordinator,
+                uuid=uuid,
+                gateway=entry.gateway,
+                optimistic_mode=optimistic_mode,
+            )
+        )
     async_add_entities(entities)
     return True
 
@@ -198,3 +219,156 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         """Set new target preset mode."""
         await self._bosch_object.set_preset_mode(preset_mode)
         await self.coordinator.async_request_refresh()
+
+
+class BoschPoolClimate(CoordinatorEntity, ClimateEntity):
+    """KM200 pool as heat/off climate."""
+
+    _attr_has_entity_name = True
+    _attr_name = None
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_target_temperature_step = DEFAULT_TEMP_STEP
+    _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.TURN_ON
+        | ClimateEntityFeature.TURN_OFF
+    )
+
+    def __init__(
+        self,
+        coordinator: BoschDataUpdateCoordinator,
+        uuid: str,
+        gateway: Any,
+        optimistic_mode: bool = False,
+    ) -> None:
+        """Initialize pool climate from gateway paths."""
+        super().__init__(coordinator)
+        self._uuid = uuid
+        self._gateway = gateway
+        self._poller = PoolPoller(gateway)
+        self._optimistic_mode = optimistic_mode
+        self._optimistic_hvac_mode: str | None = None
+        self._optimistic_target_temperature: float | None = None
+        self._attr_unique_id = f"{uuid}pool"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Child Pool device under the gateway."""
+        info = DeviceInfo(
+            identifiers={(DOMAIN, f"{self._uuid}_pool")},
+            name="Pool",
+            manufacturer=self._gateway.device_model,
+            model=self._gateway.device_type,
+            sw_version=self._gateway.firmware,
+            hw_version=self._uuid,
+        )
+        if self.coordinator.gateway_device_id:
+            info["via_device_id"] = self.coordinator.gateway_device_id
+        return info
+
+    async def async_added_to_hass(self) -> None:
+        """Register poller and seed values."""
+        await super().async_added_to_hass()
+        self.coordinator.register_object(self._poller)
+        await self._poller.update()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister poller."""
+        self.coordinator.unregister_object(self._poller)
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Drop optimistic values once real data arrives."""
+        self._optimistic_hvac_mode = None
+        self._optimistic_target_temperature = None
+        super()._handle_coordinator_update()
+
+    async def _async_refresh_after_set(self) -> None:
+        """Refresh unless optimistic mode waits for the next poll."""
+        if not self._optimistic_mode:
+            await self.coordinator.async_request_refresh()
+
+    @property
+    def min_temp(self) -> float:
+        """Minimum pool setpoint."""
+        return self._poller.min_temp
+
+    @property
+    def max_temp(self) -> float:
+        """Maximum pool setpoint."""
+        return self._poller.max_temp
+
+    @property
+    def current_temperature(self) -> float | None:
+        """Current pool water temperature."""
+        return self._poller.current_temp
+
+    @property
+    def target_temperature(self) -> float | None:
+        """Pool setpoint temperature."""
+        if self._optimistic_target_temperature is not None:
+            return self._optimistic_target_temperature
+        return self._poller.target_temp
+
+    @property
+    def hvac_mode(self) -> HVACMode:
+        """Heat when pool status is not off."""
+        if self._optimistic_hvac_mode is not None:
+            mode = self._optimistic_hvac_mode
+        else:
+            mode = status_to_hvac(self._poller.status)
+        return HVACMode.HEAT if mode == POOL_HEAT else HVACMode.OFF
+
+    @property
+    def hvac_action(self) -> HVACAction:
+        """Heating while on; off while off."""
+        if self.hvac_mode == HVACMode.HEAT:
+            return HVACAction.HEATING
+        return HVACAction.OFF
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        """Write poolStatus on/off."""
+        mode = POOL_HEAT if hvac_mode == HVACMode.HEAT else POOL_OFF
+        status = hvac_to_status(mode)
+        _LOGGER.debug("Setting pool status to %s", status)
+        if self._optimistic_mode:
+            self._optimistic_hvac_mode = mode
+            self.async_write_ha_state()
+        try:
+            await self._poller.async_set_status(status)
+        except Exception:
+            _LOGGER.exception("Failed to set pool status to %s", status)
+            if self._optimistic_mode:
+                self._optimistic_hvac_mode = None
+                self.async_write_ha_state()
+            return
+        await self._async_refresh_after_set()
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        """Write pool setpoint."""
+        temperature = kwargs.get(ATTR_TEMPERATURE)
+        if temperature is None:
+            return
+        _LOGGER.debug("Setting pool target temperature %s", temperature)
+        if self._optimistic_mode:
+            self._optimistic_target_temperature = temperature
+            self.async_write_ha_state()
+        try:
+            await self._poller.async_set_temperature(float(temperature))
+        except Exception:
+            _LOGGER.exception("Failed to set pool temperature to %s", temperature)
+            if self._optimistic_mode:
+                self._optimistic_target_temperature = None
+                self.async_write_ha_state()
+            return
+        await self._async_refresh_after_set()
+
+    async def async_turn_on(self) -> None:
+        """Turn pool heating on."""
+        await self.async_set_hvac_mode(HVACMode.HEAT)
+
+    async def async_turn_off(self) -> None:
+        """Turn pool heating off."""
+        await self.async_set_hvac_mode(HVACMode.OFF)

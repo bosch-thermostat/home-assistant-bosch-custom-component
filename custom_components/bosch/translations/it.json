@@ -46,6 +46,7 @@
             "title": "Bosch options",
             "data": {
               "new_stats_api": "Utilizza la nuova API statistica (New statistic API)",
+              "recording_shifted_state": "Mostra valori dell'ultima ora sulle entità (sfasati; default -17 con nuova API)",
               "optimistic_mode": "Utilizza modalità \"ottimista\" per alcune funzioni (impostazione di default per EasyControl)."
             }
           }

@@ -9,7 +9,10 @@ from typing import Any, Protocol
 from bosch_thermostat_client.exceptions import DeviceConnectionError, DeviceException
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers.event import async_track_point_in_utc_time
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    TimestampDataUpdateCoordinator,
+    UpdateFailed,
+)
 from homeassistant.util import dt as dt_util
 
 from .types import BoschGateway, BoschObject
@@ -35,13 +38,15 @@ class RecordingEntity(Protocol):
         """Import a single day of past data."""
 
 
-class BoschDataUpdateCoordinator(DataUpdateCoordinator):
+class BoschDataUpdateCoordinator(TimestampDataUpdateCoordinator):
     """Class to manage fetching Bosch data.
 
     Entities register the Bosch object backing them when they are added to HA
     and unregister on removal, so only objects with an enabled entity are
     polled - the same behaviour as the pre-coordinator update loop. Recording
     and energy sensors are kept on a separate hourly schedule.
+    Uses TimestampDataUpdateCoordinator so last_update_success_time advances
+    each refresh (virtual heat-pump snapshot cache key).
     """
 
     def __init__(
@@ -147,6 +152,8 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
         Returns ``_UNREACHABLE`` when the gateway could not be reached at all,
         otherwise whether the update succeeded.
         """
+        keep_hours = _is_energy_monitoring(obj)
+        previous_state = getattr(obj, "state", None) if keep_hours else None
         try:
             _LOGGER.debug("Updating Bosch object: %s", obj.name)
             await obj.update(**kwargs)
@@ -161,6 +168,28 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.warning("Unexpected error updating %s: %s", obj.name, err)
             return False
+        if keep_hours and previous_state is not None:
+            current_state = getattr(obj, "state", None)
+            if (
+                _recording_has_numeric_hours(previous_state)
+                and not _recording_has_numeric_hours(current_state)
+            ):
+                _LOGGER.debug(
+                    "Keeping previous numeric hours for %s after empty recording pull",
+                    obj.name,
+                )
+                merged = previous_state
+            else:
+                from .heatpump_diagnostics import merge_energy_monitoring_hours
+
+                merged = merge_energy_monitoring_hours(
+                    previous_state, current_state, now=dt_util.now()
+                )
+            if merged is not current_state:
+                try:
+                    obj.state = merged
+                except Exception:  # noqa: BLE001
+                    _LOGGER.debug("Could not restore/merge state on %s", obj.name)
         return True
 
     async def _async_push_recording_entity(self, entity: RecordingEntity) -> None:
@@ -200,7 +229,18 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
                 async with asyncio.TaskGroup() as tg:
                     for entity in entities:
                         tg.create_task(self._async_push_recording_entity(entity))
-                _LOGGER.debug("Bosch 1-hour entitites updated.")
+                _LOGGER.debug("Bosch 1-hour entities updated.")
+            from .degree_hours import async_update_hdh_tail
+            from .environment_energy import async_update_environment_tail
+
+            await async_update_environment_tail(self.hass)
+            await async_update_hdh_tail(self.hass)
+            # Refresh virtual COP / diagnostics that read recording objects.
+            # async_set_updated_data does not bump last_update_success_time.
+            self.last_update_success_time = dt_util.utcnow()
+            self.async_set_updated_data(
+                self.data if self.data is not None else True
+            )
         except Exception:
             # Without this an unexpected error would skip the reschedule below
             # and stop the hourly updates until Home Assistant is restarted.
@@ -220,3 +260,29 @@ class BoschDataUpdateCoordinator(DataUpdateCoordinator):
             self.hass, self.async_recording_sensors_update, nexti
         )
         _LOGGER.debug("Next update of 1-hour sensors scheduled at: %s", nexti)
+
+
+def _is_energy_monitoring(obj: BoschObject) -> bool:
+    """True for energyMonitoring recording objects."""
+    path = str(getattr(obj, "path", None) or getattr(obj, "attr_id", None) or "")
+    return "energyMonitoring" in path
+
+
+def _recording_has_numeric_hours(state: Any) -> bool:
+    """True when state has at least one numeric hourly row."""
+    rows = state if isinstance(state, list) else None
+    if rows is None and isinstance(state, dict):
+        value = state.get("value")
+        rows = value if isinstance(value, list) else None
+    if not rows:
+        return False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw = row.get("value", row.get("y"))
+        try:
+            float(raw)
+        except (TypeError, ValueError):
+            continue
+        return True
+    return False

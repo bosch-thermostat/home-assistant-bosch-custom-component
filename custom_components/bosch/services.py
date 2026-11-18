@@ -1,6 +1,7 @@
 """Services used in HA."""
 from __future__ import annotations
 import logging
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
@@ -15,6 +16,7 @@ from .const import (
     SERVICE_UPDATE,
     BOSCH_GATEWAY_ENTRY,
     RECORDING_SERVICE_UPDATE,
+    SERVICE_BACKFILL_ENVIRONMENT,
     SERVICE_PUT_STRING,
     SERVICE_PUT_FLOAT,
     SERVICE_GET,
@@ -29,7 +31,31 @@ _LOGGER = logging.getLogger(__name__)
 SERVICE_INTEGRATION_SCHEMA = vol.Schema({vol.Required(ATTR_DEVICE_ID): cv.ensure_list})
 SERVICE_GET_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend({vol.Required("path"): str})
 SERVICE_FETCH_RANGE_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend(
-    {vol.Required("day"): cv.date, vol.Required("statistic_id"): str}
+    {
+        vol.Required("day"): cv.date,
+        vol.Optional("end_date"): cv.date,
+        vol.Required("statistic_id"): str,
+    }
+)
+SERVICE_REPAIR_ENERGY_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend(
+    {
+        vol.Optional("days", default=7): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=30)
+        ),
+        vol.Optional("logical_attr", default="all"): vol.In(["ch", "hw", "all"]),
+    }
+)
+SERVICE_CLEAR_ENERGY_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend(
+    {
+        vol.Required("statistic_id"): str,
+        vol.Optional("reimport", default=False): cv.boolean,
+    }
+)
+SERVICE_BACKFILL_ENVIRONMENT_SCHEMA = SERVICE_INTEGRATION_SCHEMA.extend(
+    {
+        vol.Required("start_date"): cv.date,
+        vol.Required("end_date"): cv.date,
+    }
 )
 SERVICE_PUT_STRING_SCHEMA = SERVICE_GET_SCHEMA.extend({vol.Required(VALUE): str})
 SERVICE_PUT_FLOAT_SCHEMA = SERVICE_GET_SCHEMA.extend(
@@ -118,9 +144,20 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 await _gateway_entry.coordinator.async_recording_sensors_update()
 
     async def async_handle_recording_sensor_fetch_past(service_call: ServiceCall) -> None:
-        """Request update of recording sensor manually."""
+        """Fetch one or more past recording days into statistics (max 30)."""
         statistic_id = service_call.data.get("statistic_id")
-        day = dt_util.start_of_local_day(service_call.data.get("day"))
+        start_date = service_call.data["day"]
+        end_date = service_call.data.get("end_date") or start_date
+        if end_date < start_date:
+            _LOGGER.error("end_date must be on or after day")
+            return
+        span = (end_date - start_date).days + 1
+        if span > 30:
+            _LOGGER.error(
+                "Range exceeds 30 days (%s); narrow day..end_date",
+                span,
+            )
+            return
         _gateway_entries = find_gateway_entry(
             hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
         )
@@ -130,14 +167,21 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
             if not _gateway_entry.coordinator:
                 continue
             for entity in _gateway_entry.coordinator.recording_entities:
-                if entity.enabled and entity.statistic_id == statistic_id:
+                if not entity.enabled or entity.statistic_id != statistic_id:
+                    continue
+                current = start_date
+                while current <= end_date:
+                    day = dt_util.start_of_local_day(
+                        datetime.combine(current, datetime.min.time())
+                    )
                     _LOGGER.debug(
-                        "Fetching single day by service request. UUID: %s, statistic_id: %s, day: %s",
+                        "Fetching day by service request. UUID: %s, statistic_id: %s, day: %s",
                         _gateway_entry.uuid,
                         statistic_id,
                         day,
                     )
                     await entity.insert_statistics_range(start_time=day)
+                    current += timedelta(days=1)
 
     async def async_handle_get(service_call: ServiceCall) -> ServiceResponse:
         """Request update of recording sensor manually."""
@@ -216,6 +260,88 @@ def async_register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
         SERVICE_FETCH_RANGE_SCHEMA,
     )
 
+    async def async_handle_repair_energy(service_call: ServiceCall) -> None:
+        """Repair recent EasyControl energy statistics for enabled entities."""
+        from .sensor.energy import EnergySensor
+        from .statistics_repair import repair_energy_statistics_window
+
+        days = service_call.data.get("days", 7)
+        logical = str(service_call.data.get("logical_attr", "all")).upper()
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
+        for _gateway_entry in _gateway_entries:
+            if not _gateway_entry.coordinator:
+                continue
+            for entity in _gateway_entry.coordinator.recording_entities:
+                if not entity.enabled or not isinstance(entity, EnergySensor):
+                    continue
+                if not entity._uses_external_statistics:
+                    continue
+                attr = entity._read_attr_to_search
+                if logical != "ALL" and attr != logical:
+                    continue
+                await repair_energy_statistics_window(entity, days=days)
+
+    async def async_handle_clear_energy(service_call: ServiceCall) -> None:
+        """Clear one energy statistic series; optionally reimport all history."""
+        from .sensor.energy import EnergySensor
+        from .statistics_repair import clear_energy_statistics
+
+        statistic_id = service_call.data.get("statistic_id")
+        reimport = bool(service_call.data.get("reimport", False))
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
+        for _gateway_entry in _gateway_entries:
+            if not _gateway_entry.coordinator:
+                continue
+            for entity in _gateway_entry.coordinator.recording_entities:
+                if (
+                    entity.enabled
+                    and isinstance(entity, EnergySensor)
+                    and entity.statistic_id == statistic_id
+                ):
+                    await clear_energy_statistics(entity, reimport=reimport)
+
+    hass.services.async_register(
+        DOMAIN,
+        "repair_energy_statistics",
+        async_handle_repair_energy,
+        SERVICE_REPAIR_ENERGY_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "clear_energy_statistics",
+        async_handle_clear_energy,
+        SERVICE_CLEAR_ENERGY_SCHEMA,
+    )
+
+    async def async_handle_backfill_environment(service_call: ServiceCall) -> None:
+        """Backfill derived environment and HDH from existing recording stats."""
+        from .degree_hours import async_backfill_hdh
+        from .environment_energy import async_backfill_environment
+
+        start_date = service_call.data["start_date"]
+        end_date = service_call.data["end_date"]
+        _gateway_entries = find_gateway_entry(
+            hass=hass, devices_id=service_call.data[ATTR_DEVICE_ID]
+        )
+        if not _gateway_entries:
+            return
+        # Statistic ids are shared; one backfill covers the gateway recording series.
+        await async_backfill_environment(
+            hass, start_date=start_date, end_date=end_date
+        )
+        await async_backfill_hdh(hass, start_date=start_date, end_date=end_date)
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_BACKFILL_ENVIRONMENT,
+        async_handle_backfill_environment,
+        SERVICE_BACKFILL_ENVIRONMENT_SCHEMA,
+    )
+
 
 def async_remove_services(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
     """Remove the services once the last gateway is unloaded.
@@ -233,6 +359,9 @@ def async_remove_services(hass: HomeAssistant, config_entry: ConfigEntry) -> Non
         SERVICE_PUT_STRING,
         SERVICE_PUT_FLOAT,
         "fetch_recordings_sensor_range",
+        "repair_energy_statistics",
+        "clear_energy_statistics",
+        SERVICE_BACKFILL_ENVIRONMENT,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

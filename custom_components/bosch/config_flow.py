@@ -36,8 +36,7 @@ PROTOCOLS = [HTTP, XMPP]
 _LOGGER = logging.getLogger(__name__)
 
 
-@config_entries.HANDLERS.register(DOMAIN)
-class BoschFlowHandler(config_entries.ConfigFlow):
+class BoschFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a bosch config flow."""
 
     # 12 so that ha_bosch entries (version 11) load here. See migration.py.
@@ -180,19 +179,22 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             return self.async_abort(reason="faulty_credentials")
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error("Error connecting Bosch at %s - %s", host, err)
-        else:
-            _LOGGER.debug("Adding Bosch entry.")
-            return self.async_create_entry(
-                title=device.device_name or "Unknown model",
-                data={
-                    CONF_ADDRESS: device.host,
-                    UUID: uuid,
-                    ACCESS_KEY: device.access_key,
-                    ACCESS_TOKEN: device.access_token,
-                    CONF_DEVICE_TYPE: self._choose_type,
-                    CONF_PROTOCOL: session_type,
-                },
-            )
+            return self.async_abort(reason="unknown")
+        if not uuid:
+            _LOGGER.error("Bosch gateway at %s returned no uuid", host)
+            return self.async_abort(reason="unknown")
+        _LOGGER.debug("Adding Bosch entry.")
+        return self.async_create_entry(
+            title=device.device_name or "Unknown model",
+            data={
+                CONF_ADDRESS: device.host,
+                UUID: uuid,
+                ACCESS_KEY: device.access_key,
+                ACCESS_TOKEN: device.access_token,
+                CONF_DEVICE_TYPE: self._choose_type,
+                CONF_PROTOCOL: session_type,
+            },
+        )
 
     async def async_step_discovery(self, discovery_info=None):
         """Handle a flow discovery."""
@@ -202,34 +204,51 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     @callback
     def async_get_options_flow(entry: config_entries.ConfigEntry):
         """Get option flow."""
-        return OptionsFlowHandler(entry)
+        return OptionsFlowHandler()
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     """Options flow handler for new API."""
-
-    def __init__(self, entry: config_entries.ConfigEntry):
-        """Initialize option."""
-        self.entry = entry
 
     async def async_step_init(self, user_input=None):
         """Display option dialog."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        new_stats_api = self.entry.options.get("new_stats_api", False)
-        optimistic_mode = self.entry.options.get("optimistic_mode", False)
-        scan_interval = self.entry.options.get("scan_interval", 60)
+        entry = self.config_entry
+        new_stats_api = entry.options.get("new_stats_api", False)
+        recording_shifted_state = entry.options.get(
+            "recording_shifted_state", False
+        )
+        optimistic_mode = entry.options.get("optimistic_mode", False)
+        scan_interval = entry.options.get("scan_interval", 60)
+        energy_stats_repair_days = entry.options.get(
+            "energy_stats_repair_days", 7
+        )
+        virtual_heatpump_diagnostics = entry.options.get(
+            "virtual_heatpump_diagnostics", False
+        )
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Optional("new_stats_api", default=new_stats_api): bool,
+                    vol.Optional(
+                        "recording_shifted_state",
+                        default=recording_shifted_state,
+                    ): bool,
                     vol.Optional("optimistic_mode", default=optimistic_mode): bool,
                     vol.Optional("scan_interval", default=scan_interval): vol.All(
                         vol.Coerce(int), vol.Range(min=30, max=3600)
                     ),
+                    vol.Optional(
+                        "energy_stats_repair_days", default=energy_stats_repair_days
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=30)),
+                    vol.Optional(
+                        "virtual_heatpump_diagnostics",
+                        default=virtual_heatpump_diagnostics,
+                    ): bool,
                 }
             ),
         )

@@ -46,6 +46,7 @@
         "title": "Options",
         "data": {
           "new_stats_api": "Utiliser la nouvelle API pour les statistiques",
+          "recording_shifted_state": "Afficher la dernière heure sur les entités (décalée ; -17 par défaut avec la nouvelle API)",
           "optimistic_mode": "Utiliser le mode optimiste pour certaines fonctions (actuellement, le mode de fonctionnement Easycontrol est défini)."
         }
       }

@@ -46,6 +46,7 @@
         "title": "Bosch options",
         "data": {
           "new_stats_api": "Use new statistic API",
+          "recording_shifted_state": "Show last-hour recording values on entities (hour-shifted; default keeps -17 with new statistic API)",
           "optimistic_mode": "Use optimistic mode for some functions (currently CT200 Operation mode set)."
         }
       }

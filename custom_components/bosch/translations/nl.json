@@ -46,6 +46,7 @@
         "title": "Bosch opties",
         "data": {
           "new_stats_api": "Gebruik nieuwe statistische API",
+          "recording_shifted_state": "Toon laatste-uur recordingwaarden op entiteiten (uur verschoven; standaard -17 met nieuwe API)",
           "optimistic_mode": "Optimistische modus gebruiken voor sommige functies (momenteel ingestelde Easycontrol-bedrijfsmodus)."
         }
       }

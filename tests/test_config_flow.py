@@ -59,12 +59,8 @@ async def test_unreachable_gateway_closes_test_connection(hass, simulator):
     assert simulator.closed == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="existing behaviour: an unreadable gateway still creates an "
-    "'Unknown model' entry without uuid (see #554)",
-)
 async def test_unreachable_gateway_aborts(hass, simulator):
+    """Offline gateway must abort instead of creating a uuid-less entry."""
     result = await _submit_offline(hass, simulator)
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
 
@@ -74,12 +70,18 @@ async def test_options_flow(hass, setup_integration):
     assert result["step_id"] == "init"
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"new_stats_api": True, "optimistic_mode": True, "scan_interval": 120},
+        {
+            "new_stats_api": True,
+            "recording_shifted_state": True,
+            "optimistic_mode": True,
+            "scan_interval": 120,
+            "virtual_heatpump_diagnostics": True,
+        },
     )
     await hass.async_block_till_done()  # entry reloads with the new options
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert setup_integration.options == {
-        "new_stats_api": True,
-        "optimistic_mode": True,
-        "scan_interval": 120,
-    }
+    assert setup_integration.options["new_stats_api"] is True
+    assert setup_integration.options["recording_shifted_state"] is True
+    assert setup_integration.options["optimistic_mode"] is True
+    assert setup_integration.options["scan_interval"] == 120
+    assert setup_integration.options["virtual_heatpump_diagnostics"] is True

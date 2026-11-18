@@ -12,6 +12,11 @@ from ..const import CIRCUITS, DOMAIN, BOSCH_GATEWAY_ENTRY, UUID
 from .bosch import BoschSensor
 from .circuit import CircuitSensor
 from .energy import EcusRecordingSensors, EnergySensor, EnergySensors
+from .heatpump_virtual import (
+    HeatpumpBinarySensor,
+    get_heatpump_virtual_entities,
+    should_register_heatpump_virtual,
+)
 from .notifications import NotificationSensor
 from .recording import RecordingSensor
 
@@ -40,6 +45,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     enabled_sensors = config_entry.data.get(SENSORS, [])
 
     new_stats_api = config_entry.options.get("new_stats_api", False)
+    recording_shifted_state = config_entry.options.get(
+        "recording_shifted_state", False
+    )
     gateway = entry.gateway
     
     sensor_entities = []
@@ -50,6 +58,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             kwargs = (
                 {
                     "new_stats_api": new_stats_api,
+                    "recording_shifted_state": recording_shifted_state,
                 }
                 if sensor.kind == RECORDING
                 else {}
@@ -132,6 +141,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         is_enabled=sensor.attr_id in enabled_sensors,
                     )
                 )
+    # Optional IVT heat-pump virtual diagnostics (each disabled by default).
+    if should_register_heatpump_virtual(config_entry):
+        virtual = get_heatpump_virtual_entities(
+            coordinator=coordinator, gateway=gateway, uuid=uuid
+        )
+        sensor_entities.extend(
+            e for e in virtual if not isinstance(e, HeatpumpBinarySensor)
+        )
+
     # Recording/energy entities put themselves on the coordinator's hourly
     # schedule when added; regular sensors join the per-scan refresh.
     async_add_entities(sensor_entities + recording_entities)

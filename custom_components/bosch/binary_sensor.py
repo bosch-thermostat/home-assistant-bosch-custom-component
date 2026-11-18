@@ -16,6 +16,11 @@ from .const import (
     BOSCH_GATEWAY_ENTRY,
     UUID,
 )
+from .sensor.heatpump_virtual import (
+    HeatpumpBinarySensor,
+    get_heatpump_virtual_entities,
+    should_register_heatpump_virtual,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +48,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     is_enabled=bosch_sensor.attr_id in enabled_sensors,
                 )
             )
+
+    if should_register_heatpump_virtual(config_entry):
+        entities.extend(
+            e
+            for e in get_heatpump_virtual_entities(
+                coordinator=coordinator,
+                gateway=entry.gateway,
+                uuid=uuid,
+            )
+            if isinstance(e, HeatpumpBinarySensor)
+        )
 
     async_add_entities(entities)
     return True

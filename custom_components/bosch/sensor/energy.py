@@ -22,8 +22,8 @@ from homeassistant.components.recorder.models import (
     timestamp_to_datetime_or_none,
 )
 
-
 from ..const import VALUE
+from ..energy_fields import energy_keys_collide, resolve_energy_field_key
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,6 +107,9 @@ class EnergySensor(StatisticHelper):
         self._read_attr_to_search: str = sensor_attributes.get("attr", "")
         self._normalize = sensor_attributes.get("normalize")
         self._attr_unique_id = f"{self._domain_name}{self._read_attr_to_search}{uuid}"
+        self._last_auto_repair_at: datetime | None = None
+        self._pending_key_repair = False
+        self._missing_key_logged = False
 
         super().__init__(
             coordinator=coordinator,
@@ -151,44 +154,81 @@ class EnergySensor(StatisticHelper):
         value = data.get(VALUE) if data else None
         return _start_of_day(value.get("d")) if isinstance(value, dict) else None
 
-    def _native_value(self) -> Any:
-        """Return the raw state of the sensor."""
+    def _sample_row(self) -> dict[str, Any] | None:
+        """Latest energy history row from the live property."""
         data = self._bosch_object.get_property(self._attr_uri)
         if not data:
             return None
         value = data.get(VALUE)
+        if isinstance(value, dict):
+            return value
+        return None
+
+    def _resolve_read_key(self, row: dict[str, Any] | None = None) -> str | None:
+        """Resolve and cache the Bosch JSON key; schedule repair on change."""
+        sample = row or self._sample_row()
+        if not sample:
+            return self._attr_read_key
+        resolved = resolve_energy_field_key(sample, self._read_attr_to_search)
+        if resolved is None:
+            if not self._missing_key_logged:
+                self._missing_key_logged = True
+                _LOGGER.warning(
+                    "No energy field for %s in keys %s",
+                    self._read_attr_to_search,
+                    list(sample.keys()),
+                )
+            return None
+        self._missing_key_logged = False
+        if self._attr_read_key and self._attr_read_key != resolved:
+            _LOGGER.warning(
+                "Energy field for %s changed %s -> %s; scheduling repair",
+                self._read_attr_to_search,
+                self._attr_read_key,
+                resolved,
+            )
+            self._pending_key_repair = True
+        self._attr_read_key = resolved
+        return resolved
+
+    def _native_value(self) -> Any:
+        """Return the raw state of the sensor."""
+        value = self._sample_row()
         if not value:
             return None
-        
-        if not self._attr_read_key:
-            for attr in value:
-                if self._read_attr_to_search in attr.upper():
-                    self._attr_read_key = attr
-                    break
-        
-        if not self._attr_read_key or self._attr_read_key not in value:
+
+        key = self._resolve_read_key(value)
+        if not key or key not in value:
             return None
 
-        raw_value = value.get(self._attr_read_key)
+        raw_value = value.get(key)
         if raw_value in (None, "unavailable"):
             return None
         if self._normalize:
             return self._normalize(raw_value)
         return raw_value
 
+    async def async_update_recording(self) -> None:
+        """Resolve the Bosch field before the statistic id is logged or written."""
+        if self._uses_external_statistics:
+            self._resolve_read_key()
+        await super().async_update_recording()
 
     @property
     def statistic_id(self) -> str:
-        """External API statistic ID."""
-        if not self._short_id:
-            self._short_id = self.entity_id.replace(".", "").replace("sensor", "")
-        return (
-            f"{self._domain_name}:{self._attr_read_key}{self._short_id}external".lower()
-        )
+        """External API statistic ID (keeps resolved API key in the id).
+
+        Unresolved keys are not written into the id (that produced
+        ``energy:none…``). Callers must resolve before importing.
+        """
+        short = self._ensure_short_id()
+        key = self._attr_read_key or "pending"
+        return f"{self._domain_name}:{key}{short}external".lower()
 
     def _generate_easycontrol_statistics(
         self, start: datetime, end: datetime, single_value: float, init_value: float
     ) -> tuple[float, list[StatisticData]]:
+        """Spread one day total into 24 hourly StatisticData rows."""
         statistics = []
         now = start
         _sum = init_value
@@ -203,6 +243,38 @@ class EnergySensor(StatisticHelper):
             )
             now = now + timedelta(hours=1)
         return (_sum, statistics)
+
+    def _repair_days(self) -> int:
+        """Configured auto-repair window in days (0 disables)."""
+        entry = getattr(self.coordinator, "entry", None)
+        if entry is None:
+            return 7
+        return int(entry.options.get("energy_stats_repair_days", 7))
+
+    async def _maybe_auto_repair(self) -> bool:
+        """Re-import recent days once after a field-key change.
+
+        Returns True when a repair ran successfully (caller should skip
+        the same-tick incremental append). Keeps the pending flag on failure.
+        """
+        if not self._pending_key_repair or not self._uses_external_statistics:
+            return False
+        days = self._repair_days()
+        if days <= 0:
+            self._pending_key_repair = False
+            return False
+        now = dt_util.now()
+        if self._last_auto_repair_at and now - self._last_auto_repair_at < timedelta(
+            hours=24
+        ):
+            return False
+        from ..statistics_repair import repair_energy_statistics_window
+
+        did_repair = await repair_energy_statistics_window(self, days=days)
+        if did_repair:
+            self._last_auto_repair_at = now
+            self._pending_key_repair = False
+        return did_repair
 
     async def fetch_past_data(self, start_time: datetime, stop_time: datetime) -> dict[str, Any]:
         """Fetch a range of past data from the gateway."""
@@ -236,7 +308,9 @@ class EnergySensor(StatisticHelper):
             _LOGGER.debug("No stats found. Exiting.")
             return
         day_data = bosch_data[_day_dt]
-        if not self._attr_read_key or self._attr_read_key not in day_data:
+        if not self._resolve_read_key(day_data):
+            return
+        if self._attr_read_key not in day_data:
             return
         _value = round(day_data[self._attr_read_key] / 24, 2)
         last_stats = await self.get_stats_from_ha_db(
@@ -253,6 +327,13 @@ class EnergySensor(StatisticHelper):
         self.add_external_stats(stats=statistics)
 
     def append_statistics(self, stats: list[Any], sum: float) -> float:
+        """Append daily Bosch rows as 24 hourly external statistics."""
+        if not stats:
+            return sum
+        if not self._attr_read_key:
+            self._resolve_read_key(stats[0] if isinstance(stats[0], dict) else None)
+        if not self._attr_read_key:
+            return sum
         statistics_to_push: list[StatisticData] = []
         start_of_day = dt_util.start_of_local_day()
         for stat in stats:
@@ -260,9 +341,14 @@ class EnergySensor(StatisticHelper):
             _date = start_of_day.replace(
                 year=day_dt.year, month=day_dt.month, day=day_dt.day
             )
-            if not self._attr_read_key or self._attr_read_key not in stat:
+            if self._attr_read_key not in stat:
                 continue
-            _value = round(stat[self._attr_read_key] / 24, 2)
+            raw = stat[self._attr_read_key]
+            try:
+                daily = float(raw)
+            except (TypeError, ValueError):
+                continue
+            _value = round(daily / 24, 2)
             sum, statistics = self._generate_easycontrol_statistics(
                 start=_date,
                 end=_date + timedelta(days=1),
@@ -283,10 +369,26 @@ class EnergySensor(StatisticHelper):
     async def _insert_statistics(self) -> None:
         """Insert statistics from the past."""
         async with self._statistic_import_lock:
+            if not self._resolve_read_key():
+                return
+            sample = self._sample_row()
+            if sample and energy_keys_collide(sample):
+                _LOGGER.error(
+                    "CH and HW energy fields collide on %s; refusing statistics write",
+                    list(sample.keys()),
+                )
+                return
+            if await self._maybe_auto_repair():
+                return
+
             _sum: float = 0.0
             now = dt_util.now()
             last_stat = await self.get_last_stat()
-            if not last_stat or self.statistic_id not in last_stat or len(last_stat[self.statistic_id]) == 0:
+            if (
+                not last_stat
+                or self.statistic_id not in last_stat
+                or len(last_stat[self.statistic_id]) == 0
+            ):
                 _LOGGER.debug("Last stats not exist. Trying to fetch ALL data.")
                 all_stats = list((await self._bosch_object.fetch_all()).values())
                 if not all_stats:
@@ -295,7 +397,6 @@ class EnergySensor(StatisticHelper):
                 self.append_statistics(stats=all_stats, sum=_sum)
                 return
 
-            now = dt_util.now()
             start_of_yesterday = now.replace(
                 hour=0, minute=0, second=0, microsecond=0
             ) - timedelta(days=1)
@@ -319,19 +420,25 @@ class EnergySensor(StatisticHelper):
             )
 
             async def get_last_stats_from_bosch_api() -> tuple[list[Any], float]:
-                last_stats_row = self.get_last_stats_before_date(
-                    last_stats=last_stats, day=start_of_yesterday_utc
-                )
+                # Prefer window rows; if empty, continue from get_last_stat().
+                if self.statistic_id in last_stats and last_stats[self.statistic_id]:
+                    last_stats_row = self.get_last_stats_before_date(
+                        last_stats=last_stats, day=start_of_yesterday_utc
+                    )
+                else:
+                    last_stats_row = last_stat_row
                 start_time_raw = last_stats_row.get("start")
                 _sum = cast(float, last_stats_row.get("sum", 0.0))
-                
+
                 start_time: datetime | None = None
                 if isinstance(start_time_raw, (int, float)):
                     start_time = timestamp_to_datetime_or_none(start_time_raw)
-                
+
                 if not start_time:
                     _LOGGER.debug(
-                        "Start time not found. %s found %s", self.statistic_id, start_time
+                        "Start time not found. %s found %s",
+                        self.statistic_id,
+                        start_time,
                     )
                 elif start_time.date() < yesterday.date() - timedelta(days=2):
                     _LOGGER.debug(
@@ -363,6 +470,6 @@ class EnergySensor(StatisticHelper):
                 last_entry = self._bosch_object.last_entry
                 return list(last_entry.values()) if last_entry else [], _sum
 
-            if self.statistic_id in last_stats:
-                bosch_stats, _sum = await get_last_stats_from_bosch_api()
-                self.append_statistics(stats=bosch_stats, sum=_sum)
+            # Append when we have a last row, even if the window query is empty.
+            bosch_stats, _sum = await get_last_stats_from_bosch_api()
+            self.append_statistics(stats=bosch_stats, sum=_sum)

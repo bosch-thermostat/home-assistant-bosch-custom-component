@@ -47,6 +47,7 @@ SERVICE_GET = "send_custom_get"
 SERVICE_DEBUG = "debug_scan"
 SERVICE_UPDATE = "update_thermostat"
 RECORDING_SERVICE_UPDATE = "update_recordings_sensor"
+SERVICE_BACKFILL_ENVIRONMENT = "backfill_environment_energy"
 
 SENSORS = "sensors"
 SWITCHPOINT = "switchPoint"

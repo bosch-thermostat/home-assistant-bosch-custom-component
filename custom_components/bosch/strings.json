@@ -46,8 +46,11 @@
             "title": "Bosch options",
             "data": {
               "new_stats_api": "Use new statistic API",
+              "recording_shifted_state": "Show last-hour recording values on entities (hour-shifted; default keeps -17 with new statistic API)",
               "optimistic_mode": "Use optimistic mode for some functions (currently CT200 Operation mode set).",
-              "scan_interval": "Scan interval (seconds)"
+              "scan_interval": "Scan interval (seconds)",
+              "energy_stats_repair_days": "Re-import last N days when energy field mapping is corrected (0 disables)",
+              "virtual_heatpump_diagnostics": "Register experimental IVT heat-pump virtual sensors (each stays disabled until enabled)"
             }
           }
         }

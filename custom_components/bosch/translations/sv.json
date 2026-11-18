@@ -46,6 +46,7 @@
         "title": "Bosch-alternativ",
         "data": {
           "new_stats_api": "Använd nytt statistik-API",
+          "recording_shifted_state": "Visa senaste timmens recordingvärden på entiteter (förskjutna; standard -17 med nytt API)",
           "optimistic_mode": "Använd optimistiskt läge för vissa funktioner (för närvarande inställning av Easycontrol driftläge)."
         }
       }

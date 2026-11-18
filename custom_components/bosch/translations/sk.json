@@ -46,6 +46,7 @@
         "title": "Bosch možnosti",
         "data": {
           "new_stats_api": "Použite novú štatistiku API",
+          "recording_shifted_state": "Zobraziť na entitách hodnoty za poslednú hodinu (posunuté; predvolene -17 s novým API)",
           "optimistic_mode": "Pre niektoré funkcie použite optimistický režim (momentálne je nastavený prevádzkový režim Easycontrol)."
         }
       }

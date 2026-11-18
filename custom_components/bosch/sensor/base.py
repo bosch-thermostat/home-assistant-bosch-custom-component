@@ -39,6 +39,17 @@ def _is_number(value) -> bool:
     return True
 
 
+def _is_valid_temperature(value: Any, device_class: SensorDeviceClass | None) -> bool:
+    """Drop IVT room-temp sentinels such as -3276.8."""
+    if device_class != SensorDeviceClass.TEMPERATURE:
+        return True
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return number > -50
+
+
 class BoschBaseSensor(BoschEntity, SensorEntity):
     """Base class for all sensor entities."""
 
@@ -111,18 +122,22 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         guard covers every sensor type including Energy/Recording.
         """
         state = self._native_value()
-        if state is None or not self._numeric_state_required() or _is_number(state):
-            self._non_numeric_logged = False
-            return state
-        if not self._non_numeric_logged:
-            self._non_numeric_logged = True
-            _LOGGER.warning(
-                "Sensor %s expects a numeric value but received %r from %s",
-                self.entity_id or self._attr_name,
-                state,
-                self._attr_uri,
-            )
-        return None
+        if state is None:
+            return None
+        if self._numeric_state_required() and not _is_number(state):
+            if not self._non_numeric_logged:
+                self._non_numeric_logged = True
+                _LOGGER.warning(
+                    "Sensor %s expects a numeric value but received %r from %s",
+                    self.entity_id or self._attr_name,
+                    state,
+                    self._attr_uri,
+                )
+            return None
+        if not _is_valid_temperature(state, self.device_class):
+            return None
+        self._non_numeric_logged = False
+        return state
 
     def _numeric_state_required(self) -> bool:
         """Whether HA requires a numeric state (same rule HA applies)."""

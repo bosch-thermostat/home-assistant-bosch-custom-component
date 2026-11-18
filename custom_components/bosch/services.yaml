@@ -20,24 +20,97 @@ update_recordings_sensor:
       integration: bosch
 fetch_recordings_sensor_range:
   description: >-
-    Update thermostat recording/energy sensor manually.
-    Automatically it occurs every 1 hour. Avoid to use it a lot as Bosch gateway might block requests for some time.
+    Fetch one past day, or an inclusive day..end_date range (max 30 days),
+    into recording statistics. Avoid large ranges; the gateway may throttle.
   target:
     device:
       integration: bosch
   fields:
     day:
-      name: Date
-      description: Date to fetch
+      name: Start date
+      description: First local day to fetch
       example: '"2022-03-22"'
+      selector:
+        date:
+    end_date:
+      name: End date
+      description: Last local day to fetch (optional; max 30 days from day)
+      example: '"2022-04-20"'
       selector:
         date:
     statistic_id:
       name: Statistic ID
       description: Statistic ID, you can find proper id in Developer tools -> Statistics in column Statistic id.
-      example: 'recording:recording'
+      example: 'recording:routdoor_t1external'
       selector:
         text:
+repair_energy_statistics:
+  description: >-
+    Re-import the last N full days of EasyControl energy statistics for CH/HW
+    after a field-mapping fix. Never includes today.
+  target:
+    device:
+      integration: bosch
+  fields:
+    days:
+      name: Days
+      description: Number of past days to repair (1-30)
+      default: 7
+      selector:
+        number:
+          min: 1
+          max: 30
+    logical_attr:
+      name: Attribute
+      description: Which energy series to repair
+      default: all
+      selector:
+        select:
+          options:
+            - all
+            - ch
+            - hw
+clear_energy_statistics:
+  description: >-
+    Permanently clear one energy statistic_id. Optionally reimport all history
+    from the gateway afterwards.
+  target:
+    device:
+      integration: bosch
+  fields:
+    statistic_id:
+      name: Statistic ID
+      description: Statistic id from Developer tools → Statistics
+      example: 'energy:gchenergy_central_heatingexternal'
+      selector:
+        text:
+    reimport:
+      name: Reimport
+      description: Fetch all history and write again after clear
+      default: false
+      selector:
+        boolean:
+backfill_environment_energy:
+  description: >-
+    Rebuild recording:renvironmentexternal and
+    recording:rheatingdegreehoursexternal from existing hourly statistics for a
+    local date range (inclusive). Long ranges are processed in 400-day chunks.
+  target:
+    device:
+      integration: bosch
+  fields:
+    start_date:
+      name: Start date
+      description: First local day to backfill
+      required: true
+      selector:
+        date:
+    end_date:
+      name: End date
+      description: Last local day to backfill
+      required: true
+      selector:
+        date:
 set_dhw_charge:
   description: Charge DHW circuit.
   target:

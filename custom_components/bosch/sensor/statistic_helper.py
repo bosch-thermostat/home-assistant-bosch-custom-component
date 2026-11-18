@@ -23,13 +23,10 @@ from homeassistant.components.recorder.statistics import (
     statistics_during_period,
     StatisticsRow,
 )
-
-try:
-    from homeassistant.components.recorder.statistics import StatisticMeanType
-except ImportError:  # HA without mean_type support
-    StatisticMeanType = None
 from homeassistant.util import dt as dt_util
 
+from ..energy_fields import short_statistic_id
+from ..recorder_compat import build_external_statistic_metadata
 from .base import BoschBaseSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,6 +73,12 @@ class StatisticHelper(BoschBaseSensor):
         """Leave the hourly recording schedule."""
         self.coordinator.unregister_recording_entity(self)
 
+    def _ensure_short_id(self) -> str:
+        """Cache short id derived safely from entity_id."""
+        if not self._short_id:
+            self._short_id = short_statistic_id(self.entity_id)
+        return self._short_id
+
     @property
     def _uses_external_statistics(self) -> bool:
         """Whether this sensor writes external long-term statistics."""
@@ -83,12 +86,15 @@ class StatisticHelper(BoschBaseSensor):
 
     async def async_update_recording(self) -> None:
         """Push freshly fetched recording data to HA (called hourly)."""
-        if self._uses_external_statistics:
-            _LOGGER.debug(
-                "Invoking external statistic function for %s.", self.statistic_id
-            )
-            await self._insert_statistics()
-        else:
+        try:
+            if self._uses_external_statistics:
+                _LOGGER.debug(
+                    "Invoking external statistic function for %s.", self.statistic_id
+                )
+                await self._insert_statistics()
+        finally:
+            # Always refresh entity state, even if stats import fails (temps
+            # stayed restored/unavailable when insert raised or wrote nothing).
             self.async_write_ha_state()
 
     async def _insert_statistics(self) -> None:
@@ -110,28 +116,14 @@ class StatisticHelper(BoschBaseSensor):
         """Don't poll; updates are managed by the coordinator or internal logic."""
         return False
 
-    _UNIT_CLASS_MAP = {
-        "kWh": "energy",
-        "Wh": "energy",
-        "kW": "power",
-    }
-
-    def _get_unit_class(self) -> str | None:
-        """Derive unit_class from unit_of_measurement."""
-        return self._UNIT_CLASS_MAP.get(self._unit_of_measurement or "")
-
     @property
     def statistic_metadata(self) -> StatisticMetaData:
         """Statistic Metadata recorder model class."""
-        return StatisticMetaData(
-            has_mean=False,
-            **({"mean_type": StatisticMeanType.NONE} if StatisticMeanType else {}),
-            has_sum=True,
+        return build_external_statistic_metadata(
             name=f"Stats {self._attr_name}",
             source=self._domain_name.lower() if self._domain_name else "bosch",
             statistic_id=self.statistic_id,
             unit_of_measurement=self._unit_of_measurement,
-            unit_class=self._get_unit_class(),
         )
 
     async def get_last_stat(self) -> dict[str, list[StatisticsRow]]:
@@ -162,16 +154,23 @@ class StatisticHelper(BoschBaseSensor):
 
     def add_external_stats(self, stats: list[StatisticData]) -> None:
         """Add external statistics to Home Assistant's recorder."""
-        self._state = -17  # Indicate that data is stored externally
         if not stats:
             return
         async_add_external_statistics(self.hass, self.statistic_metadata, stats)
         self.async_write_ha_state()
 
     def get_last_stats_before_date(
-        self, last_stats: dict[str, list[StatisticsRow]], day: datetime
+        self,
+        last_stats: dict[str, list[StatisticsRow]],
+        day: datetime,
+        *,
+        allow_window_fallback: bool = True,
     ) -> StatisticsRow:
-        """Find the last statistic row before a given date."""
+        """Find the last statistic row before a given date.
+
+        When ``allow_window_fallback`` is False (repair path), never reuse a
+        row from inside the window; return a zero sum anchor instead.
+        """
         day_stamp = datetime_to_timestamp_or_none(day)
         closest_stat: StatisticsRow | None = None
         for stat in last_stats.get(self.statistic_id, []):
@@ -179,10 +178,10 @@ class StatisticHelper(BoschBaseSensor):
             if tstmp is not None and day_stamp is not None and tstmp < day_stamp:
                 if closest_stat is None or tstmp > cast(float, closest_stat.get("start")):
                     closest_stat = stat
-        if not closest_stat and last_stats.get(self.statistic_id):
+        if not closest_stat and allow_window_fallback and last_stats.get(self.statistic_id):
             closest_stat = last_stats[self.statistic_id][-1]
             _LOGGER.debug("Closest stat not found, using last available row.")
-        
+
         if not closest_stat:
             return StatisticsRow(start=0.0, state=0.0, sum=0.0)
         return closest_stat
