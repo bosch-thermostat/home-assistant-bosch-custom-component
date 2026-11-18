@@ -11,6 +11,7 @@ from bosch_thermostat_client import easycontrol_ssl_context
 from bosch_thermostat_client.const import HTTP, XMPP
 from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 from bosch_thermostat_client.exceptions import (
+    DeviceConnectionError,
     DeviceException,
     EncryptionException,
     FirmwareException,
@@ -274,6 +275,24 @@ class BoschGatewayEntry:
             _LOGGER.debug("Error closing Bosch connection: %s", err)
 
     async def async_init_bosch(self) -> bool:
+        """Initialize Bosch gateway module, retrying if the gateway times out."""
+        try:
+            return await self._async_init_bosch()
+        except DeviceConnectionError as err:
+            # Since bosch-thermostat-client 0.29 a request that gets no answer
+            # raises DeviceConnectionError instead of being swallowed. Slow
+            # gateways hit this regularly during setup; it is transient, so
+            # let Home Assistant retry instead of failing the entry for good.
+            _LOGGER.warning(
+                "Bosch gateway %s did not answer during setup, retrying later: %s",
+                self._host,
+                err,
+            )
+            raise ConfigEntryNotReady(
+                f"Bosch gateway {self._host} did not answer during setup: {err}"
+            ) from err
+
+    async def _async_init_bosch(self) -> bool:
         """Initialize Bosch gateway module."""
         _LOGGER.debug("Checking connection to Bosch gateway as %s.", self._host)
         assert self.gateway
